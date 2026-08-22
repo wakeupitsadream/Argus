@@ -488,6 +488,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .map-box {
   min-height: 420px; background: var(--bg2); border: 1px solid var(--line);
   border-radius: var(--radius); overflow: hidden; position: relative;
+  /* свой контекст наложения: внутренние слои Leaflet (z-index 400+) не должны
+     всплывать над липкой кнопкой и шапкой */
+  z-index: 0; isolation: isolate;
 }
 #map { position: absolute; inset: 0; background: var(--bg2); }
 #map .leaflet-tile-pane { filter: saturate(.85) brightness(.92); }
