@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Бронирование — ARGUS Оренбург</title>
+  <meta name="description" content="Выбери клуб, место и время — посчитаем лучший тариф. Бронирование мест в клубах ARGUS Оренбург через LANGAME.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#070907">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="logo" href="index.html" aria-label="ARGUS — на главную">
+        <svg viewBox="0 0 236 76" role="img" aria-label="ARGUS Gaming Club">
+          <polygon points="26,2 236,2 210,74 0,74" fill="#00f201"/>
+          <text x="118" y="42" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-weight="800" font-size="30" letter-spacing="3" fill="#04230a">ARGUS</text>
+          <text x="118" y="62" text-anchor="middle" font-family="Manrope, sans-serif" font-weight="700" font-size="10" letter-spacing="5.5" fill="#04230a">GAMING CLUB</text>
+        </svg>
+      </a>
+      <nav class="topnav" aria-label="Разделы">
+        <a href="index.html">Главная</a>
+        <a href="booking.html">Бронь</a>
+        <a href="kitchen.html">Кухня</a>
+        <a href="info.html">Цены и правила</a>
+      </nav>
+      <a class="btn btn-acid topbar-cta" href="booking.html">Забронировать</a>
+      <button class="burger" id="burger" aria-expanded="false" aria-label="Меню" aria-controls="mobnav"><span></span></button>
+    </div>
+  </header>
+  <nav class="mobnav" id="mobnav" hidden aria-label="Мобильное меню">
+    <a class="mn-link" href="index.html">Главная</a>
+    <a class="mn-link" href="booking.html">Бронь</a>
+    <a class="mn-link" href="kitchen.html">Кухня</a>
+    <a class="mn-link" href="info.html">Цены и правила</a>
+    <a class="btn btn-acid" href="booking.html">Забронировать место</a>
+    <div class="mn-soc">
+      <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">ВКонтакте</a>
+      <a href="https://instagram.com/argus.club" target="_blank" rel="noopener">Instagram</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="wrap page-head">
+      <header class="section-head">
+        <span class="chip-plate">Бронирование</span>
+        <h1>Выбери место — посчитаем лучший тариф</h1>
+        <p>Живая схема залов как в LANGAME: свободные места, честный расчёт по прайсу и подсказка, когда пакет выгоднее почасовой.</p>
+        <p class="live-line"><i class="pulse" aria-hidden="true"></i><span id="live-free">Сейчас в сети свободно …</span><span class="demo-chip">демо-режим</span></p>
+      </header>
+    </div>
+
+    <section class="section booking">
+      <div class="wrap">
+        <div class="step-label"><i>1</i>Клуб</div>
+        <div class="club-tabs" role="tablist" aria-label="Выбор клуба" id="club-tabs"></div>
+
+        <div class="booking-grid">
+          <div class="hall-wrap">
+            <div class="step-label"><i>2</i>Место на схеме</div>
+            <div class="hall-scroll" id="hall-scroll">
+              <div id="hall" aria-live="polite"></div>
+            </div>
+            <div class="hall-legend">
+              <span class="l-free"><i></i>свободно</span>
+              <span class="l-busy"><i></i>занято</span>
+              <span class="l-sel"><i></i>ваш выбор</span>
+            </div>
+            <p class="hall-hint-mobile">Схему можно двигать пальцем →</p>
+            <p class="hall-note" id="hall-note"></p>
+          </div>
+
+          <aside class="calc" aria-label="Расчёт стоимости">
+            <div class="step-label"><i>3</i>Зона и время</div>
+            <p class="seat-pick" id="seat-pick">Кликните по месту на схеме — или просто выберите зону</p>
+            <div class="calc-row">
+              <div class="zone-chips" id="zone-chips"></div>
+            </div>
+            <div class="calc-row">
+              <div class="time-row">
+                <span>приду к</span>
+                <select class="select" id="start-hour" aria-label="Час прихода"></select>
+                <span>на</span>
+                <div class="hours-chips" id="hours-chips"></div>
+              </div>
+            </div>
+
+            <div class="quote-total" id="quote-total" aria-live="polite"></div>
+            <div class="quote-box" id="quote-box"></div>
+            <div class="calc-advice" id="advice" aria-live="polite"></div>
+
+            <div class="calc-cta">
+              <a class="btn btn-acid btn-wide" id="langame-cta" target="_blank" rel="noopener">Забронировать в LANGAME</a>
+              <p class="langame-note">в приложении LANGAME цены ниже на <b>−10%</b></p>
+              <button class="btn btn-ghost btn-wide" id="open-form" type="button">Оставить заявку</button>
+            </div>
+
+            <form class="order-form" id="order-form" hidden novalidate>
+              <div>
+                <input type="text" id="f-name" name="name" placeholder="Ваше имя" autocomplete="name">
+                <p class="form-error" id="e-name"></p>
+              </div>
+              <div>
+                <input type="tel" id="f-phone" name="phone" placeholder="+7 ___ ___-__-__" inputmode="tel" autocomplete="tel">
+                <p class="form-error" id="e-phone"></p>
+              </div>
+              <!-- honeypot: люди это поле не видят и не заполняют -->
+              <input class="hp" type="text" name="website" id="f-website" tabindex="-1" autocomplete="off" aria-hidden="true">
+              <label class="consent" id="consent-row">
+                <input type="checkbox" id="f-consent">
+                <span>Согласен на обработку персональных данных и принимаю <a href="privacy.html" target="_blank" rel="noopener">политику конфиденциальности</a></span>
+              </label>
+              <button class="btn btn-acid btn-wide" type="submit">Отправить заявку</button>
+            </form>
+
+            <div class="order-done" id="order-done" hidden>
+              <h4>Заявка принята</h4>
+              <p>Мы свяжемся с вами, чтобы подтвердить бронь. Быстрее всего — написать нам во <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener" style="color:var(--text)">«ВКонтакте»</a>.</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-top">
+        <div><b>ARGUS</b> — сеть игровых клубов, Оренбург · круглосуточно</div>
+        <div class="soc">
+          <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">ВКонтакте</a>
+          <a href="https://instagram.com/argus.club" target="_blank" rel="noopener">Instagram</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>Демо-версия сайта. Занятость мест — симуляция; актуальная информация — в <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">группе ВКонтакте</a>.</span>
+        <a href="privacy.html">Политика конфиденциальности</a>
+        <span class="dev">Дизайн и разработка — <a href="https://maxim-batutin.ru" target="_blank" rel="noopener">maxim-batutin.ru</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { initHeader } from './assets/ui.js';
+    import { initBooking } from './assets/booking.js';
+    initHeader();
+    initBooking();
+  </script>
+</body>
+</html>

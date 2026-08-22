@@ -6,17 +6,23 @@
 
 Документ для переговоров с владельцем — [BRIEF.md](BRIEF.md).
 
-## Стек
+## Стек и структура
 
-Статика без сборки: `index.html` + ES-модули + serverless-функции Vercel.
+Статика без сборки: HTML-страницы + ES-модули + serverless-функции Vercel.
 
 ```
-index.html          — одностраничник
+index.html          — главная (hero, зоны, акции, кухня-тизер, карта)
+booking.html        — бронирование: схема залов + калькулятор + заявка
+kitchen.html        — кухня (меню)
+info.html           — цены и правила
+admin.html          — админка (демо-PIN 2025): KPI, графики, компы, журнал
 privacy.html        — политика конфиденциальности (152-ФЗ)
 assets/data.js      — все данные: клубы, зоны, прайс, меню, правила
 assets/pricing.js   — калькулятор тарифов (чистые функции, юнит-тесты)
 assets/occupancy.js — демо-симуляция занятости; контракт будущего LANGAME-модуля
-assets/app.js       — DOM-слой: схема залов (SVG), расчёт, форма, карта
+assets/admin-sim.js — демо-показатели админки (детерминированные)
+assets/booking.js   — DOM-слой брони; render.js/ui.js — общие рендеры и навигация
+assets/admin.js     — админка: PIN-гейт, графики SVG, журнал в localStorage
 api/order.js        — заявка → Telegram (graceful без env)
 test/               — node --test, без внешних зависимостей
 ```

@@ -80,12 +80,12 @@ export const CLUBS = [
     hasPs5Room: true,
     layoutNote: 'Схема зала условная — реальную рассадку уточняем у клуба',
     zonesLayout: [
-      { zone: 'comfort', prefix: 'C', count: 18, grid: { cols: 6, x: 30,  y: 150, gapX: 58, gapY: 66 } },
-      { zone: 'vip',     prefix: 'V', count: 8,  grid: { cols: 4, x: 30,  y: 380, gapX: 58, gapY: 66 } },
-      { zone: 'stream',  prefix: 'S', count: 4,  grid: { cols: 4, x: 300, y: 380, gapX: 58, gapY: 66 } },
-      { zone: 'ps5',     prefix: 'P', count: 1,  room: { x: 396, y: 48, w: 132, h: 84 } },
+      { zone: 'comfort', prefix: 'C', count: 18, grid: { cols: 6, x: 30,  y: 150, gapX: 58, gapY: 72 } },
+      { zone: 'vip',     prefix: 'V', count: 8,  grid: { cols: 4, x: 30,  y: 392, gapX: 58, gapY: 72 } },
+      { zone: 'stream',  prefix: 'S', count: 4,  grid: { cols: 4, x: 300, y: 392, gapX: 58, gapY: 72 } },
+      { zone: 'ps5',     prefix: 'P', count: 1,  room: { x: 396, y: 44, w: 132, h: 84 } },
     ],
-    plan: { w: 560, h: 530 },
+    plan: { w: 560, h: 552 },
   },
   {
     id: 'lenin',
@@ -99,11 +99,11 @@ export const CLUBS = [
     hasPs5Room: false,
     layoutNote: 'Схема зала условная — реальную рассадку уточняем у клуба',
     zonesLayout: [
-      { zone: 'comfort', prefix: 'C', count: 14, grid: { cols: 7, x: 30,  y: 150, gapX: 58, gapY: 66 } },
-      { zone: 'vip',     prefix: 'V', count: 5,  grid: { cols: 5, x: 30,  y: 350, gapX: 58, gapY: 66 } },
-      { zone: 'stream',  prefix: 'S', count: 2,  grid: { cols: 2, x: 396, y: 350, gapX: 58, gapY: 66 } },
+      { zone: 'comfort', prefix: 'C', count: 14, grid: { cols: 7, x: 30,  y: 150, gapX: 58, gapY: 72 } },
+      { zone: 'vip',     prefix: 'V', count: 5,  grid: { cols: 5, x: 30,  y: 356, gapX: 58, gapY: 72 } },
+      { zone: 'stream',  prefix: 'S', count: 2,  grid: { cols: 2, x: 396, y: 356, gapX: 58, gapY: 72 } },
     ],
-    plan: { w: 560, h: 470 },
+    plan: { w: 560, h: 476 },
   },
 ];
 

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Кухня — ARGUS Оренбург</title>
+  <meta name="description" content="Своя кухня в клубах ARGUS Оренбург: горячая еда, напитки и сладкое прямо к игровому месту. Авторский чай и паровые коктейли.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#070907">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="logo" href="index.html" aria-label="ARGUS — на главную">
+        <svg viewBox="0 0 236 76" role="img" aria-label="ARGUS Gaming Club">
+          <polygon points="26,2 236,2 210,74 0,74" fill="#00f201"/>
+          <text x="118" y="42" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-weight="800" font-size="30" letter-spacing="3" fill="#04230a">ARGUS</text>
+          <text x="118" y="62" text-anchor="middle" font-family="Manrope, sans-serif" font-weight="700" font-size="10" letter-spacing="5.5" fill="#04230a">GAMING CLUB</text>
+        </svg>
+      </a>
+      <nav class="topnav" aria-label="Разделы">
+        <a href="index.html">Главная</a>
+        <a href="booking.html">Бронь</a>
+        <a href="kitchen.html">Кухня</a>
+        <a href="info.html">Цены и правила</a>
+      </nav>
+      <a class="btn btn-acid topbar-cta" href="booking.html">Забронировать</a>
+      <button class="burger" id="burger" aria-expanded="false" aria-label="Меню" aria-controls="mobnav"><span></span></button>
+    </div>
+  </header>
+  <nav class="mobnav" id="mobnav" hidden aria-label="Мобильное меню">
+    <a class="mn-link" href="index.html">Главная</a>
+    <a class="mn-link" href="booking.html">Бронь</a>
+    <a class="mn-link" href="kitchen.html">Кухня</a>
+    <a class="mn-link" href="info.html">Цены и правила</a>
+    <a class="btn btn-acid" href="booking.html">Забронировать место</a>
+    <div class="mn-soc">
+      <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">ВКонтакте</a>
+      <a href="https://instagram.com/argus.club" target="_blank" rel="noopener">Instagram</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="wrap page-head">
+      <header class="section-head">
+        <span class="chip-plate">Кухня</span>
+        <h1>Своя кухня — готовим, пока ты играешь</h1>
+        <p>Горячая еда, напитки и сладкое прямо к игровому месту. Заказ у администратора — принесём, не отрывая от катки.</p>
+        <span class="demo-chip" id="menu-note"></span>
+      </header>
+    </div>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="menu-grid" id="menu-grid"></div>
+        <div class="section-cta">
+          <a class="btn btn-acid" href="booking.html">Забронировать место</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-top">
+        <div><b>ARGUS</b> — сеть игровых клубов, Оренбург · круглосуточно</div>
+        <div class="soc">
+          <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">ВКонтакте</a>
+          <a href="https://instagram.com/argus.club" target="_blank" rel="noopener">Instagram</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>Демо-версия сайта. Актуальная информация — в <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">группе ВКонтакте</a>.</span>
+        <a href="privacy.html">Политика конфиденциальности</a>
+        <span class="dev">Дизайн и разработка — <a href="https://maxim-batutin.ru" target="_blank" rel="noopener">maxim-batutin.ru</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <div class="sticky-cta" id="sticky-cta">
+    <a class="btn btn-acid" href="booking.html">Забронировать место</a>
+  </div>
+
+  <script type="module">
+    import { initHeader, initStickyCta } from './assets/ui.js';
+    import { renderMenu } from './assets/render.js';
+    import { MENU } from './assets/data.js';
+    initHeader();
+    initStickyCta();
+    renderMenu(document.getElementById('menu-grid'));
+    document.getElementById('menu-note').textContent = MENU.disclaimer;
+  </script>
+</body>
+</html>

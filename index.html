@@ -20,8 +20,7 @@
 
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <a class="logo" href="#top" aria-label="ARGUS Gaming Club — наверх">
-        <!-- Плашка-параллелограмм из фирменного лого, отрисована вектором -->
+      <a class="logo" href="index.html" aria-label="ARGUS — на главную">
         <svg viewBox="0 0 236 76" role="img" aria-label="ARGUS Gaming Club">
           <polygon points="26,2 236,2 210,74 0,74" fill="#00f201"/>
           <text x="118" y="42" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-weight="800" font-size="30" letter-spacing="3" fill="#04230a">ARGUS</text>
@@ -29,19 +28,28 @@
         </svg>
       </a>
       <nav class="topnav" aria-label="Разделы">
-        <a href="#booking">Бронь</a>
-        <a href="#zones">Зоны</a>
-        <a href="#prices">Цены</a>
-        <a href="#promos">Акции</a>
-        <a href="#menu">Кухня</a>
-        <a href="#clubs">Клубы</a>
+        <a href="index.html">Главная</a>
+        <a href="booking.html">Бронь</a>
+        <a href="kitchen.html">Кухня</a>
+        <a href="info.html">Цены и правила</a>
       </nav>
-      <a class="btn btn-acid" href="#booking"><span>Забронировать</span></a>
+      <a class="btn btn-acid topbar-cta" href="booking.html">Забронировать</a>
+      <button class="burger" id="burger" aria-expanded="false" aria-label="Меню" aria-controls="mobnav"><span></span></button>
     </div>
   </header>
+  <nav class="mobnav" id="mobnav" hidden aria-label="Мобильное меню">
+    <a class="mn-link" href="index.html">Главная</a>
+    <a class="mn-link" href="booking.html">Бронь</a>
+    <a class="mn-link" href="kitchen.html">Кухня</a>
+    <a class="mn-link" href="info.html">Цены и правила</a>
+    <a class="btn btn-acid" href="booking.html">Забронировать место</a>
+    <div class="mn-soc">
+      <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">ВКонтакте</a>
+      <a href="https://instagram.com/argus.club" target="_blank" rel="noopener">Instagram</a>
+    </div>
+  </nav>
 
-  <main id="top">
-
+  <main>
     <!-- ======== HERO ======== -->
     <section class="hero">
       <div class="wrap hero-inner">
@@ -49,23 +57,23 @@
           <p class="hero-kicker rise rise-1">Оренбург · 2 клуба · круглосуточно</p>
           <h1 class="rise rise-2">Сеть игровых<br>клубов <span class="acid">ARGUS</span></h1>
           <p class="hero-sub rise rise-3">51 ПК на RTX 50-й серии, мониторы до 400 Гц, отдельная PS5-комната и своя кухня — готовим, пока ты играешь.</p>
-          <div class="hero-stats rise rise-4">
-            <div class="stat">
-              <span class="stat-num"><i class="pulse" aria-hidden="true"></i><span id="hero-free">—</span></span>
-              <span class="stat-label" id="hero-free-label">мест свободно сейчас<sup>демо</sup></span>
+          <div class="stats-bar rise rise-4">
+            <div class="sb-item">
+              <span class="sb-num"><i class="pulse" aria-hidden="true"></i><span id="hero-free">—</span></span>
+              <span class="sb-label" id="hero-free-label">мест свободно · демо</span>
             </div>
-            <div class="stat">
-              <span class="stat-num">24/7</span>
-              <span class="stat-label">без выходных</span>
+            <div class="sb-item">
+              <span class="sb-num">24/7</span>
+              <span class="sb-label">без выходных</span>
             </div>
-            <div class="stat">
-              <span class="stat-num">51+PS5</span>
-              <span class="stat-label">ПК в двух клубах</span>
+            <div class="sb-item">
+              <span class="sb-num">51<small>+PS5</small></span>
+              <span class="sb-label">ПК в двух клубах</span>
             </div>
           </div>
           <div class="hero-cta rise rise-5">
-            <a class="btn btn-acid" href="#booking"><span>Выбрать место</span></a>
-            <a class="btn btn-ghost" href="#clubs"><span>Наши клубы</span></a>
+            <a class="btn btn-acid" href="booking.html">Выбрать место</a>
+            <a class="btn btn-ghost" href="#clubs">Наши клубы</a>
           </div>
         </div>
         <div class="hero-art rise rise-3">
@@ -74,108 +82,18 @@
       </div>
     </section>
 
-    <!-- ======== БРОНИРОВАНИЕ ======== -->
-    <section id="booking" class="section booking">
-      <div class="wrap">
-        <header class="section-head">
-          <span class="chip-plate"><span>01 · Бронь</span></span>
-          <h2>Выбери место — посчитаем лучший тариф</h2>
-          <p>Живая схема залов как в LANGAME: свободные места, честный расчёт по прайсу и подсказка, когда пакет выгоднее почасовой.</p>
-          <span class="demo-chip">демо-режим: занятость мест примерная</span>
-        </header>
-
-        <div class="club-tabs" role="tablist" aria-label="Выбор клуба" id="club-tabs"></div>
-
-        <div class="booking-grid">
-          <div class="hall-wrap">
-            <div class="hall-scroll" id="hall-scroll">
-              <div id="hall" aria-live="polite"></div>
-            </div>
-            <div class="hall-legend">
-              <span class="l-free"><i></i>свободно</span>
-              <span class="l-busy"><i></i>занято</span>
-              <span class="l-sel"><i></i>ваш выбор</span>
-            </div>
-            <p class="hall-hint-mobile">Схему можно двигать пальцем →</p>
-            <p class="hall-note" id="hall-note"></p>
-          </div>
-
-          <aside class="calc" aria-label="Расчёт стоимости">
-            <h3>Расчёт визита</h3>
-            <p class="seat-pick" id="seat-pick">Выберите место на схеме или зону ниже</p>
-            <div class="calc-row">
-              <label for="zone-chips">Зона</label>
-              <div class="zone-chips" id="zone-chips"></div>
-            </div>
-            <div class="calc-row">
-              <label>Время</label>
-              <div class="time-row">
-                <span>приду к</span>
-                <select class="select" id="start-hour" aria-label="Час прихода"></select>
-                <span>на</span>
-                <div class="hours-chips" id="hours-chips"></div>
-              </div>
-            </div>
-            <div class="quote-box" id="quote-box" aria-live="polite"></div>
-            <div class="calc-advice" id="advice" aria-live="polite"></div>
-            <div class="calc-cta">
-              <a class="btn btn-acid" id="langame-cta" target="_blank" rel="noopener"><span>Забронировать в LANGAME</span></a>
-              <p class="langame-note">в приложении LANGAME цены ниже на <b>−10%</b></p>
-              <button class="btn btn-ghost" id="open-form" type="button"><span>Оставить заявку</span></button>
-            </div>
-
-            <form class="order-form" id="order-form" hidden novalidate>
-              <div>
-                <input type="text" id="f-name" name="name" placeholder="Ваше имя" autocomplete="name">
-                <p class="form-error" id="e-name"></p>
-              </div>
-              <div>
-                <input type="tel" id="f-phone" name="phone" placeholder="+7 ___ ___-__-__" inputmode="tel" autocomplete="tel">
-                <p class="form-error" id="e-phone"></p>
-              </div>
-              <!-- honeypot: люди это поле не видят и не заполняют -->
-              <input class="hp" type="text" name="website" id="f-website" tabindex="-1" autocomplete="off" aria-hidden="true">
-              <label class="consent" id="consent-row">
-                <input type="checkbox" id="f-consent">
-                <span>Согласен на обработку персональных данных и принимаю <a href="privacy.html" target="_blank" rel="noopener">политику конфиденциальности</a></span>
-              </label>
-              <button class="btn btn-acid" type="submit"><span>Отправить заявку</span></button>
-            </form>
-
-            <div class="order-done" id="order-done" hidden>
-              <h4>Заявка принята</h4>
-              <p id="order-done-text">Мы свяжемся с вами, чтобы подтвердить бронь. Быстрее всего — написать нам во «ВКонтакте».</p>
-            </div>
-          </aside>
-        </div>
-      </div>
-    </section>
-
     <!-- ======== ЗОНЫ ======== -->
     <section id="zones" class="section zones">
       <div class="wrap">
         <header class="section-head">
-          <span class="chip-plate"><span>02 · Железо</span></span>
+          <span class="chip-plate">Железо</span>
           <h2>Зоны и железо</h2>
         </header>
         <div class="zones-grid" id="zones-grid"></div>
-      </div>
-    </section>
-
-    <!-- ======== ПРАЙС ======== -->
-    <section id="prices" class="section prices">
-      <div class="wrap">
-        <header class="section-head">
-          <span class="chip-plate"><span>03 · Цены</span></span>
-          <h2>Прайс-лист</h2>
-        </header>
-        <div class="price-toggle" role="group" aria-label="Время суток">
-          <button type="button" data-window="day" id="pt-day">Утро / день · 6:00–18:00</button>
-          <button type="button" data-window="night" id="pt-night">Вечер / ночь · 18:00–6:00</button>
+        <div class="section-cta">
+          <a class="btn btn-acid" href="booking.html">Забронировать место</a>
+          <a class="btn btn-ghost" href="info.html">Смотреть цены</a>
         </div>
-        <div class="price-pane" id="price-day" data-window="day"></div>
-        <div class="price-pane" id="price-night" data-window="night"></div>
-        <p class="price-note">Пакет «День» — 10:00–18:00, «Ночь» — 22:00–10:00, «Без сна» — 2:00–10:00. Почасовой дневной тариф действует с 6:00 до 18:00, ночной — с 18:00 до 6:00. Тариф PS5-комнаты уточняйте у администратора или в LANGAME.</p>
       </div>
     </section>
 
@@ -183,23 +101,25 @@
     <section id="promos" class="section promos">
       <div class="wrap">
         <header class="section-head">
-          <span class="chip-plate"><span>04 · Акции</span></span>
+          <span class="chip-plate">Акции</span>
           <h2>Фирменное и выгодное</h2>
         </header>
         <div class="promos-grid" id="promos-grid"></div>
       </div>
     </section>
 
-    <!-- ======== КУХНЯ ======== -->
-    <section id="menu" class="section menu">
+    <!-- ======== КУХНЯ-ТИЗЕР ======== -->
+    <section id="kitchen-teaser" class="section">
       <div class="wrap">
-        <header class="section-head">
-          <span class="chip-plate"><span>05 · Кухня</span></span>
-          <h2>Своя кухня — готовим, пока ты играешь</h2>
-          <p>Горячая еда, напитки и сладкое прямо к игровому месту. Заказ у администратора — принесём, не отрывая от катки.</p>
-          <span class="demo-chip" id="menu-note"></span>
-        </header>
-        <div class="menu-grid" id="menu-grid"></div>
+        <div class="kitchen-teaser">
+          <div>
+            <span class="chip-plate">Кухня</span>
+            <h3 style="margin-top:14px">Готовим, пока ты играешь</h3>
+            <p>Своя кухня в обоих клубах: горячая еда, напитки и сладкое — прямо к игровому месту, не отрываясь от катки.</p>
+            <a class="btn btn-acid" href="kitchen.html">Смотреть меню</a>
+          </div>
+          <div class="kt-items" id="kt-items"></div>
+        </div>
       </div>
     </section>
 
@@ -207,7 +127,7 @@
     <section id="clubs" class="section clubs">
       <div class="wrap">
         <header class="section-head">
-          <span class="chip-plate"><span>06 · Где мы</span></span>
+          <span class="chip-plate">Где мы</span>
           <h2>Два клуба в Оренбурге</h2>
         </header>
         <div class="clubs-layout">
@@ -216,26 +136,12 @@
         </div>
       </div>
     </section>
-
-    <!-- ======== ПРАВИЛА ======== -->
-    <section id="rules" class="section rules">
-      <div class="wrap">
-        <header class="section-head">
-          <span class="chip-plate"><span>07 · Правила</span></span>
-          <h2>Правила посещения</h2>
-        </header>
-        <div class="rules-list" id="rules-list"></div>
-      </div>
-    </section>
   </main>
 
-  <!-- ======== ФУТЕР ======== -->
   <footer class="footer">
     <div class="wrap footer-inner">
       <div class="footer-top">
-        <div>
-          <b>ARGUS</b> — сеть игровых клубов, Оренбург · круглосуточно
-        </div>
+        <div><b>ARGUS</b> — сеть игровых клубов, Оренбург · круглосуточно</div>
         <div class="soc">
           <a href="https://vk.com/argusorenburg" target="_blank" rel="noopener">ВКонтакте</a>
           <a href="https://instagram.com/argus.club" target="_blank" rel="noopener">Instagram</a>
@@ -250,10 +156,35 @@
   </footer>
 
   <div class="sticky-cta" id="sticky-cta">
-    <a class="btn btn-acid" href="#booking"><span>Забронировать место</span></a>
+    <a class="btn btn-acid" href="booking.html">Забронировать место</a>
   </div>
 
   <script src="assets/vendor/leaflet/leaflet.js" defer></script>
-  <script type="module" src="assets/app.js"></script>
+  <script type="module">
+    import { initHeader, initStickyCta } from './assets/ui.js';
+    import { renderZones, renderPromos, renderClubCards, initMapLazy, menuItemHtml } from './assets/render.js';
+    import { CLUBS, MENU } from './assets/data.js';
+    import { plural } from './assets/pricing.js';
+    import { totalFree } from './assets/occupancy.js';
+
+    initHeader();
+    initStickyCta();
+    renderZones(document.getElementById('zones-grid'));
+    renderPromos(document.getElementById('promos-grid'));
+    renderClubCards(document.getElementById('club-cards'));
+    initMapLazy();
+
+    const teaser = [...MENU.sections[0].items, ...MENU.sections[1].items.slice(0, 2)];
+    document.getElementById('kt-items').innerHTML = teaser.map(menuItemHtml).join('');
+
+    const updateFree = () => {
+      const free = totalFree(CLUBS, new Date());
+      document.getElementById('hero-free').textContent = free;
+      document.getElementById('hero-free-label').textContent =
+        `${plural(free, 'место свободно', 'места свободно', 'мест свободно')} · демо`;
+    };
+    updateFree();
+    setInterval(updateFree, 60_000);
+  </script>
 </body>
 </html>

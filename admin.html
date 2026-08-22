@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админка — ARGUS</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#070907">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/admin.css">
+</head>
+<body class="admin-body">
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- ======== PIN ======== -->
+  <div class="pin-gate" id="pin-gate">
+    <form class="pin-card" id="pin-form">
+      <svg class="logo-svg" viewBox="0 0 236 76" role="img" aria-label="ARGUS">
+        <polygon points="26,2 236,2 210,74 0,74" fill="#00f201"/>
+        <text x="118" y="42" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-weight="800" font-size="30" letter-spacing="3" fill="#04230a">ARGUS</text>
+        <text x="118" y="62" text-anchor="middle" font-family="Manrope, sans-serif" font-weight="700" font-size="10" letter-spacing="5.5" fill="#04230a">GAMING CLUB</text>
+      </svg>
+      <h1>Панель управления</h1>
+      <p>Введите PIN-код для входа</p>
+      <input class="pin-input" id="pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="····" aria-label="PIN-код">
+      <button class="btn btn-acid" type="submit">Войти</button>
+      <p class="pin-hint">Демо-доступ: PIN <b>2025</b>. Это защита от случайных глаз; полноценная авторизация — в боевой версии с бэкендом.</p>
+    </form>
+  </div>
+
+  <!-- ======== АДМИНКА ======== -->
+  <div class="admin-app" id="admin-app" hidden>
+    <header class="admin-topbar">
+      <div class="wrap admin-topbar-inner">
+        <div class="admin-title">
+          <svg viewBox="0 0 236 76" role="img" aria-label="ARGUS">
+            <polygon points="26,2 236,2 210,74 0,74" fill="#00f201"/>
+            <text x="118" y="46" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-weight="800" font-size="34" letter-spacing="3" fill="#04230a">ARGUS</text>
+          </svg>
+          <span class="at-name">Панель управления</span>
+          <span class="demo-chip">демо-данные</span>
+        </div>
+        <div class="admin-controls">
+          <select class="select" id="club-filter" aria-label="Клуб">
+            <option value="all">Оба клуба</option>
+          </select>
+          <select class="select" id="period-filter" aria-label="Период">
+            <option value="7">7 дней</option>
+            <option value="14" selected>14 дней</option>
+            <option value="30">30 дней</option>
+          </select>
+          <a class="admin-link" href="index.html">← На сайт</a>
+          <button class="admin-link" id="logout" type="button">Выйти</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap admin-main">
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="panel-row">
+        <div class="panel-card">
+          <div class="chart-head">
+            <h3>Выручка по дням</h3>
+            <span class="ch-sub" id="rev-sub"></span>
+          </div>
+          <div id="rev-chart"></div>
+        </div>
+        <div class="panel-card">
+          <div class="chart-head">
+            <h3>Загрузка по часам</h3>
+            <span class="ch-sub">сегодня · прогноз из профиля</span>
+          </div>
+          <div id="hours-chart"></div>
+        </div>
+      </div>
+
+      <div class="panel-row-2">
+        <div class="panel-card">
+          <div class="chart-head">
+            <h3>Выручка по зонам</h3>
+            <span class="ch-sub" id="zones-sub"></span>
+          </div>
+          <div class="hbar-list" id="zones-bars"></div>
+        </div>
+        <div class="panel-card">
+          <div class="chart-head">
+            <h3>Топ кухни</h3>
+            <span class="ch-sub" id="kitchen-sub"></span>
+          </div>
+          <div class="hbar-list" id="kitchen-bars"></div>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="chart-head">
+          <h3>Компы</h3>
+          <span class="ch-sub">клик по месту — пометить «на обслуживании»</span>
+        </div>
+        <div id="seats-board"></div>
+        <p class="seats-note">Статусы свободно/занято — демо-симуляция. Пометки «обслуживание» сохраняются локально в этом браузере.</p>
+      </div>
+
+      <div class="panel-card">
+        <div class="chart-head">
+          <h3>Журнал операций</h3>
+          <span class="ch-sub">локальный учёт · хранится в этом браузере</span>
+        </div>
+        <form class="ledger-form" id="ledger-form">
+          <div class="type-toggle lf-type" role="group" aria-label="Тип операции">
+            <button type="button" class="tt-in" id="tt-in" aria-pressed="true">+ Доход</button>
+            <button type="button" class="tt-out" id="tt-out" aria-pressed="false">− Расход</button>
+          </div>
+          <input type="text" id="op-sum" inputmode="numeric" placeholder="Сумма, ₽" aria-label="Сумма">
+          <select id="op-cat" aria-label="Категория"></select>
+          <input class="lf-note" type="text" id="op-note" placeholder="Комментарий (необязательно)" aria-label="Комментарий">
+          <button class="btn btn-acid" type="submit">Добавить</button>
+        </form>
+        <div class="ledger-totals" id="ledger-totals"></div>
+        <div class="ledger-table-wrap" id="ledger-table"></div>
+        <div class="ledger-actions">
+          <button class="btn btn-ghost" id="export-csv" type="button">Экспорт CSV</button>
+          <span class="ledger-note">Демо-режим: записи живут в localStorage этого браузера. В боевой версии — общая база и роли сотрудников.</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="chart-tip" id="chart-tip" hidden></div>
+
+  <script type="module" src="assets/admin.js"></script>
+</body>
+</html>
