@@ -1,0 +1,9 @@
+{
+  "name": "argus-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx -y serve -l 3000 .",
+    "test": "node --test"
+  }
+}
