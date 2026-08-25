@@ -42,7 +42,19 @@ export default async function handler(req, res) {
         ...(q.origin ? { Origin: String(q.origin), Referer: String(q.origin) + '/' } : {}),
       },
     });
-    const text = await r.text();
+    let text = await r.text();
+    // mode=text: режем разметку на сервере — на порядок меньше трафика
+    if (q.mode === 'text') {
+      text = text
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, '\n')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .split('\n').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)
+        .join('\n');
+    }
     return res.status(200).json({
       ok: true,
       status: r.status,
