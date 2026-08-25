@@ -1,0 +1,9 @@
+{
+  "name": "tribuna56",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx -y serve -l 3456 .",
+    "test": "node --test"
+  }
+}

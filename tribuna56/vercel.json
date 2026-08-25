@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    { "source": "/match/:id", "destination": "/match.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/import", "schedule": "0 3 * * *" }
+  ],
+  "functions": {
+    "api/admin/import.js": { "maxDuration": 60 },
+    "api/cron/import.js": { "maxDuration": 60 }
+  }
+}

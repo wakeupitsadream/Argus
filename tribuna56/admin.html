@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Админка · Трибуна 56</title>
+  <meta name="theme-color" content="#0b0e15">
+  <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/admin.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="/">ТРИБУНА <b>56</b></a>
+    <span style="margin-left:auto; color:var(--muted); font-size:13px; font-weight:700">Админка</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="gate" id="gate">
+    <form class="gate-card" id="gate-form">
+      <h1>Вход в админку</h1>
+      <div class="field">
+        <label for="gate-token">Токен доступа</label>
+        <input type="password" id="gate-token" autocomplete="current-password" placeholder="ADMIN_TOKEN">
+      </div>
+      <button class="btn" type="submit" style="width:100%">Войти</button>
+      <p class="gate-error" id="gate-error"></p>
+    </form>
+  </section>
+
+  <section id="app" hidden>
+    <div class="admin-top">
+      <nav class="admin-tabs" id="tabs">
+        <button class="admin-tab is-active" data-tab="matches">Матчи <span class="cnt" id="cnt-matches"></span></button>
+        <button class="admin-tab" data-tab="import">Импорт <span class="cnt" id="cnt-import"></span></button>
+        <button class="admin-tab" data-tab="requests">Заявки <span class="cnt" id="cnt-requests"></span></button>
+      </nav>
+      <button class="mini-btn admin-logout" id="btn-logout" type="button">Выйти</button>
+    </div>
+    <div id="pane-matches"></div>
+    <div id="pane-import" hidden></div>
+    <div id="pane-requests" hidden></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module" src="/assets/admin.js"></script>
+</body>
+</html>
