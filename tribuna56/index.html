@@ -6,6 +6,13 @@
   <title>Трибуна+ — трансляции детского спорта в Оренбурге</title>
   <meta name="description" content="Прямые трансляции, хайлайты и персональная съемка детских спортивных матчей в Оренбурге. Выберите матч из каталога — остальное сделаем мы.">
   <meta name="theme-color" content="#f2f6fc">
+  <script>
+    try {
+      var t56t = localStorage.getItem('t56_theme');
+      document.documentElement.dataset.theme = t56t ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch (e) { document.documentElement.dataset.theme = 'light'; }
+  </script>
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,6 +54,7 @@
       <a href="#contacts">Контакты</a>
     </nav>
     <a class="header-phone" data-bind="phone-link" href="tel:+79000000000">+7 900 000-00-00</a>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Темная тема"></button>
     <button class="burger" id="burger" aria-label="Меню" aria-expanded="false">☰</button>
   </div>
 </header>

@@ -5,7 +5,7 @@ import { SPORTS, SERVICES, sportLabel } from './data.js';
 import { formatMatchDate, TZ } from './format.js';
 import { formatRub, plural } from './pricing.js';
 import { STATUS_LABELS, displayStatus } from './catalog.js';
-import { esc, toast } from './ui.js';
+import { esc, toast, initThemeToggle } from './ui.js';
 
 const TOKEN_KEY = 't56_admin_token';
 const state = {
@@ -449,6 +449,7 @@ function initTabs() {
 }
 
 function init() {
+  initThemeToggle();
   initTabs();
   $('gate-form').addEventListener('submit', (e) => {
     e.preventDefault();

@@ -5,7 +5,7 @@ import { filterMatches, groupByDay, displayStatus, STATUS_LABELS, ageGroups } fr
 import { formatTime, formatDayLabel, dateKey, vkEmbedUrl, TZ } from './format.js';
 import { formatRub, plural, quoteServices } from './pricing.js';
 import { demoMatches } from './demo-matches.js';
-import { initNav, initStickyCta, fillBrand, esc, icon } from './ui.js';
+import { initNav, initStickyCta, initThemeToggle, fillBrand, esc, icon } from './ui.js';
 import { mountRequestForm } from './request-form.js';
 
 const store = {
@@ -241,6 +241,7 @@ function selectMatch(m) {
 function init() {
   fillBrand();
   initNav();
+  initThemeToggle();
   initStickyCta();
   renderStatic();
   form = mountRequestForm(document.getElementById('request-form'), {

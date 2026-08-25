@@ -6,6 +6,13 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Политика конфиденциальности · Трибуна+</title>
   <meta name="theme-color" content="#f2f6fc">
+  <script>
+    try {
+      var t56t = localStorage.getItem('t56_theme');
+      document.documentElement.dataset.theme = t56t ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch (e) { document.documentElement.dataset.theme = 'light'; }
+  </script>
   <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,6 +36,7 @@
 <header class="site-header">
   <div class="wrap">
     <a class="logo" href="/">ТРИБУНА<b>+</b></a>
+    <button class="theme-toggle" id="theme-toggle" type="button" style="margin-left:auto" aria-label="Темная тема"></button>
   </div>
 </header>
 
@@ -110,5 +118,9 @@
   </div>
 </footer>
 
+<script type="module">
+  import { initThemeToggle } from '/assets/ui.js';
+  initThemeToggle();
+</script>
 </body>
 </html>

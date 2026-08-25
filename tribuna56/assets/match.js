@@ -6,7 +6,7 @@ import { BRAND, sportLabel } from './data.js';
 import { displayStatus, STATUS_LABELS } from './catalog.js';
 import { formatMatchDate, vkEmbedUrl } from './format.js';
 import { demoMatches } from './demo-matches.js';
-import { initNav, fillBrand, toast, esc, icon } from './ui.js';
+import { initNav, initThemeToggle, fillBrand, toast, esc, icon } from './ui.js';
 import { mountRequestForm } from './request-form.js';
 
 const root = document.getElementById('match-root');
@@ -156,6 +156,7 @@ function renderNotFound(unavailable) {
 async function init() {
   fillBrand();
   initNav();
+  initThemeToggle();
   const id = matchIdFromUrl();
   if (!Number.isInteger(id) || id <= 0) return renderNotFound(false);
   const result = await loadMatch(id);

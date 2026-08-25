@@ -29,6 +29,33 @@
   --tv-accent: #7fb5ff;
 }
 
+/* Темная тема: тот же синий бренд на глубоком navy. Атрибут data-theme
+   ставит инлайн-скрипт в <head> каждой страницы (сохраненный выбор
+   пользователя либо prefers-color-scheme) — до первой отрисовки. */
+html[data-theme="dark"] {
+  --bg: #0a1220;
+  --bg-2: #111c30;
+  --card: #131f36;
+  --card-2: #182642;
+  --line: #263852;
+  --ink: #edf3fc;
+  --muted: #93a4c0;
+  --brand: #5798ff;
+  --brand-dim: #7fb1ff;
+  --brand-ink: #071831;
+  --live: #ff5f66;
+  --ok: #38cf82;
+  --warn: #ffc257;
+  --shadow: 0 18px 46px rgba(0, 0, 0, .5);
+  --tv-line: #2c4a7c;
+}
+html[data-theme="dark"] body::after { mix-blend-mode: overlay; opacity: .06; }
+html[data-theme="dark"] .site-header { background: rgba(10, 18, 32, .84); }
+html[data-theme="dark"] .badge-live { color: #ff8b90; }
+html[data-theme="dark"] .badge-today { color: #ffce73; }
+html[data-theme="dark"] .badge-upcoming { color: #9fc2f7; }
+html[data-theme="dark"] .btn:hover { box-shadow: 0 10px 26px rgba(87, 152, 255, .25); }
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 
@@ -113,6 +140,13 @@ h3 { font-size: 17px; font-weight: 600; }
 .main-nav a:hover { color: var(--brand); }
 .header-phone { text-decoration: none; font-weight: 700; font-size: 14px; white-space: nowrap; }
 .burger { display: none; margin-left: auto; background: none; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); padding: 9px 11px; cursor: pointer; }
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--line); border-radius: 10px;
+  color: var(--ink); padding: 8px; cursor: pointer; transition: color .15s, border-color .15s;
+}
+.theme-toggle:hover { color: var(--brand); border-color: var(--brand); }
+.theme-toggle .icon { width: 18px; height: 18px; }
 
 /* ---------- Hero ---------- */
 .hero { position: relative; padding: 84px 0 72px; overflow: hidden; }
@@ -410,7 +444,8 @@ h3 { font-size: 17px; font-weight: 600; }
   .steps, .services-grid, .portfolio-grid { grid-template-columns: 1fr; }
   .request-grid { grid-template-columns: 1fr; gap: 20px; }
   .main-nav, .header-phone { display: none; }
-  .burger { display: inline-flex; }
+  .burger { display: inline-flex; margin-left: 0; }
+  .theme-toggle { margin-left: auto; }
   .main-nav.is-open {
     display: flex; position: absolute; top: 64px; left: 0; right: 0;
     flex-direction: column; gap: 0; background: var(--bg-2);
