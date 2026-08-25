@@ -1,8 +1,9 @@
-// Браузерный смоук «Трибуны 56» в демо-режиме (29 проверок: каталог, форма,
-// валидация, страница матча, админка, 375px, консоль без ошибок).
+// Браузерный смоук «Трибуны+» на вшитом seed-каталоге (без БД): каталог,
+// форма, валидация, страница матча, админка, 375px, чистая консоль.
 // Запуск: поднять статику (npm run dev) и `node tools/verify-browser.mjs`.
 // Нужен playwright с chromium: локальный, глобальный npm или /opt/pw-browsers.
 import { createRequire } from 'node:module';
+import { SEED_MATCHES } from '../assets/seed-matches.js';
 
 let require;
 try {
@@ -19,6 +20,15 @@ const check = (name, cond) => {
   results.push([cond ? 'PASS' : 'FAIL', name]);
   if (!cond) process.exitCode = 1;
 };
+
+const upcoming = SEED_MATCHES
+  .filter((m) => m.status === 'scheduled' && Date.parse(m.starts_at) > Date.now())
+  .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+if (!upcoming.length) {
+  console.error('FAIL  seed-каталог пуст или все матчи в прошлом — обновите assets/seed-matches.js');
+  process.exit(1);
+}
+const sports = new Set(upcoming.map((m) => m.sport));
 
 const consoleErrors = [];
 const pageErrors = [];
@@ -50,14 +60,17 @@ const browser = await chromium.launch();
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForSelector('.match-card', { timeout: 8000 });
   const cards = await page.$$('.match-card');
-  check(`каталог: демо-карточки отрисованы (${cards.length})`, cards.length >= 6);
+  check(`каталог: seed-матчи отрисованы (${cards.length}/${upcoming.length})`, cards.length >= Math.min(3, upcoming.length));
+  check('каталог: пометка о ручной сверке расписания', (await page.textContent('#catalog')).includes('сверено вручную'));
   check('hero: счетчик матчей обновился', /матч/.test(await page.textContent('#fact-matches')));
-  check('hero: live-бейдж показан', !(await page.$eval('#hero-live', (el) => el.hidden)));
 
-  await page.click('.chip[data-sport="hockey"]');
-  const hockeyCards = await page.$$('.match-card');
-  check(`фильтр по хоккею сузил список (${hockeyCards.length})`, hockeyCards.length > 0 && hockeyCards.length < cards.length);
-  await page.click('.chip[data-sport="all"]');
+  if (sports.size > 1) {
+    const firstSport = upcoming[0].sport;
+    await page.click(`.chip[data-sport="${firstSport}"]`);
+    const filtered = await page.$$('.match-card');
+    check(`фильтр по «${firstSport}» сузил список (${filtered.length})`, filtered.length > 0 && filtered.length < cards.length);
+    await page.click('.chip[data-sport="all"]');
+  }
 
   // выбор матча из каталога
   await page.click('.match-card [data-act="order"]');
@@ -98,7 +111,7 @@ const browser = await chromium.launch();
   // калькулятор: пакетная скидка
   await page.click('#rf-again');
   await page.check('.svc-option[data-svc="highlights"] input');
-  const calc = (await page.textContent('#rf-calc')).replace(/ /g, ' ');
+  const calc = (await page.textContent('#rf-calc')).replace(/ /g, ' ');
   check('калькулятор: пакетная скидка отображена', calc.includes('Эфир + хайлайты') && calc.includes('5 000'));
   await page.close();
 }
@@ -122,22 +135,19 @@ const browser = await chromium.launch();
 
 // ---------- Страница матча ----------
 {
+  const target = upcoming[0];
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await mockApi(page);
-  await page.goto(`${BASE}/match.html?id=90002`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/match.html?id=${target.id}`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.match-title');
-  check('матч: команды в заголовке', (await page.textContent('.match-title')).includes('Юниор-2012'));
+  check('матч: команды в заголовке', (await page.textContent('.match-title')).includes(target.team_home));
   check('матч: плашка ожидания эфира', (await page.textContent('.player-plate')).includes('Трансляция появится'));
-  check('матч: заявка предзаполнена', (await page.textContent('#rf-selection')).includes('Юниор-2012'));
-  check('матч: title обновлен', (await page.title()).includes('Юниор-2012'));
+  check('матч: заявка предзаполнена', (await page.textContent('#rf-selection')).includes(target.team_home));
+  check('матч: title обновлен', (await page.title()).includes(target.team_home));
 
-  await page.goto(`${BASE}/match.html?id=90001`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.badge-live');
-  check('live-матч: бейдж и плашка эфира', (await page.textContent('.player-plate')).includes('Эфир'));
-
-  await page.goto(`${BASE}/match.html?id=555`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/match.html?id=123456789`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.state-plate');
-  check('несуществующий матч: «не найден»', (await page.textContent('.state-plate')).includes('Такого матча'));
+  check('несуществующий матч: «не найден»/«не загрузить»', /матча|загрузить/i.test(await page.textContent('.state-plate')));
   const { sw, cw } = await page.evaluate(() => ({
     sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth,
   }));

@@ -5,7 +5,7 @@
 import { BRAND, sportLabel } from './data.js';
 import { displayStatus, STATUS_LABELS } from './catalog.js';
 import { formatMatchDate, vkEmbedUrl } from './format.js';
-import { demoMatches } from './demo-matches.js';
+import { SEED_MATCHES } from './seed-matches.js';
 import { initNav, initThemeToggle, fillBrand, toast, esc, icon } from './ui.js';
 import { mountRequestForm } from './request-form.js';
 
@@ -19,25 +19,20 @@ function matchIdFromUrl() {
   return m ? Number(m[1]) : NaN;
 }
 
-function isDemoHost() {
-  return ['localhost', '127.0.0.1'].includes(location.hostname) ||
-    new URLSearchParams(location.search).has('demo');
-}
-
 async function loadMatch(id) {
   try {
     const r = await fetch(`/api/matches?id=${id}`);
-    const data = await r.json(); // на статике без API здесь бросит → демо-фолбэк
-    if (r.status === 404 && data.error === 'not_found') return { state: 'notfound' };
+    const data = await r.json(); // без API здесь бросит → seed-фолбэк
+    if (r.status === 404 && data.error === 'not_found') {
+      // БД жива, но матча в ней нет — возможно, это ссылка на seed-каталог
+      const seed = SEED_MATCHES.find((m) => m.id === id);
+      return seed ? { state: 'ok', match: seed } : { state: 'notfound' };
+    }
     if (data.ok && data.match) return { state: 'ok', match: data.match };
     throw new Error(data.error || 'unavailable');
   } catch {
-    if (isDemoHost()) {
-      const demo = demoMatches().find((m) => m.id === id);
-      // в демо-режиме демо-список и есть каталог: нет в нем — значит «не найден»
-      return demo ? { state: 'ok', match: demo } : { state: 'notfound' };
-    }
-    return { state: 'unavailable' };
+    const seed = SEED_MATCHES.find((m) => m.id === id);
+    return seed ? { state: 'ok', match: seed } : { state: 'unavailable' };
   }
 }
 

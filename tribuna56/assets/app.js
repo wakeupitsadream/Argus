@@ -4,14 +4,14 @@ import { SPORTS, SERVICES, BUNDLE, PORTFOLIO, FAQ, BRAND, sportLabel } from './d
 import { filterMatches, groupByDay, displayStatus, STATUS_LABELS, ageGroups } from './catalog.js';
 import { formatTime, formatDayLabel, dateKey, vkEmbedUrl, TZ } from './format.js';
 import { formatRub, plural, quoteServices } from './pricing.js';
-import { demoMatches } from './demo-matches.js';
+import { SEED_MATCHES, SEED_GENERATED_AT } from './seed-matches.js';
 import { initNav, initStickyCta, initThemeToggle, fillBrand, esc, icon } from './ui.js';
 import { mountRequestForm } from './request-form.js';
 
 const store = {
   matches: [],
   state: 'loading', // loading | ready | unavailable
-  demo: false,
+  seeded: false, // каталог из вшитого seed (БД не подключена/недоступна)
   filters: { sport: 'all', age: 'all', when: 'all' },
 };
 
@@ -21,11 +21,6 @@ const filtersEl = document.getElementById('filters');
 const weekdayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
 const isWeekend = (iso) => ['Sat', 'Sun'].includes(weekdayFmt.format(new Date(iso)));
 const todayKey = () => dateKey(new Date().toISOString());
-
-function isDemoHost() {
-  return ['localhost', '127.0.0.1'].includes(location.hostname) ||
-    new URLSearchParams(location.search).has('demo');
-}
 
 // ---------- Каталог ----------
 
@@ -39,13 +34,11 @@ async function loadMatches() {
     store.matches = data.matches || [];
     store.state = 'ready';
   } catch {
-    if (isDemoHost()) {
-      store.matches = demoMatches();
-      store.demo = true;
-      store.state = 'ready';
-    } else {
-      store.state = 'unavailable';
-    }
+    // БД не подключена или недоступна → вшитый каталог реальных матчей
+    const cutoff = Date.now() - 4 * 3600_000;
+    store.matches = SEED_MATCHES.filter((m) => Date.parse(m.starts_at) >= cutoff);
+    store.seeded = true;
+    store.state = store.matches.length ? 'ready' : 'unavailable';
   }
   renderFilters();
   renderCatalog();
@@ -152,7 +145,7 @@ function renderCatalog() {
   }
   const now = new Date().toISOString();
   catalogEl.innerHTML = `
-    ${store.demo ? '<p class="calc-note">Демо-данные для превью: реальное расписание появится после подключения базы.</p>' : ''}
+    ${store.seeded ? `<p class="calc-note">Расписание сверено вручную ${esc(SEED_GENERATED_AT.split('-').reverse().join('.'))} по данным федераций и лиг. Дату и время подтверждаем при заявке.</p>` : ''}
     ${groupByDay(list).map((g) => `
       <div class="day-group">
         <h3 class="day-title">${esc(formatDayLabel(g.matches[0].starts_at, now))}</h3>
@@ -162,7 +155,7 @@ function renderCatalog() {
   for (const card of catalogEl.querySelectorAll('.match-card')) {
     const m = store.matches.find((x) => String(x.id) === card.dataset.id);
     if (!m) continue;
-    const go = () => { location.href = `/match/${m.id}${store.demo ? '?demo=1' : ''}`; };
+    const go = () => { location.href = `/match/${m.id}`; };
     card.addEventListener('click', go);
     card.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     card.querySelector('[data-act="order"]')?.addEventListener('click', (e) => {
@@ -178,13 +171,13 @@ function renderHeroFacts() {
     const n = store.matches.length;
     factEl.textContent = `${n} ${plural(n, 'матч', 'матча', 'матчей')}`;
   } else if (factEl) {
-    factEl.textContent = '50+ матчей';
+    factEl.textContent = '4 вида спорта';
   }
   const live = store.matches.find((m) => displayStatus(m) === 'live');
   const liveEl = document.getElementById('hero-live');
   if (live && liveEl) {
     liveEl.innerHTML = `
-      <a class="badge badge-live" style="font-size:13px; padding:8px 13px" href="/match/${live.id}${store.demo ? '?demo=1' : ''}">
+      <a class="badge badge-live" style="font-size:13px; padding:8px 13px" href="/match/${live.id}">
         <span class="live-dot"></span>
         Сейчас в эфире: ${esc(live.team_home)} — ${esc(live.team_away)}
       </a>`;
