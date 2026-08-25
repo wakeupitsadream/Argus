@@ -12,6 +12,7 @@ const ALLOWED_HOSTS = new Set([
   'pfo.fhr.ru', 'junior.fhr.ru',
   'russiabasket.ru', 'www.russiabasket.ru', 'orenburg.russiabasket.ru',
   'basket2.sportoteka.org',
+  'reg.infobasket.su', 'org.infobasket.su', 'api.infobasket.su',
   'kes-basket.ru', 'www.kes-basket.ru',
   'mfsprivolg.nagradion.ru', 'oofs.nagradion.ru',
 ]);
