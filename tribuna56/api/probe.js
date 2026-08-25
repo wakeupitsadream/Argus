@@ -43,17 +43,41 @@ export default async function handler(req, res) {
       },
     });
     let text = await r.text();
+    const unescape = (s) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
     // mode=text: режем разметку на сервере — на порядок меньше трафика
     if (q.mode === 'text') {
-      text = text
+      text = unescape(text
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, '\n')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
+        .replace(/<[^>]+>/g, '\n'))
         .split('\n').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)
         .join('\n');
+    }
+    // mode=links: пары «href | текст ссылки»
+    if (q.mode === 'links') {
+      const out = [];
+      const re = /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+      let m;
+      while ((m = re.exec(text)) && out.length < 3000) {
+        const label = unescape(m[2].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+        if (label) out.push(`${m[1]} | ${label}`);
+      }
+      text = out.join('\n');
+    }
+    // grep=regexp (+ctx=N строк контекста): только нужные строки
+    if (q.grep) {
+      try {
+        const re = new RegExp(String(q.grep).slice(0, 200), 'i');
+        const lines = text.split('\n');
+        const ctx = Math.min(Math.max(Number(q.ctx) || 0, 0), 10);
+        const keep = new Set();
+        lines.forEach((line, i) => {
+          if (re.test(line)) {
+            for (let j = Math.max(0, i - ctx); j <= Math.min(lines.length - 1, i + ctx); j++) keep.add(j);
+          }
+        });
+        text = [...keep].sort((a, b) => a - b).map((i) => `${i}: ${lines[i]}`).join('\n');
+      } catch { /* кривой regexp — отдаем как есть */ }
     }
     return res.status(200).json({
       ok: true,
