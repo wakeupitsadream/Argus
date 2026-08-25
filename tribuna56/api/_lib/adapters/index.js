@@ -17,4 +17,6 @@
 //     raw,         // исходные данные источника — админ видит их при подтверждении
 //   }
 
-export const ADAPTERS = [];
+import * as infobasket from './infobasket.js';
+
+export const ADAPTERS = [infobasket];

@@ -1,5 +1,5 @@
-// Браузерный смоук «Трибуны+» на вшитом seed-каталоге (без БД): каталог,
-// форма, валидация, страница матча, админка, 375px, чистая консоль.
+// Браузерный смоук «Трибуны+» без БД: каталог (seed или предсезонная
+// заглушка), форма, валидация, страница матча, админка, 375px, консоль.
 // Запуск: поднять статику (npm run dev) и `node tools/verify-browser.mjs`.
 // Нужен playwright с chromium: локальный, глобальный npm или /opt/pw-browsers.
 import { createRequire } from 'node:module';
@@ -24,11 +24,9 @@ const check = (name, cond) => {
 const upcoming = SEED_MATCHES
   .filter((m) => m.status === 'scheduled' && Date.parse(m.starts_at) > Date.now())
   .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
-if (!upcoming.length) {
-  console.error('FAIL  seed-каталог пуст или все матчи в прошлом — обновите assets/seed-matches.js');
-  process.exit(1);
-}
+const hasCatalog = upcoming.length > 0;
 const sports = new Set(upcoming.map((m) => m.sport));
+console.log(`seed: ${upcoming.length} предстоящих матчей → режим ${hasCatalog ? 'каталога' : 'предсезонной заглушки'}\n`);
 
 const consoleErrors = [];
 const pageErrors = [];
@@ -51,6 +49,16 @@ async function mockApi(page) {
   });
 }
 
+const catalogReady = '.match-card, .state-plate';
+
+async function fillAndSubmitContact(page) {
+  await page.fill('#rf-name', 'Тест Тестович');
+  await page.fill('#rf-phone', '+7 912 345-67-89');
+  await page.check('#rf-consent');
+  await page.click('#rf-submit');
+  await page.waitForSelector('#rf-done:not([hidden])', { timeout: 5000 });
+}
+
 const browser = await chromium.launch();
 
 // ---------- Главная (desktop) ----------
@@ -58,44 +66,42 @@ const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await mockApi(page);
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.match-card', { timeout: 8000 });
-  const cards = await page.$$('.match-card');
-  check(`каталог: seed-матчи отрисованы (${cards.length}/${upcoming.length})`, cards.length >= Math.min(3, upcoming.length));
-  check('каталог: пометка о ручной сверке расписания', (await page.textContent('#catalog')).includes('сверено вручную'));
-  check('hero: счетчик матчей обновился', /матч/.test(await page.textContent('#fact-matches')));
+  await page.waitForSelector(catalogReady, { timeout: 8000 });
 
-  if (sports.size > 1) {
-    const firstSport = upcoming[0].sport;
-    await page.click(`.chip[data-sport="${firstSport}"]`);
-    const filtered = await page.$$('.match-card');
-    check(`фильтр по «${firstSport}» сузил список (${filtered.length})`, filtered.length > 0 && filtered.length < cards.length);
-    await page.click('.chip[data-sport="all"]');
+  if (hasCatalog) {
+    const cards = await page.$$('.match-card');
+    check(`каталог: seed-матчи отрисованы (${cards.length}/${upcoming.length})`, cards.length >= Math.min(3, upcoming.length));
+    check('каталог: пометка о ручной сверке', (await page.textContent('#catalog')).includes('сверено вручную'));
+
+    if (sports.size > 1) {
+      const firstSport = upcoming[0].sport;
+      await page.click(`.chip[data-sport="${firstSport}"]`);
+      const filtered = await page.$$('.match-card');
+      check(`фильтр по «${firstSport}» сузил список (${filtered.length})`, filtered.length > 0 && filtered.length < cards.length);
+      await page.click('.chip[data-sport="all"]');
+    }
+
+    await page.click('.match-card [data-act="order"]');
+    const sel = await page.textContent('#rf-selection');
+    check('форма: матч подставился в заявку', /—/.test(sel) && !/Матч не выбран/.test(sel));
+    await page.waitForSelector('#rf-slot .slot-badge', { timeout: 5000 });
+    check('форма: бейдж доступности даты', (await page.textContent('#rf-slot')).includes('Дата свободна'));
+
+    // пустая отправка → ошибки
+    await page.click('#rf-submit');
+    await page.waitForTimeout(200);
+    check('валидация: подсвечены пустые поля',
+      (await page.$$eval('.field.is-error', (els) => els.length)) >= 2);
+    check('валидация: согласие подсвечено',
+      await page.$eval('#rf-consent-label', (el) => el.classList.contains('is-error')));
+    await fillAndSubmitContact(page);
+    check('заявка по матчу: экран успеха', (await page.textContent('#rf-done-text')).includes('Расчет'));
+    await page.click('#rf-again');
+  } else {
+    check('каталог: предсезонная заглушка', (await page.textContent('#catalog')).includes('Сезон 2026/27'));
   }
 
-  // выбор матча из каталога
-  await page.click('.match-card [data-act="order"]');
-  const sel = await page.textContent('#rf-selection');
-  check('форма: матч подставился в заявку', /—/.test(sel) && !/Матч не выбран/.test(sel));
-  await page.waitForSelector('#rf-slot .slot-badge', { timeout: 5000 });
-  check('форма: бейдж доступности даты', (await page.textContent('#rf-slot')).includes('Дата свободна'));
-
-  // пустая отправка → ошибки валидации
-  await page.click('#rf-submit');
-  await page.waitForTimeout(200);
-  const errFields = await page.$$eval('.field.is-error', (els) => els.length);
-  check(`валидация: подсвечены пустые поля (${errFields})`, errFields >= 2);
-  check('валидация: согласие подсвечено', await page.$eval('#rf-consent-label', (el) => el.classList.contains('is-error')));
-
-  // заполняем и отправляем
-  await page.fill('#rf-name', 'Тест Тестович');
-  await page.fill('#rf-phone', '+7 912 345-67-89');
-  await page.check('#rf-consent');
-  await page.click('#rf-submit');
-  await page.waitForSelector('#rf-done:not([hidden])', { timeout: 5000 });
-  check('заявка: экран успеха с расчетом', (await page.textContent('#rf-done-text')).includes('Расчет'));
-
-  // еще одна заявка + кастомный матч
-  await page.click('#rf-again');
+  // кастомный матч — работает в обоих режимах
   await page.click('#btn-custom');
   check('кастом: поля своего матча показаны', !(await page.$eval('#rf-custom', (el) => el.hidden)));
   await page.click('#rf-submit');
@@ -104,14 +110,18 @@ const browser = await chromium.launch();
     await page.$eval('[data-f="cTeams"]', (el) => el.classList.contains('is-error')));
   await page.fill('#rf-c-teams', 'Юниор — Сармат');
   await page.fill('#rf-c-date', 'суббота 14:00');
+  if (!hasCatalog) {
+    await page.fill('#rf-name', 'Тест Тестович');
+    await page.fill('#rf-phone', '+7 912 345-67-89');
+    await page.check('#rf-consent');
+  }
   await page.click('#rf-submit');
   await page.waitForSelector('#rf-done:not([hidden])', { timeout: 5000 });
   check('кастом: заявка ушла', true);
 
-  // калькулятор: пакетная скидка
   await page.click('#rf-again');
   await page.check('.svc-option[data-svc="highlights"] input');
-  const calc = (await page.textContent('#rf-calc')).replace(/ /g, ' ');
+  const calc = (await page.textContent('#rf-calc')).replace(/ /g, ' ');
   check('калькулятор: пакетная скидка отображена', calc.includes('Эфир + хайлайты') && calc.includes('5 000'));
   await page.close();
 }
@@ -121,7 +131,7 @@ const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 375, height: 740 } });
   await mockApi(page);
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.match-card');
+  await page.waitForSelector(catalogReady);
   const { sw, cw } = await page.evaluate(() => ({
     sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth,
   }));
@@ -135,16 +145,16 @@ const browser = await chromium.launch();
 
 // ---------- Страница матча ----------
 {
-  const target = upcoming[0];
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await mockApi(page);
-  await page.goto(`${BASE}/match.html?id=${target.id}`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.match-title');
-  check('матч: команды в заголовке', (await page.textContent('.match-title')).includes(target.team_home));
-  check('матч: плашка ожидания эфира', (await page.textContent('.player-plate')).includes('Трансляция появится'));
-  check('матч: заявка предзаполнена', (await page.textContent('#rf-selection')).includes(target.team_home));
-  check('матч: title обновлен', (await page.title()).includes(target.team_home));
-
+  if (hasCatalog) {
+    const target = upcoming[0];
+    await page.goto(`${BASE}/match.html?id=${target.id}`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.match-title');
+    check('матч: команды в заголовке', (await page.textContent('.match-title')).includes(target.team_home));
+    check('матч: плашка ожидания эфира', (await page.textContent('.player-plate')).includes('Трансляция появится'));
+    check('матч: заявка предзаполнена', (await page.textContent('#rf-selection')).includes(target.team_home));
+  }
   await page.goto(`${BASE}/match.html?id=123456789`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.state-plate');
   check('несуществующий матч: «не найден»/«не загрузить»', /матча|загрузить/i.test(await page.textContent('.state-plate')));

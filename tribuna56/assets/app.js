@@ -38,7 +38,7 @@ async function loadMatches() {
     const cutoff = Date.now() - 4 * 3600_000;
     store.matches = SEED_MATCHES.filter((m) => Date.parse(m.starts_at) >= cutoff);
     store.seeded = true;
-    store.state = store.matches.length ? 'ready' : 'unavailable';
+    store.state = 'ready';
   }
   renderFilters();
   renderCatalog();
@@ -136,10 +136,17 @@ function renderCatalog() {
   }
   const list = visibleMatches();
   if (!list.length) {
+    const preseason = store.seeded && !store.matches.length;
     catalogEl.innerHTML = `
       <div class="state-plate">
-        <b>${store.matches.length ? 'По выбранным фильтрам матчей нет' : 'Каталог наполняется'}</b>
-        ${store.matches.length ? 'Попробуйте сбросить фильтры — или впишите матч вручную ниже.' : 'Впишите свой матч вручную — снимем и его.'}
+        <b>${store.matches.length
+          ? 'По выбранным фильтрам матчей нет'
+          : preseason ? 'Сезон 2026/27 стартует в сентябре' : 'Каталог наполняется'}</b>
+        ${store.matches.length
+          ? 'Попробуйте сбросить фильтры — или впишите матч вручную ниже.'
+          : preseason
+            ? 'Федерации публикуют календари за 1–2 недели до первых туров — матчи появятся здесь автоматически. А свой матч можно вписать вручную прямо сейчас: жмите «Моего матча нет в списке».'
+            : 'Впишите свой матч вручную — снимем и его.'}
       </div>`;
     return;
   }
