@@ -15,15 +15,20 @@ const PUBLIC_FIELDS = [
 // закончившиеся не пропадают из каталога посреди эфира.
 const LOOKBACK_MS = 4 * 3600_000;
 
+// Кэш ТОЛЬКО на успешные ответы: заглушка об ошибке БД или 404,
+// закэшированные CDN, минуту прятали бы каталог от всех посетителей.
+const cacheOk = (res) => res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+const noCache = (res) => res.setHeader('Cache-Control', 'no-store');
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ ok: false, error: 'method' });
   }
-  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
 
   if (!sbConfigured()) {
     console.warn('[matches] SUPABASE_URL/SUPABASE_SERVICE_KEY не заданы');
+    noCache(res);
     return res.status(200).json({ ok: false, error: 'unavailable' });
   }
 
@@ -32,11 +37,16 @@ export default async function handler(req, res) {
     if (q.id) {
       const id = Number(q.id);
       if (!Number.isInteger(id) || id <= 0) {
+        noCache(res);
         return res.status(404).json({ ok: false, error: 'not_found' });
       }
       const rows = await sbSelect('matches',
         `select=${PUBLIC_FIELDS}&id=eq.${id}&published=is.true&limit=1`);
-      if (!rows || !rows.length) return res.status(404).json({ ok: false, error: 'not_found' });
+      if (!rows || !rows.length) {
+        noCache(res); // только что опубликованный матч не должен минуту быть «не найден»
+        return res.status(404).json({ ok: false, error: 'not_found' });
+      }
+      cacheOk(res);
       return res.status(200).json({ ok: true, match: rows[0] });
     }
 
@@ -56,9 +66,11 @@ export default async function handler(req, res) {
     }
 
     const rows = await sbSelect('matches', p.toString());
+    cacheOk(res);
     return res.status(200).json({ ok: true, matches: rows || [] });
   } catch (e) {
     console.warn('[matches] Supabase недоступен:', e && e.message);
+    noCache(res);
     return res.status(200).json({ ok: false, error: 'unavailable' });
   }
 }

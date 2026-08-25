@@ -41,6 +41,9 @@ async function loadMatch(id) {
   }
 }
 
+// Наружу ведем только по http(s): защита от случайного javascript:-URL в БД.
+const httpUrl = (u) => (/^https?:\/\//i.test(String(u || '')) ? String(u) : null);
+
 function plate(iconId, title, text, extra = '') {
   return `
     <div class="player-plate">
@@ -61,10 +64,11 @@ function playerBlock(m, st) {
     if (src) {
       return `<iframe src="${esc(src)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Прямая трансляция"></iframe>`;
     }
-    if (m.stream_url) {
+    const liveLink = httpUrl(m.stream_url);
+    if (liveLink) {
       return plate('i-play', 'Идет прямая трансляция',
         'Плеер откроется в VK Видео.',
-        `<a class="btn" href="${esc(m.stream_url)}" target="_blank" rel="noopener">${icon('i-play')} Смотреть в VK</a>`);
+        `<a class="btn" href="${esc(liveLink)}" target="_blank" rel="noopener">${icon('i-play')} Смотреть в VK</a>`);
     }
     return plate('i-cam', 'Эфир начинается', 'Плеер появится здесь с минуты на минуту — обновите страницу.');
   }
@@ -73,7 +77,7 @@ function playerBlock(m, st) {
     if (src) {
       return `<iframe src="${esc(src)}" allow="encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Запись матча"></iframe>`;
     }
-    const link = m.highlights_url || m.stream_url;
+    const link = httpUrl(m.highlights_url) || httpUrl(m.stream_url);
     if (link) {
       return plate('i-play', 'Матч завершен',
         'Запись доступна в VK Видео.',

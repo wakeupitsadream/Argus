@@ -59,7 +59,7 @@ create table import_queue (
   payload     jsonb not null,               -- normalized match + raw + possible_duplicate_of
   status      text not null default 'pending'
               check (status in ('pending','approved','rejected')),
-  match_id    bigint references matches(id),
+  match_id    bigint references matches(id) on delete set null,
   created_at  timestamptz not null default now(),
   decided_at  timestamptz,
   unique (source, source_key)

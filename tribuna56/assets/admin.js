@@ -2,7 +2,7 @@
 // Ошибки API показываются явно — это инструмент владельца.
 
 import { SPORTS, SERVICES, sportLabel } from './data.js';
-import { formatMatchDate } from './format.js';
+import { formatMatchDate, TZ } from './format.js';
 import { formatRub, plural } from './pricing.js';
 import { STATUS_LABELS, displayStatus } from './catalog.js';
 import { esc, toast } from './ui.js';
@@ -17,6 +17,7 @@ const state = {
   requests: [],
   reqStatus: 'new',
   editing: null, // null | 'new' | match
+  editingDraft: null, // несохраненный ввод формы — переживает перерисовки
   lastReport: null,
 };
 
@@ -107,31 +108,48 @@ async function enter() {
 
 // ---------- Вкладка «Матчи» ----------
 
-function toLocalInput(iso) {
+// datetime-local всегда показывает и принимает ОРЕНБУРГСКОЕ время (UTC+5,
+// без переходов), даже если браузер админа в другой таймзоне.
+function toOrenburgInput(iso) {
   const d = iso ? new Date(iso) : new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d).reduce((a, x) => ((a[x.type] = x.value), a), {});
+  const hour = p.hour === '24' ? '00' : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${hour}:${p.minute}`;
+}
+
+function orenburgInputToIso(value) {
+  return new Date(`${value}:00+05:00`).toISOString();
+}
+
+function editingKey() {
+  return state.editing === 'new' ? 'new' : state.editing ? String(state.editing.id) : '';
 }
 
 function matchForm(m) {
   const isNew = !m || !m.id;
+  const d = state.editingDraft || {};
+  const val = (name, fb) => esc(d[name] !== undefined ? d[name] : (fb ?? ''));
+  const sportSel = d.sport !== undefined ? d.sport : m && m.sport;
   return `
-    <form class="admin-form" id="match-form">
+    <form class="admin-form" id="match-form" data-key="${editingKey()}">
       <div class="field">
         <label>Вид спорта</label>
         <select name="sport">${SPORTS.map((s) =>
-          `<option value="${s.id}"${m && m.sport === s.id ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}</select>
+          `<option value="${s.id}"${sportSel === s.id ? ' selected' : ''}>${esc(s.label)}</option>`).join('')}</select>
       </div>
-      <div class="field"><label>Турнир / лига</label><input type="text" name="league" value="${esc(m?.league || '')}" placeholder="Первенство области"></div>
-      <div class="field"><label>Возраст</label><input type="text" name="age_group" value="${esc(m?.age_group || '')}" placeholder="2012 г.р."></div>
-      <div class="field"><label>Хозяева</label><input type="text" name="team_home" value="${esc(m?.team_home || '')}" placeholder="Юниор-2012" required></div>
-      <div class="field"><label>Гости</label><input type="text" name="team_away" value="${esc(m?.team_away || '')}" placeholder="Сармат-2012" required></div>
-      <div class="field"><label>Начало (по Оренбургу)</label><input type="datetime-local" name="starts_at" value="${toLocalInput(m?.starts_at)}" required></div>
-      <div class="field"><label>Арена</label><input type="text" name="venue" value="${esc(m?.venue || '')}" placeholder="ЛД «Звёздный»"></div>
-      <div class="field"><label>Адрес</label><input type="text" name="address" value="${esc(m?.address || '')}"></div>
-      <div class="field"><label>Длительность, мин</label><input type="text" name="duration_min" inputmode="numeric" value="${m?.duration_min || 90}"></div>
-      <div class="field span-3"><label>Ссылка на трансляцию (VK Видео)</label><input type="text" name="stream_url" value="${esc(m?.stream_url || '')}" placeholder="https://vk.com/video-…"></div>
-      <div class="field span-3"><label>Ссылка на хайлайты</label><input type="text" name="highlights_url" value="${esc(m?.highlights_url || '')}"></div>
+      <div class="field"><label>Турнир / лига</label><input type="text" name="league" value="${val('league', m?.league)}" placeholder="Первенство области"></div>
+      <div class="field"><label>Возраст</label><input type="text" name="age_group" value="${val('age_group', m?.age_group)}" placeholder="2012 г.р."></div>
+      <div class="field"><label>Хозяева</label><input type="text" name="team_home" value="${val('team_home', m?.team_home)}" placeholder="Юниор-2012" required></div>
+      <div class="field"><label>Гости</label><input type="text" name="team_away" value="${val('team_away', m?.team_away)}" placeholder="Сармат-2012" required></div>
+      <div class="field"><label>Начало (по Оренбургу)</label><input type="datetime-local" name="starts_at" value="${val('starts_at', toOrenburgInput(m?.starts_at))}" required></div>
+      <div class="field"><label>Арена</label><input type="text" name="venue" value="${val('venue', m?.venue)}" placeholder="ЛД «Звёздный»"></div>
+      <div class="field"><label>Адрес</label><input type="text" name="address" value="${val('address', m?.address)}"></div>
+      <div class="field"><label>Длительность, мин</label><input type="text" name="duration_min" inputmode="numeric" value="${val('duration_min', m?.duration_min || 90)}"></div>
+      <div class="field span-3"><label>Ссылка на трансляцию (VK Видео)</label><input type="text" name="stream_url" value="${val('stream_url', m?.stream_url)}" placeholder="https://vk.com/video-…"></div>
+      <div class="field span-3"><label>Ссылка на хайлайты</label><input type="text" name="highlights_url" value="${val('highlights_url', m?.highlights_url)}"></div>
       <div class="form-actions">
         <button class="btn btn-sm" type="submit">${isNew ? 'Создать матч' : 'Сохранить'}</button>
         <button class="mini-btn" type="button" id="form-cancel">Отмена</button>
@@ -163,6 +181,11 @@ function matchRow(m) {
 
 function renderMatches() {
   const pane = $('pane-matches');
+  // перерисовка не должна съедать несохраненный ввод открытой формы
+  const liveForm = document.getElementById('match-form');
+  if (liveForm && state.editing && liveForm.dataset.key === editingKey()) {
+    state.editingDraft = Object.fromEntries(new FormData(liveForm).entries());
+  }
   pane.innerHTML = `
     <div class="toolbar">
       <button class="btn btn-sm" id="btn-new-match" type="button">+ Новый матч</button>
@@ -177,7 +200,11 @@ function renderMatches() {
       </table></div>`
       : '<p class="empty-note">Матчей нет. Создайте первый — или запустите импорт.</p>'}`;
 
-  $('btn-new-match').addEventListener('click', () => { state.editing = 'new'; renderMatches(); });
+  $('btn-new-match').addEventListener('click', () => {
+    state.editing = 'new';
+    state.editingDraft = null;
+    renderMatches();
+  });
   $('chk-past').addEventListener('change', async (e) => {
     state.includePast = e.target.checked;
     await guard(loadMatches);
@@ -187,17 +214,22 @@ function renderMatches() {
 
   const form = $('match-form');
   if (form) {
-    $('form-cancel').addEventListener('click', () => { state.editing = null; renderMatches(); });
+    $('form-cancel').addEventListener('click', () => {
+      state.editing = null;
+      state.editingDraft = null;
+      renderMatches();
+    });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
       const body = Object.fromEntries(fd.entries());
-      body.starts_at = new Date(body.starts_at).toISOString();
+      body.starts_at = orenburgInputToIso(body.starts_at);
       body.duration_min = Number(body.duration_min) || 90;
       await guard(async () => {
         if (state.editing === 'new') await api('/api/admin/matches', { method: 'POST', body: JSON.stringify(body) });
         else await api(`/api/admin/matches?id=${state.editing.id}`, { method: 'PATCH', body: JSON.stringify(body) });
         state.editing = null;
+        state.editingDraft = null;
         await loadMatches();
         toast('Сохранено');
       });
@@ -211,7 +243,7 @@ function renderMatches() {
     tr.addEventListener('click', async (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (!act) return;
-      if (act === 'edit') { state.editing = m; renderMatches(); return; }
+      if (act === 'edit') { state.editing = m; state.editingDraft = null; renderMatches(); return; }
       if (act === 'live') {
         const url = prompt('Ссылка на трансляцию VK Видео (можно оставить пустой и добавить позже):', m.stream_url || '');
         if (url === null) return;

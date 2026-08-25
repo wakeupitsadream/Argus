@@ -92,7 +92,7 @@ export function mountRequestForm(root, opts = {}) {
           <input class="hp" type="text" name="website" id="rf-website" tabindex="-1" autocomplete="off" aria-hidden="true">
           <label class="consent" id="rf-consent-label">
             <input type="checkbox" id="rf-consent">
-            <span>Согласен на обработку персональных данных и принимаю <a href="privacy.html" target="_blank" rel="noopener">политику конфиденциальности</a></span>
+            <span>Согласен на обработку персональных данных и принимаю <a href="/privacy.html" target="_blank" rel="noopener">политику конфиденциальности</a></span>
           </label>
           <button class="btn" type="submit" id="rf-submit" style="width:100%">${icon('i-send')} Отправить заявку</button>
           <p class="calc-note" style="text-align:center">Ответим в течение часа в рабочее время</p>
@@ -200,8 +200,8 @@ export function mountRequestForm(root, opts = {}) {
 
   async function checkSlot() {
     slotEl.innerHTML = '';
+    const reqId = ++state.slotReq; // инвалидирует и запрос в полете при снятии выбора
     if (!state.match) return;
-    const reqId = ++state.slotReq;
     try {
       const p = new URLSearchParams({
         starts_at: state.match.starts_at,

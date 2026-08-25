@@ -29,6 +29,9 @@ export default async function handler(req, res) {
   if (!v.ok) return res.status(400).json({ ok: false, error: 'validation', fields: v.errors });
 
   if (tooMany(`request:${clientIp(req)}`, 5, 60_000)) {
+    // общий Wi-Fi арены может дать много заявок с одного IP — не теряем их молча
+    console.warn('[request] rate-limit, заявка не отправлена:',
+      JSON.stringify({ name: v.name, phone: v.phone, match: v.matchId, services: v.services }));
     return res.status(200).json({ ok: true });
   }
 

@@ -1,14 +1,14 @@
-// Все данные и тексты сайта «Трибуна 56». Смена бренда, цен и контактов — только здесь.
+// Все данные и тексты сайта «Трибуна+». Смена бренда, цен и контактов — только здесь.
 
 export const BRAND = {
-  name: 'Трибуна 56',
+  name: 'Трибуна+',
   tagline: 'Трансляция матча вашего ребенка — по одной ссылке',
   city: 'Оренбург',
   // TODO(владелец): реальные контакты
   phone: '+7 900 000-00-00',
   phoneHref: 'tel:+79000000000',
-  telegram: 'https://t.me/tribuna56',
-  vk: 'https://vk.com/tribuna56',
+  telegram: 'https://t.me/tribunaplus',
+  vk: 'https://vk.com/tribunaplus',
 };
 
 // Виды спорта каталога. glyph — id SVG-символа в спрайте (index.html/match.html).

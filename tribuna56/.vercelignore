@@ -1,0 +1,6 @@
+# Не раздаем служебное как статику
+test
+tools
+db
+*.md
+.gitignore
