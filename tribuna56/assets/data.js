@@ -70,26 +70,26 @@ export const CONTACT_CHANNELS = [
   { id: 'whatsapp', label: 'WhatsApp' },
 ];
 
-// Портфолио: реальные записи прямых трансляций сезона 2025/26
-// (хронологически: декабрь 2025 → апрель 2026; на сайте показываются
-// с конца — новые первыми). Названия можно заменить на «Команда — Команда»
-// прямо здесь. Ролики непубличные: ключ ?list= обязателен.
+// Портфолио: реальные записи прямых трансляций (детский хоккей, 2015 г.р.).
+// Хронологически: декабрь 2025 → апрель 2026; на сайте — новые первыми.
+// Первая команда — хозяева (Оренбург). Ролики непубличные: ключ ?list=
+// обязателен и пробрасывается в плеер. TODO: фото-превью карточек.
 export const PORTFOLIO = [
-  { title: 'Запись трансляции №1', vkUrl: 'https://vkvideo.ru/video-188914503_456239752?list=2fbdf76b6a4901fbea' },
-  { title: 'Запись трансляции №2', vkUrl: 'https://vkvideo.ru/video-188914503_456239753?list=6c39a63667b2b79bd7' },
-  { title: 'Запись трансляции №3', vkUrl: 'https://vkvideo.ru/video-188914503_456239840?list=33e9c2fec95054faad' },
-  { title: 'Запись трансляции №4', vkUrl: 'https://vkvideo.ru/video-188914503_456239841?list=808b5e81a433ecd771' },
-  { title: 'Запись трансляции №5', vkUrl: 'https://vkvideo.ru/video-188914503_456239842?list=716d69c21e927d8f4f' },
-  { title: 'Запись трансляции №6', vkUrl: 'https://vkvideo.ru/video-188914503_456239843?list=f3cb7097cef334e03a' },
-  { title: 'Запись трансляции №7', vkUrl: 'https://vkvideo.ru/video-188914503_456239906?list=8a83a40f8f12d9945e' },
-  { title: 'Запись трансляции №8', vkUrl: 'https://vkvideo.ru/video-188914503_456239907?list=29337dc35bee24e270' },
-  { title: 'Запись трансляции №9', vkUrl: 'https://vkvideo.ru/video-188914503_456239927?list=4d433bf752e50c84bc' },
-  { title: 'Запись трансляции №10', vkUrl: 'https://vkvideo.ru/video-188914503_456239928?list=e8929e84bd238b2c5b' },
-  { title: 'Запись трансляции №11', vkUrl: 'https://vkvideo.ru/video-188914503_456239954?list=11c2f51ee656e7e38d' },
-  { title: 'Запись трансляции №12', vkUrl: 'https://vkvideo.ru/video-188914503_456239955?list=a247bcad3a41bcc7ca' },
-  { title: 'Запись трансляции №13', vkUrl: 'https://vkvideo.ru/video-188914503_456239960?list=aaae26ca0de4f172be' },
-  { title: 'Запись трансляции №14', vkUrl: 'https://vkvideo.ru/video-188914503_456239961?list=5c2ef14b6b562f8ca4' },
-  { title: 'Запись трансляции №15', vkUrl: 'https://vkvideo.ru/video-188914503_456240038?list=7a36d6f05443a04ce0' },
+  { home: 'Юниор', away: 'АкБарс-Динамо', age: '2015 г.р.', date: '20.12.2025', vkUrl: 'https://vkvideo.ru/video-188914503_456239752?list=2fbdf76b6a4901fbea' },
+  { home: 'Юниор', away: 'АкБарс-Динамо', age: '2015 г.р.', date: '21.12.2025', vkUrl: 'https://vkvideo.ru/video-188914503_456239753?list=6c39a63667b2b79bd7' },
+  { home: 'Сарматы', away: 'Союз', age: '2015 г.р.', date: '04.02.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239840?list=33e9c2fec95054faad' },
+  { home: 'Сарматы', away: 'Союз', age: '2015 г.р.', date: '05.02.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239841?list=808b5e81a433ecd771' },
+  { home: 'Юниор', away: 'АкБарс', age: '2015 г.р.', date: '06.02.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239842?list=716d69c21e927d8f4f' },
+  { home: 'Юниор', away: 'АкБарс', age: '2015 г.р.', date: '07.02.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239843?list=f3cb7097cef334e03a' },
+  { home: 'Юниор', away: 'Нефтехимик', age: '2015 г.р.', date: '28.02.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239906?list=8a83a40f8f12d9945e' },
+  { home: 'Юниор', away: 'Нефтехимик', age: '2015 г.р.', date: '01.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239907?list=29337dc35bee24e270' },
+  { home: 'Сарматы', away: 'Пестрецы', age: '2015 г.р.', date: '04.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239927?list=4d433bf752e50c84bc' },
+  { home: 'Сарматы', away: 'Пестрецы', age: '2015 г.р.', date: '05.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239928?list=e8929e84bd238b2c5b' },
+  { home: 'Сарматы', away: 'Рубин', age: '2015 г.р.', date: '21.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239954?list=11c2f51ee656e7e38d' },
+  { home: 'Сарматы', away: 'Рубин', age: '2015 г.р.', date: '22.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239955?list=a247bcad3a41bcc7ca' },
+  { home: 'Юниор', away: 'Медведь', age: '2015 г.р.', date: '21.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239960?list=aaae26ca0de4f172be' },
+  { home: 'Юниор', away: 'Медведь', age: '2015 г.р.', date: '22.03.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456239961?list=5c2ef14b6b562f8ca4' },
+  { home: 'Юниор', away: 'СШОР №1-ЦСК ВВС', age: '2015 г.р.', date: '11.04.2026', vkUrl: 'https://vkvideo.ru/video-188914503_456240038?list=7a36d6f05443a04ce0' },
 ];
 
 export const FAQ = [

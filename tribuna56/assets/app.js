@@ -199,14 +199,19 @@ const PORTFOLIO_VISIBLE = 6;
 
 function portfolioCard(v) {
   const src = vkEmbedUrl(v.vkUrl);
+  const title = v.home ? `${v.home} — ${v.away}` : v.title || 'Запись трансляции';
+  const meta = [v.age, v.date].filter(Boolean).join(' · ');
   return `
     <figure class="video-card" style="margin:0">
       <div class="frame">
         ${src
-          ? `<button class="video-load" type="button" data-src="${esc(src)}">${icon('i-play')}<span>Смотреть запись</span></button>`
+          ? `<button class="video-load" type="button" data-src="${esc(src)}" aria-label="Смотреть: ${esc(title)}">${icon('i-play')}<span>Смотреть запись</span></button>`
           : `<div class="video-placeholder">${icon('i-play')}<span>Ролик скоро здесь</span></div>`}
       </div>
-      <figcaption>${esc(v.title)}</figcaption>
+      <figcaption>
+        <span class="video-title">${v.home ? teamBadgePair(v.home, v.away, 18) : ''}<span>${esc(title)}</span></span>
+        ${meta ? `<span class="video-meta">${esc(meta)}</span>` : ''}
+      </figcaption>
     </figure>`;
 }
 
