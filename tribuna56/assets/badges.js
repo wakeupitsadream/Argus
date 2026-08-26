@@ -15,6 +15,14 @@ const CLUB_LOGOS = {
   'ак барс': 'akbars.png',
   'медведь': 'medved.png',
   'хк медведь': 'medved.png',
+  'сарматы': 'sarmaty.png',
+  'хк сарматы': 'sarmaty.png',
+  'рубин': 'rubin.png',
+  'хк рубин': 'rubin.png',
+  'союз': 'soyuz.png',
+  'хк союз': 'soyuz.png',
+  'цск ввс': 'csk-vvs.png',
+  'сшор №1 цск ввс': 'csk-vvs.png', // clubKey('СШОР №1-ЦСК ВВС')
 };
 
 export function clubKey(name) {

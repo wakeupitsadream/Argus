@@ -28,21 +28,26 @@ test('clubLogo: реальные логотипы находятся, чужие
   assert.equal(clubLogo('АкБарс'), '/assets/img/clubs/akbars.png');
   assert.equal(clubLogo('Пестрецы'), '/assets/img/clubs/pestretsy.png');
   assert.equal(clubLogo('Медведь'), '/assets/img/clubs/medved.png');
+  assert.equal(clubLogo('Сарматы'), '/assets/img/clubs/sarmaty.png');
+  assert.equal(clubLogo('Рубин'), '/assets/img/clubs/rubin.png');
+  assert.equal(clubLogo('Союз'), '/assets/img/clubs/soyuz.png');
+  assert.equal(clubLogo('ЦСК ВВС'), '/assets/img/clubs/csk-vvs.png');
+  assert.equal(clubLogo('СШОР №1-ЦСК ВВС'), '/assets/img/clubs/csk-vvs.png');
   // другой клуб не должен получить чужой логотип
   assert.equal(clubLogo('АкБарс-Динамо'), null);
-  assert.equal(clubLogo('Сарматы'), null);
 });
 
 test('teamBadge: клуб с логотипом → <img>, без — детерминированный SVG-щит', () => {
   assert.match(teamBadge('Юниор-2015'), /^<img class="club-badge club-badge--img" src="\/assets\/img\/clubs\/junior\.png"/);
-  const a = teamBadge('Сарматы');
-  assert.equal(a, teamBadge('Сарматы'));
+  assert.match(teamBadge('Сарматы'), /^<img class="club-badge club-badge--img" src="\/assets\/img\/clubs\/sarmaty\.png"/);
+  const a = teamBadge('АкБарс-Динамо');
+  assert.equal(a, teamBadge('АкБарс-Динамо'));
   assert.match(a, /^<svg class="club-badge"/);
-  assert.match(a, />С<\/text>/);
+  assert.match(a, />АД<\/text>/);
 });
 
 test('teamBadgePair содержит две эмблемы (лого и щит смешиваются)', () => {
-  const pair = teamBadgePair('Юниор', 'Сарматы');
+  const pair = teamBadgePair('Юниор', 'АкБарс-Динамо');
   assert.match(pair, /badge-pair/);
   assert.match(pair, /<img[^>]+junior\.png/);
   assert.match(pair, /<svg class="club-badge"/);
