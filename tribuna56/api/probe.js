@@ -45,7 +45,18 @@ export default async function handler(req, res) {
         ...(q.origin ? { Origin: String(q.origin), Referer: String(q.origin) + '/' } : {}),
       },
     });
-    let text = await r.text();
+    // VK и старые .ru-сайты отдают windows-1251 — декодируем по заголовку/мете
+    const buf = Buffer.from(await r.arrayBuffer());
+    let charset = ((r.headers.get('content-type') || '').match(/charset=([\w-]+)/i) || [])[1];
+    if (!charset) {
+      charset = (buf.subarray(0, 2048).toString('latin1').match(/charset=["']?([\w-]+)/i) || [])[1];
+    }
+    let text;
+    try {
+      text = new TextDecoder(charset || 'utf-8').decode(buf);
+    } catch {
+      text = buf.toString('utf8');
+    }
     const unescape = (s) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
     // mode=text: режем разметку на сервере — на порядок меньше трафика
     if (q.mode === 'text') {
