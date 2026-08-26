@@ -15,6 +15,7 @@ const ALLOWED_HOSTS = new Set([
   'reg.infobasket.su', 'org.infobasket.su', 'api.infobasket.su',
   'kes-basket.ru', 'www.kes-basket.ru',
   'mfsprivolg.nagradion.ru', 'oofs.nagradion.ru',
+  'vk.com', 'www.vk.com', 'm.vk.com', 'vk.ru', 'www.vk.ru', 'vkvideo.ru',
 ]);
 
 const SLICE = 48_000; // ответ отдаем страницами, чтобы не упереться в лимиты
