@@ -35,10 +35,11 @@ export default async function handler(req, res) {
   const start = Math.max(0, Number(q.start) || 0);
 
   try {
+    const customUa = /^[\x20-\x7e]{5,200}$/.test(String(q.ua || '')) ? String(q.ua) : null;
     const r = await fetch(target, {
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+        'User-Agent': customUa || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
         'Accept': 'text/html,application/json;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ru-RU,ru;q=0.9',
         ...(q.origin ? { Origin: String(q.origin), Referer: String(q.origin) + '/' } : {}),
