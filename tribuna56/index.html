@@ -53,7 +53,7 @@
       <a href="#faq">FAQ</a>
       <a href="#contacts">Контакты</a>
     </nav>
-    <a class="header-phone" data-bind="phone-link" href="tel:+79000000000">+7 900 000-00-00</a>
+    <a class="header-phone" data-bind="phone-link" href="tel:+79867753117">+7 986 775-31-17</a>
     <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Темная тема"></button>
     <button class="burger" id="burger" aria-label="Меню" aria-expanded="false">☰</button>
   </div>
@@ -158,10 +158,12 @@
           <span class="eyebrow">Наши эфиры</span>
           <h2>Портфолио</h2>
         </div>
+        <p class="section-sub">Записи прямых трансляций сезона 2025/26, декабрь — апрель. Нажмите на карточку, чтобы посмотреть.</p>
       </div>
       <div class="portfolio-grid" id="portfolio-grid"></div>
-      <p style="margin-top:16px">
-        <a class="btn btn-ghost" data-bind="vk" href="https://vk.com/club188914503" target="_blank" rel="noopener">Все записи трансляций — в нашей группе VK</a>
+      <p style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap">
+        <button class="btn btn-ghost" id="portfolio-more" type="button" hidden></button>
+        <a class="btn btn-ghost" data-bind="vk" href="https://vk.com/club188914503" target="_blank" rel="noopener">Все записи — в группе VK</a>
       </p>
       <p class="portfolio-disclaimer">Съемка ведется с согласия организаторов соревнований и родителей.</p>
     </div>

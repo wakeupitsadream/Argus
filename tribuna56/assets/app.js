@@ -6,6 +6,7 @@ import { formatTime, formatDayLabel, dateKey, vkEmbedUrl, TZ } from './format.js
 import { formatRub, plural, quoteServices } from './pricing.js';
 import { SEED_MATCHES, SEED_GENERATED_AT } from './seed-matches.js';
 import { initNav, initStickyCta, initThemeToggle, fillBrand, esc, icon } from './ui.js';
+import { teamBadgePair } from './badges.js';
 import { mountRequestForm } from './request-form.js';
 
 const store = {
@@ -110,7 +111,7 @@ function matchCard(m) {
          aria-label="${esc(m.team_home)} — ${esc(m.team_away)}">
       <div class="match-time"><b>${formatTime(m.starts_at)}</b><span>${esc(sportLabel(m.sport))}</span></div>
       <div class="match-main">
-        <div class="match-teams">${icon(`i-${esc(m.sport)}`)}<span>${esc(m.team_home)} — ${esc(m.team_away)}</span></div>
+        <div class="match-teams">${teamBadgePair(m.team_home, m.team_away)}<span>${esc(m.team_home)} — ${esc(m.team_away)}</span></div>
         <div class="match-meta">${esc(meta)}</div>
       </div>
       <div class="match-side">
@@ -192,6 +193,45 @@ function renderHeroFacts() {
   }
 }
 
+// ---------- Портфолио: клик подгружает плеер (15 iframe разом — тяжело) ----------
+
+const PORTFOLIO_VISIBLE = 6;
+
+function portfolioCard(v) {
+  const src = vkEmbedUrl(v.vkUrl);
+  return `
+    <figure class="video-card" style="margin:0">
+      <div class="frame">
+        ${src
+          ? `<button class="video-load" type="button" data-src="${esc(src)}">${icon('i-play')}<span>Смотреть запись</span></button>`
+          : `<div class="video-placeholder">${icon('i-play')}<span>Ролик скоро здесь</span></div>`}
+      </div>
+      <figcaption>${esc(v.title)}</figcaption>
+    </figure>`;
+}
+
+function renderPortfolio() {
+  const list = [...PORTFOLIO].reverse(); // новые записи первыми
+  const wrap = document.getElementById('portfolio-grid');
+  const visible = store.portfolioAll ? list : list.slice(0, PORTFOLIO_VISIBLE);
+  wrap.innerHTML = visible.map(portfolioCard).join('');
+  for (const btn of wrap.querySelectorAll('.video-load')) {
+    btn.addEventListener('click', () => {
+      btn.closest('.frame').innerHTML =
+        `<iframe src="${esc(`${btn.dataset.src}&autoplay=1`)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Запись трансляции"></iframe>`;
+    });
+  }
+  const moreBtn = document.getElementById('portfolio-more');
+  if (moreBtn) {
+    const hidden = list.length - PORTFOLIO_VISIBLE;
+    moreBtn.hidden = Boolean(store.portfolioAll) || hidden <= 0;
+    if (!moreBtn.hidden) {
+      moreBtn.textContent = `Показать еще ${hidden} ${plural(hidden, 'запись', 'записи', 'записей')}`;
+      moreBtn.onclick = () => { store.portfolioAll = true; renderPortfolio(); };
+    }
+  }
+}
+
 // ---------- Статичные секции из data.js ----------
 
 const SERVICE_ICONS = { stream: 'i-cam', highlights: 'i-scissors', personal: 'i-target' };
@@ -209,18 +249,7 @@ function renderStatic() {
   document.getElementById('bundle-note').innerHTML =
     `${esc(BUNDLE.label)}: <b>${formatRub(full.total)}</b> вместо ${formatRub(full.subtotal)} — выгода ${formatRub(BUNDLE.discount)}.`;
 
-  document.getElementById('portfolio-grid').innerHTML = PORTFOLIO.map((v) => {
-    const src = vkEmbedUrl(v.vkUrl);
-    return `
-      <figure class="video-card" style="margin:0">
-        <div class="frame">
-          ${src
-            ? `<iframe src="${esc(src)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="no-referrer"></iframe>`
-            : `<div class="video-placeholder">${icon('i-play')}<span>Ролик скоро здесь</span></div>`}
-        </div>
-        <figcaption>${esc(v.title)}</figcaption>
-      </figure>`;
-  }).join('');
+  renderPortfolio();
 
   document.getElementById('faq-list').innerHTML = FAQ.map((f) => `
     <details class="faq-item">

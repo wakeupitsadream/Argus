@@ -4,10 +4,10 @@ export const BRAND = {
   name: 'Трибуна+',
   tagline: 'Трансляция матча вашего ребенка — по одной ссылке',
   city: 'Оренбург',
-  // TODO(владелец): реальные телефон и telegram (пришлет владелец)
-  phone: '+7 900 000-00-00',
-  phoneHref: 'tel:+79000000000',
-  telegram: 'https://t.me/tribunaplus',
+  phone: '+7 986 775-31-17',
+  phoneHref: 'tel:+79867753117',
+  telegram: 'https://t.me/Tribuna156',
+  // TODO(владелец): заменить на собственную группу, когда появится
   vk: 'https://vk.com/club188914503', // группа с записями трансляций
 };
 
@@ -70,11 +70,26 @@ export const CONTACT_CHANNELS = [
   { id: 'whatsapp', label: 'WhatsApp' },
 ];
 
-// Портфолио: вставьте ссылки на реальные ролики VK (vkUrl). null — стилизованная заглушка.
+// Портфолио: реальные записи прямых трансляций сезона 2025/26
+// (хронологически: декабрь 2025 → апрель 2026; на сайте показываются
+// с конца — новые первыми). Названия можно заменить на «Команда — Команда»
+// прямо здесь. Ролики непубличные: ключ ?list= обязателен.
 export const PORTFOLIO = [
-  { title: 'Детский хоккей — финал выходного дня', vkUrl: null },
-  { title: 'Хайлайты: 5 голов за один период', vkUrl: null },
-  { title: 'Персональная съемка нападающего', vkUrl: null },
+  { title: 'Запись трансляции №1', vkUrl: 'https://vkvideo.ru/video-188914503_456239752?list=2fbdf76b6a4901fbea' },
+  { title: 'Запись трансляции №2', vkUrl: 'https://vkvideo.ru/video-188914503_456239753?list=6c39a63667b2b79bd7' },
+  { title: 'Запись трансляции №3', vkUrl: 'https://vkvideo.ru/video-188914503_456239840?list=33e9c2fec95054faad' },
+  { title: 'Запись трансляции №4', vkUrl: 'https://vkvideo.ru/video-188914503_456239841?list=808b5e81a433ecd771' },
+  { title: 'Запись трансляции №5', vkUrl: 'https://vkvideo.ru/video-188914503_456239842?list=716d69c21e927d8f4f' },
+  { title: 'Запись трансляции №6', vkUrl: 'https://vkvideo.ru/video-188914503_456239843?list=f3cb7097cef334e03a' },
+  { title: 'Запись трансляции №7', vkUrl: 'https://vkvideo.ru/video-188914503_456239906?list=8a83a40f8f12d9945e' },
+  { title: 'Запись трансляции №8', vkUrl: 'https://vkvideo.ru/video-188914503_456239907?list=29337dc35bee24e270' },
+  { title: 'Запись трансляции №9', vkUrl: 'https://vkvideo.ru/video-188914503_456239927?list=4d433bf752e50c84bc' },
+  { title: 'Запись трансляции №10', vkUrl: 'https://vkvideo.ru/video-188914503_456239928?list=e8929e84bd238b2c5b' },
+  { title: 'Запись трансляции №11', vkUrl: 'https://vkvideo.ru/video-188914503_456239954?list=11c2f51ee656e7e38d' },
+  { title: 'Запись трансляции №12', vkUrl: 'https://vkvideo.ru/video-188914503_456239955?list=a247bcad3a41bcc7ca' },
+  { title: 'Запись трансляции №13', vkUrl: 'https://vkvideo.ru/video-188914503_456239960?list=aaae26ca0de4f172be' },
+  { title: 'Запись трансляции №14', vkUrl: 'https://vkvideo.ru/video-188914503_456239961?list=5c2ef14b6b562f8ca4' },
+  { title: 'Запись трансляции №15', vkUrl: 'https://vkvideo.ru/video-188914503_456240038?list=7a36d6f05443a04ce0' },
 ];
 
 export const FAQ = [

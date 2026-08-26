@@ -43,16 +43,27 @@ npm test       # юнит-тесты
 
 ## Настройка (один раз)
 
-### 1. Supabase
+### 1. База данных — Neon (рекомендуется) или Supabase
 
-1. [supabase.com](https://supabase.com) → New project (регион EU).
-2. SQL Editor → вставить содержимое `db/schema.sql` → Run.
-3. Settings → API: забрать `Project URL` и ключ `service_role`
-   (НЕ anon; service_role никогда не попадает в код и браузер — только env).
+Слой БД двухбэкендовый, выбор автоматический по env: есть `DATABASE_URL` →
+Neon; есть `SUPABASE_URL`+`SUPABASE_SERVICE_KEY` → Supabase (PostgREST).
 
-Особенность бесплатного тарифа: проект «засыпает» после ~7 дней без
-API-запросов. Ежедневный cron-импорт (см. ниже) заодно держит его живым.
-Если cron отключен и проект уснул — разбудить кнопкой в Dashboard.
+**Neon через Vercel Marketplace (самый короткий путь):**
+1. Vercel Dashboard → проект → Storage → Create Database → **Neon** →
+   подключить к проекту. `DATABASE_URL` появится в env автоматически.
+2. Neon Console → SQL Editor → вставить содержимое `db/schema.sql` → Run.
+   (Блок RLS в конце схемы нужен только Supabase; в Neon выполнять его
+   безопасно, можно не вырезать.)
+3. Redeploy проекта в Vercel, чтобы функции увидели новую переменную.
+
+Free-тариф Neon засыпает между запросами и просыпается сам за ~секунду —
+в отличие от Supabase, специальный keep-alive не нужен.
+
+**Supabase (альтернатива):** [supabase.com](https://supabase.com) → New
+project (регион EU) → SQL Editor → `db/schema.sql` → Run → Settings → API:
+`Project URL` и ключ `service_role` (НЕ anon) в env Vercel. Особенность
+бесплатного тарифа: проект «засыпает» после ~7 дней без API-запросов —
+ежедневный cron-импорт держит его живым.
 
 ### 2. Telegram-бот
 
@@ -68,8 +79,9 @@ API-запросов. Ежедневный cron-импорт (см. ниже) з
 
 | Переменная | Значение |
 |---|---|
-| `SUPABASE_URL` | `https://<ref>.supabase.co` |
-| `SUPABASE_SERVICE_KEY` | ключ `service_role` |
+| `DATABASE_URL` | автоматически от интеграции Neon (либо задайте Supabase-пару ниже) |
+| `SUPABASE_URL` | `https://<ref>.supabase.co` — только если выбран Supabase |
+| `SUPABASE_SERVICE_KEY` | ключ `service_role` — только если выбран Supabase |
 | `TELEGRAM_BOT_TOKEN` | от @BotFather |
 | `TELEGRAM_CHAT_ID` | id чата владельца |
 | `ADMIN_TOKEN` | `openssl rand -hex 32` — пароль админки |

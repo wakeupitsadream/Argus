@@ -51,6 +51,18 @@ test('vkEmbedUrl: ссылка с параметром z=', () => {
   );
 });
 
+test('vkEmbedUrl: ключ доступа list пробрасывается в плеер', () => {
+  assert.equal(
+    vkEmbedUrl('https://vkvideo.ru/video-188914503_456239752?list=2fbdf76b6a4901fbea'),
+    'https://vk.com/video_ext.php?oid=-188914503&id=456239752&hd=2&list=2fbdf76b6a4901fbea',
+  );
+  // подозрительный list не пробрасываем
+  assert.equal(
+    vkEmbedUrl('https://vk.com/video-1_2?list=a"b'),
+    'https://vk.com/video_ext.php?oid=-1&id=2&hd=2',
+  );
+});
+
 test('vkEmbedUrl: готовый video_ext.php проходит как есть', () => {
   const src = 'https://vk.com/video_ext.php?oid=-1&id=2&hash=abc';
   assert.equal(vkEmbedUrl(src), src);

@@ -73,6 +73,8 @@ create trigger matches_touch before update on matches
   for each row execute function set_updated_at();
 
 -- ========== RLS: deny-all для anon ==========
+-- Актуально для Supabase (PostgREST + anon-ключ). Для Neon блок не нужен,
+-- но выполнять его безопасно: владелец таблиц RLS не подчиняется.
 -- Политик НЕ создаем: включенный RLS без политик закрывает таблицы для anon-ключа.
 -- Сервер ходит только с service_role (env Vercel), который RLS обходит.
 alter table matches      enable row level security;

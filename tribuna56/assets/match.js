@@ -7,6 +7,7 @@ import { displayStatus, STATUS_LABELS } from './catalog.js';
 import { formatMatchDate, vkEmbedUrl } from './format.js';
 import { SEED_MATCHES } from './seed-matches.js';
 import { initNav, initThemeToggle, fillBrand, toast, esc, icon } from './ui.js';
+import { teamBadgePair } from './badges.js';
 import { mountRequestForm } from './request-form.js';
 
 const root = document.getElementById('match-root');
@@ -99,7 +100,7 @@ function render(m) {
     <section class="match-hero">
       <div class="wrap">
         <span class="badge badge-${st}">${st === 'live' ? '<span class="live-dot"></span>' : ''}${STATUS_LABELS[st]}</span>
-        <h1 class="match-title">${esc(m.team_home)} — ${esc(m.team_away)}</h1>
+        <h1 class="match-title">${teamBadgePair(m.team_home, m.team_away, 34)} ${esc(m.team_home)} — ${esc(m.team_away)}</h1>
         <div class="facts">${facts}</div>
       </div>
     </section>

@@ -5,5 +5,8 @@
   "scripts": {
     "dev": "npx -y serve -l 3456 .",
     "test": "node --test"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
   }
 }

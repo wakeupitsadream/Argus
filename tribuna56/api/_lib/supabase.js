@@ -1,6 +1,12 @@
-// Обертка над Supabase PostgREST обычным fetch — без npm-зависимостей.
-// env: SUPABASE_URL, SUPABASE_SERVICE_KEY (service_role, ТОЛЬКО в env Vercel).
+// Слой БД с единым интерфейсом sbSelect/Insert/Update/Delete и двумя
+// бэкендами (выбор по env, менять код хендлеров не нужно):
+//  - Supabase: PostgREST обычным fetch (SUPABASE_URL + SUPABASE_SERVICE_KEY);
+//  - Neon: перевод тех же запросов в SQL (pg-translate.js) + драйвер
+//    @neondatabase/serverless (DATABASE_URL).
 // Браузер сюда не ходит никогда — только serverless-функции.
+
+import { translateSelect, translateInsert, translateUpdate, translateDelete } from './pg-translate.js';
+import { neonConfigured, neonExec } from './db.js';
 
 export class SbError extends Error {
   constructor(status, text) {
@@ -9,8 +15,15 @@ export class SbError extends Error {
   }
 }
 
-export function sbConfigured() {
+function supabaseConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY);
+}
+
+// Supabase в приоритете, если задан явно; иначе Neon по DATABASE_URL.
+const useNeon = () => !supabaseConfigured() && neonConfigured();
+
+export function sbConfigured() {
+  return supabaseConfigured() || neonConfigured();
 }
 
 async function sbFetch(path, { method = 'GET', headers = {}, body } = {}) {
@@ -34,11 +47,16 @@ async function sbFetch(path, { method = 'GET', headers = {}, body } = {}) {
 
 // query — строка PostgREST-фильтров ('select=*&id=eq.5'). Возвращает массив строк.
 export function sbSelect(table, query) {
+  if (useNeon()) return neonExec(translateSelect(table, query));
   return sbFetch(`${table}?${query}`);
 }
 
 // opts: {returning: 'representation'|'minimal', onConflict: 'col1,col2', ignoreDuplicates: bool}
-export function sbInsert(table, rows, opts = {}) {
+export async function sbInsert(table, rows, opts = {}) {
+  if (useNeon()) {
+    const res = await neonExec(translateInsert(table, rows, opts));
+    return opts.returning === 'minimal' ? null : res;
+  }
   const prefer = [`return=${opts.returning || 'representation'}`];
   if (opts.onConflict) {
     prefer.push(opts.ignoreDuplicates ? 'resolution=ignore-duplicates' : 'resolution=merge-duplicates');
@@ -52,6 +70,7 @@ export function sbInsert(table, rows, opts = {}) {
 }
 
 export function sbUpdate(table, query, patch) {
+  if (useNeon()) return neonExec(translateUpdate(table, query, patch));
   return sbFetch(`${table}?${query}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=representation' },
@@ -60,6 +79,7 @@ export function sbUpdate(table, query, patch) {
 }
 
 export function sbDelete(table, query) {
+  if (useNeon()) return neonExec(translateDelete(table, query));
   return sbFetch(`${table}?${query}`, {
     method: 'DELETE',
     headers: { Prefer: 'return=representation' },

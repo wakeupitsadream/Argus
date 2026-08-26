@@ -18,7 +18,7 @@ function makeReq({ method = 'POST', body = {}, ip = '1.1.1.1' } = {}) {
   return { method, body, headers: { 'x-forwarded-for': ip }, query: {} };
 }
 
-const ENV_KEYS = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID'];
+const ENV_KEYS = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'DATABASE_URL', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID'];
 
 async function withEnv(env, fn) {
   const saved = {};

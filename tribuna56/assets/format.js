@@ -70,5 +70,8 @@ export function vkEmbedUrl(url) {
   // vk.com/video-123_456, vkvideo.ru/video-123_456, ?z=video-123_456…
   const m = parsed.href.match(/video(-?\d+)_(\d+)/);
   if (!m) return null;
-  return `https://vk.com/video_ext.php?oid=${m[1]}&id=${m[2]}&hd=2`;
+  // непубличные видео: ключ доступа ?list=… обязателен и для плеера
+  const list = parsed.searchParams.get('list');
+  return `https://vk.com/video_ext.php?oid=${m[1]}&id=${m[2]}&hd=2` +
+    (list && /^[\w-]+$/.test(list) ? `&list=${list}` : '');
 }

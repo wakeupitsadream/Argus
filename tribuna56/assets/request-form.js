@@ -7,6 +7,7 @@ import { quoteServices, formatRub } from './pricing.js';
 import { validateRequest } from './validate.js';
 import { formatMatchDate } from './format.js';
 import { toast, esc, icon } from './ui.js';
+import { teamBadgePair } from './badges.js';
 
 export function mountRequestForm(root, opts = {}) {
   const state = {
@@ -153,7 +154,7 @@ export function mountRequestForm(root, opts = {}) {
       const meta = [sportLabel(m.sport), m.age_group, m.league].filter(Boolean).join(' · ');
       selectionEl.innerHTML = `
         <div class="selected-match">
-          <div class="match-teams">${icon(`i-${esc(m.sport)}`)}<span>${esc(m.team_home)} — ${esc(m.team_away)}</span></div>
+          <div class="match-teams">${teamBadgePair(m.team_home, m.team_away)}<span>${esc(m.team_home)} — ${esc(m.team_away)}</span></div>
           <div class="match-meta">${esc(meta)}<br>${esc(formatMatchDate(m.starts_at))}${m.venue ? ` · ${esc(m.venue)}` : ''}</div>
           <button type="button" class="unselect" id="rf-unselect">Выбрать другой матч</button>
         </div>`;
