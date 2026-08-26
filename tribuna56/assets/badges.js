@@ -1,6 +1,38 @@
-// Эмблемки клубов: SVG-щит с монограммой. Детерминированы от названия
-// (никакого Math.random) — один и тот же клуб всегда одного цвета.
-// Чистые функции без DOM.
+// Эмблемки клубов: реальный логотип, если он есть в assets/img/clubs,
+// иначе SVG-щит с монограммой, детерминированный от названия (никакого
+// Math.random — один и тот же клуб всегда одного цвета). Чистые функции.
+
+// Совпадение — ТОЧНОЕ по нормализованному названию без годового суффикса:
+// «Юниор-2012» → «юниор» ✓, но «АкБарс-Динамо» ≠ «АкБарс» (другой клуб —
+// его логотип добавляется отдельной строкой, когда появится).
+const CLUB_LOGOS = {
+  'юниор': 'junior.png',
+  'хк юниор': 'junior.png',
+  'пестрецы': 'pestretsy.png',
+  'хк пестрецы': 'pestretsy.png',
+  'нефтехимик': 'neftekhimik.png',
+  'акбарс': 'akbars.png',
+  'ак барс': 'akbars.png',
+  'медведь': 'medved.png',
+  'хк медведь': 'medved.png',
+};
+
+export function clubKey(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[«»"'’‘“”]/g, '')
+    .replace(/[‐‑‒–—―-]/g, ' ')
+    .replace(/\b(19|20)\d{2}\b/g, ' ')
+    .replace(/(^|\s)г\.?\s*р\.?(?=\s|$)/g, ' ') // \b не дружит с кириллицей
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function clubLogo(name) {
+  const file = CLUB_LOGOS[clubKey(name)];
+  return file ? `/assets/img/clubs/${file}` : null;
+}
 
 // Палитра щитов — спокойные «клубные» пары фон/кант, читаются в обеих темах.
 const PALETTE = [
@@ -32,8 +64,12 @@ export function teamInitials(name) {
   return initials || '?';
 }
 
-// SVG-щит (inline, size px). aria-hidden: имя команды всегда есть текстом рядом.
+// Эмблема (inline, size px). aria-hidden: имя команды всегда есть текстом рядом.
 export function teamBadge(name, size = 22) {
+  const logo = clubLogo(name);
+  if (logo) {
+    return `<img class="club-badge club-badge--img" src="${logo}" alt="" style="height:${size}px" loading="lazy" decoding="async">`;
+  }
   const [bg, edge] = PALETTE[teamHash(name) % PALETTE.length];
   const initials = teamInitials(name);
   const fontSize = initials.length > 1 ? 9 : 11;

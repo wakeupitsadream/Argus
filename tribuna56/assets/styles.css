@@ -58,6 +58,8 @@ html[data-theme="dark"] .btn:hover { box-shadow: 0 10px 26px rgba(87, 152, 255, 
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+/* классы с display (.btn, .request-grid…) не должны перебивать атрибут hidden */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -386,6 +388,7 @@ h3 { font-size: 17px; font-weight: 600; }
 .badge-pair { display: inline-flex; align-items: center; flex: none; }
 .badge-pair .club-badge + .club-badge { margin-left: -7px; }
 .club-badge { flex: none; filter: drop-shadow(0 1px 2px rgba(10, 30, 70, .3)); }
+.club-badge--img { width: auto; object-fit: contain; }
 .match-title .badge-pair { vertical-align: -4px; margin-right: 6px; }
 .portfolio-disclaimer { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
 
