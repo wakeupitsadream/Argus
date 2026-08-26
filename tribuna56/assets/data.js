@@ -4,11 +4,11 @@ export const BRAND = {
   name: 'Трибуна+',
   tagline: 'Трансляция матча вашего ребенка — по одной ссылке',
   city: 'Оренбург',
-  // TODO(владелец): реальные контакты
+  // TODO(владелец): реальные телефон и telegram (пришлет владелец)
   phone: '+7 900 000-00-00',
   phoneHref: 'tel:+79000000000',
   telegram: 'https://t.me/tribunaplus',
-  vk: 'https://vk.com/tribunaplus',
+  vk: 'https://vk.com/club188914503', // группа с записями трансляций
 };
 
 // Виды спорта каталога. glyph — id SVG-символа в спрайте (index.html/match.html).
