@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Табло — Трибуна+</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <style>
+    /* Оверлей для OBS Browser Source (1920×1080): фон прозрачный,
+       плашка в левом верхнем углу. Позицию двигают самим источником в OBS. */
+    :root {
+      --brand: #0d5cc7;
+      --tv-1: #123568;
+      --tv-2: #0a1f42;
+      --tv-line: #2c4a7c;
+      --tv-text: #8fa8cd;
+      --tv-accent: #7fb5ff;
+      --live: #e03131;
+      --f-disp: 'Unbounded', 'Arial Black', sans-serif;
+      --f-text: 'Manrope', 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { background: transparent; }
+    body { font-family: var(--f-text); color: #fff; overflow: hidden; }
+    /* режим предпросмотра (?demo=1): подложка, чтобы видеть плашку не в OBS */
+    body.demo {
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 600px at 50% 110%, #24486f 0%, transparent 60%),
+        linear-gradient(165deg, #4a6a8f 0%, #17293f 70%);
+    }
+
+    .board {
+      position: absolute; top: 44px; left: 44px;
+      display: inline-flex; flex-direction: column; gap: 8px;
+      transform-origin: top left;
+      filter: drop-shadow(0 10px 28px rgba(3, 10, 24, .45));
+    }
+    .bar { display: inline-flex; align-items: stretch; gap: 8px; }
+
+    .panel {
+      background: linear-gradient(150deg, var(--tv-1) 0%, var(--tv-2) 80%);
+      border: 1px solid var(--tv-line);
+      border-radius: 14px;
+    }
+
+    /* брендовый квадрат Т+ */
+    .brand {
+      display: flex; align-items: center; justify-content: center;
+      width: 64px; border-radius: 14px;
+      background: var(--brand); border: 1px solid rgba(255, 255, 255, .18);
+      font-family: var(--f-disp); font-weight: 800; font-size: 24px; padding-bottom: 3px;
+    }
+
+    /* команды и счет */
+    .teams { display: flex; align-items: center; padding: 0 18px; height: 64px; gap: 14px; }
+    .side { display: flex; align-items: center; gap: 11px; min-width: 150px; }
+    .side.away { flex-direction: row-reverse; }
+    .side .logo { height: 40px; display: flex; align-items: center; }
+    .side .logo img, .side .logo svg { height: 40px; width: auto; display: block; }
+    .side .name {
+      font-weight: 800; font-size: 22px; letter-spacing: .03em;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .score {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--brand); border-radius: 11px; padding: 4px 14px 7px;
+      font-family: var(--f-disp); font-weight: 800; font-size: 30px; line-height: 1;
+      box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .18);
+    }
+    .score .n { min-width: 26px; text-align: center; transition: transform .15s; }
+    .score .n.bump { transform: scale(1.35); }
+    .score .colon { color: rgba(255, 255, 255, .65); font-size: 24px; padding-bottom: 2px; }
+
+    /* период и часы */
+    .clockbox {
+      display: flex; align-items: center; gap: 14px; padding: 0 20px; height: 64px;
+    }
+    .period {
+      color: var(--tv-text); font-weight: 800; font-size: 15px;
+      letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+    }
+    .clock {
+      font-family: var(--f-disp); font-weight: 800; font-size: 30px; line-height: 1;
+      color: var(--tv-accent); font-variant-numeric: tabular-nums;
+      min-width: 108px; text-align: center; padding-bottom: 3px;
+    }
+    .clock.stopped { color: #b9cbe8; }
+
+    /* нижний ряд: удаления + турнир */
+    .sub { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+    .pens { display: flex; gap: 8px; }
+    .pens.away { margin-left: auto; }
+    .pen {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(8, 17, 36, .92); border: 1px solid rgba(224, 49, 49, .65);
+      border-radius: 9px; padding: 5px 11px 6px;
+      font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums;
+    }
+    .pen .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live);
+      animation: pulse 1.6s infinite; }
+    .pen .num { color: var(--tv-text); font-size: 13px; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(224, 49, 49, .5); }
+      70% { box-shadow: 0 0 0 6px rgba(224, 49, 49, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(224, 49, 49, 0); }
+    }
+    .tourn {
+      background: rgba(8, 17, 36, .85); border: 1px solid var(--tv-line);
+      border-radius: 9px; padding: 5px 13px 6px;
+      color: var(--tv-text); font-weight: 700; font-size: 13px; letter-spacing: .05em;
+      white-space: nowrap;
+    }
+    /* пустые элементы прячет JS (hidden): :has() в CEF OBS не поддержан */
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="board" id="board">
+    <div class="bar">
+      <div class="brand">Т+</div>
+      <div class="panel teams">
+        <div class="side home">
+          <span class="logo" id="logo-home"></span>
+          <span class="name" id="name-home">Хозяева</span>
+        </div>
+        <div class="score">
+          <span class="n" id="score-home">0</span>
+          <span class="colon">:</span>
+          <span class="n" id="score-away">0</span>
+        </div>
+        <div class="side away">
+          <span class="logo" id="logo-away"></span>
+          <span class="name" id="name-away">Гости</span>
+        </div>
+      </div>
+      <div class="panel clockbox">
+        <span class="period" id="period">1-й период</span>
+        <span class="clock stopped" id="clock">0:00</span>
+      </div>
+    </div>
+    <div class="sub">
+      <span class="pens home" id="pens-home"></span>
+      <span class="tourn" id="tourn"></span>
+      <span class="pens away" id="pens-away"></span>
+    </div>
+  </div>
+
+  <script type="module">
+    import { sanitizeState, clockElapsed, clockRunning, activePenalties, penaltyLeft, periodLabel, fmtClock, initState, startClock, addPenalty, setScore } from './assets/scoreboard-core.js';
+    import { teamBadge } from './assets/badges.js';
+
+    const $ = (id) => document.getElementById(id);
+    const q = new URLSearchParams(location.search);
+    const boardId = (q.get('id') || '').toLowerCase();
+    const isLocal = q.get('local') === '1';
+    const isDemo = q.get('demo') === '1';
+    const scale = Math.min(3, Math.max(.5, Number(q.get('scale')) || 1));
+    if (scale !== 1) $('board').style.transform = `scale(${scale})`;
+
+    // часы всех устройств могут расходиться: в удаленном режиме ведем время
+    // по серверу (offset из GET), чтобы пульт и OBS-машина совпадали
+    let clockOffset = 0;
+    const nowMs = () => Date.now() + clockOffset;
+
+    let state = initState('hockey', Date.now());
+    if (isDemo) {
+      document.body.classList.add('demo');
+      let d = initState('hockey', Date.now());
+      d.tournament = 'Первенство области · 2015 г.р.';
+      d.home.name = 'Юниор'; d.away.name = 'Сарматы';
+      d = setScore(setScore(setScore(d, 'home', 1, 1), 'home', 1, 2), 'away', 1, 3);
+      d = startClock(d, Date.now() - 754_000); // «12:34» второй минуты периода
+      d.period = 2;
+      d = addPenalty(d, 'away', 2, '7', Date.now());
+      state = d;
+    }
+
+    // Логотипы перерисовываем только при смене названия (img дергать каждый тик нельзя)
+    const lastLogo = { home: null, away: null };
+    function renderStatic() {
+      for (const t of ['home', 'away']) {
+        $(`name-${t}`).textContent = state[t].name;
+        if (lastLogo[t] !== state[t].name) {
+          lastLogo[t] = state[t].name;
+          $(`logo-${t}`).innerHTML = teamBadge(state[t].name, 40);
+        }
+      }
+      $('tourn').textContent = state.tournament || '';
+      $('tourn').hidden = !state.tournament;
+      $('period').textContent = periodLabel(state);
+    }
+
+    const prevScore = { home: -1, away: -1 };
+    function renderScore() {
+      for (const t of ['home', 'away']) {
+        const el = $(`score-${t}`);
+        if (prevScore[t] !== state[t].score) {
+          el.textContent = state[t].score;
+          if (prevScore[t] >= 0) { // не дергаем при первой отрисовке
+            el.classList.remove('bump');
+            void el.offsetWidth;
+            el.classList.add('bump');
+            setTimeout(() => el.classList.remove('bump'), 300);
+          }
+          prevScore[t] = state[t].score;
+        }
+      }
+    }
+
+    function renderTick() {
+      const now = nowMs();
+      const clockEl = $('clock');
+      clockEl.textContent = fmtClock(clockElapsed(state, now));
+      clockEl.classList.toggle('stopped', !clockRunning(state));
+      for (const t of ['home', 'away']) {
+        const g = clockElapsed(state, now);
+        const html = activePenalties(state, t, now).slice(0, 2).map((p) =>
+          `<span class="pen"><span class="dot"></span>${p.number ? `<span class="num">№${p.number}</span>` : ''}${fmtClock(penaltyLeft(p, g))}</span>`
+        ).join('');
+        const box = $(`pens-${t}`);
+        if (box.innerHTML !== html) box.innerHTML = html;
+      }
+      document.querySelector('.sub').hidden = !state.tournament && !document.querySelector('.sub .pen');
+    }
+
+    function apply(raw) {
+      state = sanitizeState(raw, nowMs());
+      renderStatic();
+      renderScore();
+      renderTick();
+    }
+
+    renderStatic(); renderScore(); renderTick();
+    setInterval(renderTick, 200);
+
+    if (isLocal) {
+      // Локальный режим: пульт — Custom Browser Dock в том же OBS,
+      // localStorage у них общий (один CEF-профиль).
+      setInterval(() => {
+        try {
+          const raw = localStorage.getItem('tplus_board_local');
+          if (raw) apply(JSON.parse(raw));
+        } catch (e) { /* битый JSON не роняет оверлей */ }
+      }, 300);
+    } else if (boardId) {
+      let lastUpdated = 0;
+      const poll = async () => {
+        try {
+          const r = await fetch(`/api/scoreboard?id=${boardId}`, { cache: 'no-store' });
+          const j = await r.json();
+          if (j && j.ok) {
+            if (Number.isFinite(j.serverNow)) clockOffset = j.serverNow - Date.now();
+            if (j.data && j.data.updatedAt !== lastUpdated) {
+              lastUpdated = j.data.updatedAt;
+              apply(j.data);
+            }
+          }
+        } catch (e) { /* сеть моргнула — показываем последнее состояние */ }
+      };
+      poll();
+      setInterval(poll, 2500);
+    }
+  </script>
+</body>
+</html>
