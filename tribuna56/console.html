@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Пульт табло — Трибуна+</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <style>
+    :root {
+      --brand: #0d5cc7; --brand-2: #5798ff;
+      --bg: #0a1220; --card: #131f36; --card-2: #182642; --line: #263852;
+      --ink: #edf3fc; --muted: #93a4c0; --live: #ff5f66; --ok: #38cf82; --warn: #ffc257;
+      --f-disp: 'Unbounded', sans-serif; --f-text: 'Manrope', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: var(--bg); color: var(--ink); font-family: var(--f-text);
+      max-width: 520px; margin: 0 auto; padding: 14px 14px 40px; font-size: 16px;
+    }
+    h1 { font-family: var(--f-disp); font-size: 18px; font-weight: 800; }
+    h1 b { background: var(--brand); border-radius: 6px; padding: 0 7px 2px; }
+    .top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .sync { margin-left: auto; font-size: 14px; font-weight: 800; color: var(--muted);
+      display: flex; align-items: center; gap: 7px; }
+    .sync .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+    .sync.ok .dot { background: var(--ok); }
+    .sync.err .dot { background: var(--live); animation: blink 1s infinite; }
+    .sync.err { color: var(--live); }
+    @keyframes blink { 50% { opacity: .35; } }
+
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 14px; margin-bottom: 12px; }
+    .card h2 { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 10px; }
+
+    button {
+      font-family: var(--f-text); font-weight: 800; font-size: 16px; color: var(--ink);
+      background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; cursor: pointer; touch-action: manipulation; user-select: none;
+    }
+    button:active { transform: scale(.97); }
+    button.primary { background: var(--brand); border-color: transparent; }
+    button.danger { background: rgba(224, 49, 49, .16); border-color: rgba(224, 49, 49, .5); color: #ff9a9e; }
+    button.big { font-size: 22px; padding: 16px; width: 100%; }
+    input, select {
+      font-family: var(--f-text); font-weight: 600; font-size: 16px; color: var(--ink);
+      background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+      padding: 11px 12px; width: 100%;
+    }
+    label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 10px 0 5px; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+
+    .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .score-team { text-align: center; }
+    .score-team .tname { font-weight: 800; font-size: 15px; margin-bottom: 6px; min-height: 20px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .score-team .val { font-family: var(--f-disp); font-weight: 800; font-size: 52px; line-height: 1.1; }
+    .score-team .plus { width: 100%; font-size: 24px; padding: 16px; margin-top: 8px;
+      background: var(--brand); border-color: transparent; }
+    .score-team .minus { width: 100%; margin-top: 8px; padding: 8px; font-size: 14px; color: var(--muted); }
+
+    .clock-val { font-family: var(--f-disp); font-weight: 800; font-size: 46px; text-align: center;
+      font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+    .clock-val.run { color: var(--brand-2); }
+    .clock-val.over { color: var(--warn); } /* время периода вышло */
+    #btn-clock.running { background: rgba(224, 49, 49, .18); border-color: rgba(224, 49, 49, .55); }
+    .chips { display: flex; gap: 8px; margin-top: 8px; }
+    .chips button { flex: 1; padding: 10px 4px; font-size: 14px; }
+
+    .period-row { display: flex; align-items: center; gap: 10px; }
+    .period-row .plabel { flex: 1; text-align: center; font-family: var(--f-disp);
+      font-weight: 800; font-size: 20px; }
+    .period-row button { width: 64px; font-size: 22px; }
+
+    .pen-add { display: grid; grid-template-columns: 72px 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .pen-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .pen-item { display: flex; align-items: center; gap: 10px; background: var(--bg);
+      border: 1px solid rgba(224, 49, 49, .45); border-radius: 10px; padding: 8px 12px;
+      font-weight: 700; font-size: 15px; }
+    .pen-item .left { font-variant-numeric: tabular-nums; color: #ff9a9e; }
+    .pen-item .x { margin-left: auto; background: none; border: none; color: var(--muted);
+      font-size: 20px; padding: 2px 10px; }
+    .muted { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+    .linkbox { display: flex; gap: 8px; margin-top: 8px; }
+    .linkbox input { font-size: 12px; color: var(--muted); }
+    .linkbox button { flex: 0 0 auto; }
+
+    #setup-choice { display: flex; flex-direction: column; gap: 12px; padding: 30px 10px; }
+    #load-screen { text-align: center; padding: 60px 20px; }
+    #load-screen .err { color: var(--live); font-weight: 700; margin-top: 12px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>ТРИБУНА<b>+</b> · ПУЛЬТ</h1>
+    <span class="sync" id="sync"><span class="dot"></span><span id="sync-t">—</span></span>
+  </div>
+
+  <div id="setup-choice" hidden>
+    <button class="big" id="btn-resume" hidden></button>
+    <button class="big primary" id="btn-create">Создать онлайн-табло</button>
+    <p class="muted">Счет ведется с любого телефона, табло в OBS обновляется само. Нужна настроенная база данных.</p>
+    <button class="big" id="btn-local">Локальный режим (в OBS)</button>
+    <p class="muted">Пульт открывается доком внутри OBS на ноутбуке трансляции (View → Docks → Custom Browser Docks), интернет для синхронизации не нужен.</p>
+    <p class="muted" id="setup-err" style="color:var(--live)" hidden></p>
+  </div>
+
+  <div id="load-screen" hidden>
+    <p>Загружаю табло…</p>
+    <p class="err" id="load-err" hidden>Нет связи. Пробую снова…</p>
+  </div>
+
+  <div id="app" hidden>
+    <div class="card">
+      <h2>Матч</h2>
+      <div class="row">
+        <select id="f-sport">
+          <option value="hockey">Хоккей</option>
+          <option value="football">Футбол</option>
+        </select>
+        <input id="f-plen" type="number" min="1" max="90" inputmode="numeric" title="Длина периода, мин">
+      </div>
+      <label>Хозяева</label>
+      <input id="f-home" list="clubs" maxlength="40">
+      <label>Гости</label>
+      <input id="f-away" list="clubs" maxlength="40">
+      <label>Турнир (строка под табло)</label>
+      <input id="f-tourn" maxlength="80" placeholder="Первенство области · 2015 г.р.">
+      <datalist id="clubs">
+        <option>Юниор</option><option>Сарматы</option><option>АкБарс</option>
+        <option>АкБарс-Динамо</option><option>Нефтехимик</option><option>Пестрецы</option>
+        <option>Медведь</option><option>Рубин</option><option>Союз</option>
+        <option>СШОР №1-ЦСК ВВС</option>
+      </datalist>
+    </div>
+
+    <div class="card">
+      <h2>Счет</h2>
+      <div class="score-grid">
+        <div class="score-team">
+          <div class="tname" id="t-home">Хозяева</div>
+          <div class="val" id="v-home">0</div>
+          <button class="plus" data-act="goal" data-team="home">+1</button>
+          <button class="minus" data-act="ungoal" data-team="home">−1 (отмена)</button>
+        </div>
+        <div class="score-team">
+          <div class="tname" id="t-away">Гости</div>
+          <div class="val" id="v-away">0</div>
+          <button class="plus" data-act="goal" data-team="away">+1</button>
+          <button class="minus" data-act="ungoal" data-team="away">−1 (отмена)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Часы · <span id="c-period">1-й период</span></h2>
+      <div class="clock-val" id="c-clock">0:00</div>
+      <button class="big primary" id="btn-clock" data-act="clock">▶ Запустить</button>
+      <div class="chips">
+        <button data-act="adj" data-ms="-10000">−10с</button>
+        <button data-act="adj" data-ms="-1000">−1с</button>
+        <button data-act="adj" data-ms="1000">+1с</button>
+        <button data-act="adj" data-ms="10000">+10с</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="f-setclock" placeholder="мм:сс" inputmode="numeric" style="flex:2">
+        <button data-act="setclock">Выставить</button>
+      </div>
+      <div class="period-row" style="margin-top:12px">
+        <button data-act="period" data-d="-1">−</button>
+        <span class="plabel" id="c-period2">1-й период</span>
+        <button data-act="period" data-d="1">+</button>
+      </div>
+    </div>
+
+    <div class="card" id="card-pens">
+      <h2>Удаления</h2>
+      <div class="pen-add">
+        <input id="f-pnum" placeholder="№" maxlength="3" inputmode="numeric">
+        <button data-act="pen" data-team="home" data-min="2">Хоз. 2 мин</button>
+        <button data-act="pen" data-team="away" data-min="2">Гос. 2 мин</button>
+      </div>
+      <div class="row">
+        <button data-act="pen" data-team="home" data-min="5">Хоз. 5 мин</button>
+        <button data-act="pen" data-team="away" data-min="5">Гос. 5 мин</button>
+      </div>
+      <div class="pen-list" id="pen-list"></div>
+    </div>
+
+    <div class="card" id="card-links" hidden>
+      <h2>Ссылки</h2>
+      <label>Табло для OBS (Browser Source, 1920×1080)</label>
+      <div class="linkbox"><input id="l-overlay" readonly><button data-copy="l-overlay">⧉</button></div>
+      <div id="console-link-row">
+        <label>Пульт (отправь тому, кто ведет счет)</label>
+        <div class="linkbox"><input id="l-console" readonly><button data-copy="l-console">⧉</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="big danger" id="btn-reset">Новый матч (сбросить счет и часы)</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      initState, sanitizeState, clockElapsed, clockRunning, startClock, stopClock,
+      adjustClock, setClockMs, setPeriod, setScore, addPenalty, removePenalty,
+      activePenalties, penaltyLeft, setSport, periodLabel, fmtClock, SPORTS,
+    } from './assets/scoreboard-core.js';
+
+    const $ = (id) => document.getElementById(id);
+    const q = new URLSearchParams(location.search);
+    // ключ пульта — во фрагменте (#key=…): не уходит на сервер и не оседает
+    // в access-логах; старые ссылки с ?key= продолжаем понимать
+    const hashKey = (location.hash.match(/key=([a-z0-9]+)/) || [])[1] || '';
+    let mode = q.get('local') === '1' ? 'local' : (q.get('id') ? 'remote' : null);
+    let boardId = (q.get('id') || '').toLowerCase();
+    let token = hashKey || q.get('key') || '';
+    const LS_LOCAL = 'tplus_board_local';
+    const LS_BOARDS = 'tplus_boards';
+
+    // время ведем по серверу (offset из ответов API): часы телефона и
+    // OBS-машины могут расходиться на десятки секунд
+    let clockOffset = 0;
+    const nowMs = () => Date.now() + clockOffset;
+    const applyServerNow = (j) => {
+      if (j && Number.isFinite(j.serverNow)) clockOffset = j.serverNow - Date.now();
+    };
+
+    let state = initState('hockey', Date.now());
+    let loaded = false;      // редактировать можно только после загрузки состояния
+    let dirty = false;
+    let lastEditAt = 0;
+
+    // ---------- синхронизация ----------
+    const syncEl = $('sync');
+    function setSync(cls, text) {
+      syncEl.className = `sync ${cls}`;
+      $('sync-t').textContent = text;
+    }
+
+    function rememberBoard() {
+      try {
+        const list = JSON.parse(localStorage.getItem(LS_BOARDS) || '[]')
+          .filter((b) => b && b.id !== boardId);
+        list.unshift({ id: boardId, token, t: Date.now() });
+        localStorage.setItem(LS_BOARDS, JSON.stringify(list.slice(0, 5)));
+      } catch (e) { /* не критично */ }
+    }
+
+    let saveTimer = 0;
+    let retryTimer = 0;
+
+    async function postState({ keepalive = false } = {}) {
+      const r = await fetch('/api/scoreboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: boardId, token, data: state }),
+        keepalive,
+      });
+      return r.json();
+    }
+
+    async function flushRemote() {
+      clearTimeout(saveTimer); clearTimeout(retryTimer);
+      try {
+        const j = await postState();
+        applyServerNow(j);
+        if (j && j.ok) {
+          dirty = false;
+          setSync('ok', 'онлайн');
+          if (j.stale) pollRemote(true); // наш POST устарел — забираем свежее
+          return;
+        }
+        if (j && j.error === 'forbidden') { setSync('err', 'чужой ключ'); return; }
+        setSync('err', j && j.error === 'unavailable' ? 'БД не настроена' : 'не сохранилось · повтор…');
+      } catch (e) {
+        setSync('err', 'нет сети · повтор…');
+      }
+      // не доехало — активный ретрай, иначе гол может «висеть» весь период
+      retryTimer = setTimeout(flushRemote, 3000);
+    }
+
+    function save() {
+      lastEditAt = Date.now();
+      if (mode === 'local') {
+        state.updatedAt = Date.now();
+        try { localStorage.setItem(LS_LOCAL, JSON.stringify(state)); setSync('ok', 'локально'); }
+        catch (e) { setSync('err', 'ошибка записи'); }
+        return;
+      }
+      if (!loaded) return;
+      state.rev = (state.rev || 0) + 1; // монотонная ревизия — база синхронизации
+      state.updatedAt = nowMs();
+      dirty = true;
+      setSync('', 'сохраняю…');
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(flushRemote, 350);
+    }
+
+    // телефон блокируют сразу после «Запустить» — дебаунс мог не успеть
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && mode === 'remote' && dirty) {
+        clearTimeout(saveTimer);
+        try {
+          navigator.sendBeacon?.('/api/scoreboard',
+            new Blob([JSON.stringify({ id: boardId, token, data: state })], { type: 'application/json' }))
+            || postState({ keepalive: true });
+        } catch (e) { /* вернемся — ретрай доделает */ }
+      }
+      if (document.visibilityState === 'visible' && mode === 'remote' && dirty) flushRemote();
+    });
+
+    // подхват правок второго пульта (когда сами ничего не трогаем)
+    async function pollRemote(force = false) {
+      if (mode !== 'remote' || !loaded) return;
+      if (!force && (dirty || Date.now() - lastEditAt < 3000)) return;
+      try {
+        const r = await fetch(`/api/scoreboard?id=${boardId}`, { cache: 'no-store' });
+        const j = await r.json();
+        applyServerNow(j);
+        if (j && j.ok && j.data && (force || (j.data.rev || 0) > (state.rev || 0))) {
+          state = sanitizeState(j.data, nowMs());
+          if (force) dirty = false;
+          renderAll();
+        }
+      } catch (e) { /* тихо, следующий поллинг */ }
+    }
+    setInterval(pollRemote, 4000);
+
+    // ---------- рендер ----------
+    function renderForm() {
+      // не переписываем поле, в котором пользователь прямо сейчас печатает
+      const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+      set('f-sport', state.sport);
+      set('f-plen', state.periodMin);
+      set('f-home', state.home.name === 'Хозяева' ? '' : state.home.name);
+      set('f-away', state.away.name === 'Гости' ? '' : state.away.name);
+      set('f-tourn', state.tournament);
+    }
+    function renderAll() { renderForm(); render(); }
+    function render() {
+      $('t-home').textContent = state.home.name;
+      $('t-away').textContent = state.away.name;
+      $('v-home').textContent = state.home.score;
+      $('v-away').textContent = state.away.score;
+      $('c-period').textContent = periodLabel(state);
+      $('c-period2').textContent = periodLabel(state);
+      $('card-pens').hidden = !SPORTS[state.sport].penalties;
+      renderTick();
+      renderPens();
+    }
+    function renderTick() {
+      const el = $('c-clock');
+      const elapsed = clockElapsed(state, nowMs());
+      el.textContent = fmtClock(elapsed);
+      el.classList.toggle('run', clockRunning(state));
+      el.classList.toggle('over', elapsed >= state.periodMin * 60000); // время периода вышло
+      const b = $('btn-clock');
+      b.textContent = clockRunning(state) ? '⏸ Остановить' : '▶ Запустить';
+      b.classList.toggle('running', clockRunning(state));
+      b.classList.toggle('primary', !clockRunning(state));
+    }
+
+    // список штрафов: DOM по ключу id — никакого innerHTML (безопасность
+    // и стабильность тапа по «✕» при тикающем таймере)
+    const penRows = new Map(); // id -> {row, leftEl}
+    function renderPens() {
+      const now = nowMs();
+      const g = clockElapsed(state, now);
+      const box = $('pen-list');
+      const want = ['home', 'away'].flatMap((t) => activePenalties(state, t, now));
+      const wantIds = new Set(want.map((p) => p.id));
+      for (const [id, r] of penRows) {
+        if (!wantIds.has(id)) { r.row.remove(); penRows.delete(id); }
+      }
+      for (const p of want) {
+        let r = penRows.get(p.id);
+        if (!r) {
+          const row = document.createElement('div');
+          row.className = 'pen-item';
+          const who = document.createElement('span');
+          who.textContent = `${p.team === 'home' ? state.home.name : state.away.name}${p.number ? ` №${p.number}` : ''}`;
+          const left = document.createElement('span');
+          left.className = 'left';
+          const x = document.createElement('button');
+          x.className = 'x';
+          x.textContent = '✕';
+          x.dataset.del = p.id;
+          row.append(who, left, x);
+          box.append(row);
+          r = { row, leftEl: left };
+          penRows.set(p.id, r);
+        }
+        r.leftEl.textContent = fmtClock(penaltyLeft(p, g));
+      }
+    }
+    setInterval(() => { if (!$('app').hidden) { renderTick(); renderPens(); } }, 300);
+
+    // ---------- действия ----------
+    const lastTap = new Map(); // защита от даблтапа в перчатках: +2 гола, старт-стоп
+    function debounced(key, ms = 350) {
+      const t = Date.now();
+      if (t - (lastTap.get(key) || 0) < ms) return true;
+      lastTap.set(key, t);
+      return false;
+    }
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const now = nowMs();
+      if (btn.dataset.del) { state = removePenalty(state, btn.dataset.del, now); save(); render(); return; }
+      if (btn.dataset.copy) {
+        const inp = $(btn.dataset.copy);
+        inp.select(); inp.setSelectionRange(0, 999);
+        const done = () => { btn.textContent = '✓'; setTimeout(() => { btn.textContent = '⧉'; }, 1200); };
+        if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(done).catch(() => { document.execCommand('copy') && done(); });
+        else if (document.execCommand('copy')) done();
+        return;
+      }
+      switch (btn.dataset.act) {
+        case 'goal':
+          if (debounced(`goal-${btn.dataset.team}`)) return;
+          state = setScore(state, btn.dataset.team, 1, now);
+          break;
+        case 'ungoal': state = setScore(state, btn.dataset.team, -1, now); break;
+        case 'clock':
+          if (debounced('clock')) return;
+          state = clockRunning(state) ? stopClock(state, now) : startClock(state, now);
+          break;
+        case 'adj': state = adjustClock(state, Number(btn.dataset.ms), now); break;
+        case 'setclock': {
+          const m = String($('f-setclock').value || '').match(/^(\d{1,2})[:.,\s](\d{1,2})$/);
+          if (m) state = setClockMs(state, (Number(m[1]) * 60 + Number(m[2])) * 1000, now);
+          break;
+        }
+        case 'period': state = setPeriod(state, state.period + Number(btn.dataset.d), now); break;
+        case 'pen':
+          state = addPenalty(state, btn.dataset.team, Number(btn.dataset.min), $('f-pnum').value, now);
+          $('f-pnum').value = '';
+          break;
+        default: return;
+      }
+      save(); render();
+    });
+
+    // сброс: confirm() в OBS-доке не показывается — двухтаповое подтверждение
+    let resetArmed = 0;
+    $('btn-reset').addEventListener('click', () => {
+      const b = $('btn-reset');
+      if (Date.now() - resetArmed > 3000) {
+        resetArmed = Date.now();
+        b.textContent = 'Точно сбросить? Нажми еще раз';
+        setTimeout(() => { b.textContent = 'Новый матч (сбросить счет и часы)'; }, 3000);
+        return;
+      }
+      resetArmed = 0;
+      b.textContent = 'Новый матч (сбросить счет и часы)';
+      const now = nowMs();
+      const keep = { home: state.home.name, away: state.away.name, tournament: state.tournament, periodMin: state.periodMin, rev: state.rev, pseq: state.pseq };
+      state = initState(state.sport, now);
+      Object.assign(state, { rev: keep.rev, pseq: keep.pseq, tournament: keep.tournament, periodMin: keep.periodMin });
+      state.home.name = keep.home; state.away.name = keep.away;
+      save(); renderAll();
+    });
+
+    for (const [id, apply] of [
+      ['f-sport', (v) => { state = setSport(state, v, nowMs()); }],
+      ['f-plen', (v) => { state.periodMin = Math.min(90, Math.max(1, Number(v) || 20)); }],
+      ['f-home', (v) => { state.home.name = v.trim() || 'Хозяева'; }],
+      ['f-away', (v) => { state.away.name = v.trim() || 'Гости'; }],
+      ['f-tourn', (v) => { state.tournament = v.trim(); }],
+    ]) {
+      const el = $(id);
+      el.addEventListener('input', () => { lastEditAt = Date.now(); }); // недопечатанное не затирать поллингом
+      el.addEventListener('change', (e) => { apply(e.target.value); save(); render(); });
+    }
+
+    // ---------- запуск ----------
+    function showLinks() {
+      const base = location.origin;
+      if (mode === 'local') {
+        $('l-overlay').value = `${base}/scoreboard.html?local=1`;
+        $('console-link-row').hidden = true;
+      } else {
+        $('l-overlay').value = `${base}/scoreboard.html?id=${boardId}`;
+        $('l-console').value = `${base}/console.html?id=${boardId}#key=${token}`;
+        $('console-link-row').hidden = false;
+      }
+      $('card-links').hidden = false;
+    }
+
+    function randId(len, alphabet) {
+      const buf = new Uint8Array(len);
+      crypto.getRandomValues(buf);
+      return [...buf].map((b) => alphabet[b % alphabet.length]).join('');
+    }
+
+    function startLocal() {
+      mode = 'local';
+      try {
+        const raw = localStorage.getItem(LS_LOCAL);
+        if (raw) state = sanitizeState(JSON.parse(raw), Date.now());
+      } catch (e) { /* начнем с чистого */ }
+      loaded = true;
+      setSync('ok', 'локально');
+      $('setup-choice').hidden = true;
+      $('load-screen').hidden = true;
+      showLinks();
+      $('app').hidden = false;
+      renderAll();
+    }
+
+    // удаленный режим: НЕ даем редактировать, пока не загрузили живое
+    // состояние — иначе дефолт с нуля затер бы идущий матч
+    async function startRemote() {
+      $('setup-choice').hidden = true;
+      $('load-screen').hidden = false;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const r = await fetch(`/api/scoreboard?id=${boardId}`, { cache: 'no-store' });
+          const j = await r.json();
+          applyServerNow(j);
+          if (j && j.ok && j.data) { state = sanitizeState(j.data, nowMs()); break; }
+          if (r.status === 404) break; // табло еще не писалось — стартуем с чистого
+          if (j && j.error === 'unavailable') { $('load-err').textContent = 'База данных не настроена'; $('load-err').hidden = false; }
+          else { $('load-err').hidden = false; }
+        } catch (e) { $('load-err').hidden = false; }
+        await new Promise((ok) => setTimeout(ok, Math.min(5000, 1000 + attempt * 1000)));
+      }
+      loaded = true;
+      rememberBoard();
+      setSync('ok', 'онлайн');
+      $('load-screen').hidden = true;
+      showLinks();
+      $('app').hidden = false;
+      renderAll();
+    }
+
+    $('btn-create').addEventListener('click', async () => {
+      boardId = randId(8, 'abcdefghjkmnpqrstuvwxyz23456789');
+      token = randId(20, 'abcdefghjkmnpqrstuvwxyz23456789');
+      $('btn-create').disabled = true;
+      $('btn-create').textContent = 'Создаю…';
+      try {
+        state = initState('hockey', Date.now());
+        state.rev = 1;
+        const j = await postState();
+        applyServerNow(j);
+        if (!j || !j.ok) throw new Error(j && j.error || 'fail');
+        mode = 'remote';
+        loaded = true;
+        history.replaceState(null, '', `?id=${boardId}#key=${token}`);
+        rememberBoard();
+        setSync('ok', 'онлайн');
+        $('setup-choice').hidden = true;
+        showLinks();
+        $('app').hidden = false;
+        renderAll();
+      } catch (e) {
+        $('setup-err').textContent = String(e.message) === 'unavailable'
+          ? 'База данных не настроена — используй локальный режим или настрой Neon (README).'
+          : 'Не получилось создать табло (нет сети?). Попробуй еще раз.';
+        $('setup-err').hidden = false;
+      } finally {
+        $('btn-create').disabled = false;
+        $('btn-create').textContent = 'Создать онлайн-табло';
+      }
+    });
+    $('btn-local').addEventListener('click', () => {
+      history.replaceState(null, '', '?local=1');
+      startLocal();
+    });
+
+    if (mode === 'local') startLocal();
+    else if (mode === 'remote' && boardId) startRemote();
+    else {
+      // экран выбора; если есть недавнее табло — предлагаем продолжить
+      try {
+        const last = JSON.parse(localStorage.getItem(LS_BOARDS) || '[]')[0];
+        if (last && last.id && last.token) {
+          const b = $('btn-resume');
+          b.textContent = `Продолжить последнее табло (${last.id})`;
+          b.hidden = false;
+          b.addEventListener('click', () => {
+            boardId = last.id; token = last.token; mode = 'remote';
+            history.replaceState(null, '', `?id=${boardId}#key=${token}`);
+            startRemote();
+          });
+        }
+      } catch (e) { /* нет так нет */ }
+      $('setup-choice').hidden = false;
+    }
+  </script>
+</body>
+</html>

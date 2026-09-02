@@ -65,6 +65,16 @@ create table import_queue (
   unique (source, source_key)
 );
 
+-- ========== Табло для OBS-трансляций ==========
+-- Одна строка = одно табло. token задает пульт при первой записи;
+-- дальнейшие записи только с тем же token. Чтение — публичное (через API).
+create table scoreboards (
+  id          text primary key check (id ~ '^[a-z0-9]{4,24}$'),
+  token       text not null,
+  data        jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+
 -- ========== updated_at автоматом ==========
 create function set_updated_at() returns trigger language plpgsql as
 $$ begin new.updated_at = now(); return new; end $$;
@@ -80,3 +90,4 @@ create trigger matches_touch before update on matches
 alter table matches      enable row level security;
 alter table requests     enable row level security;
 alter table import_queue enable row level security;
+alter table scoreboards  enable row level security;

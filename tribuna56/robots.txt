@@ -1,4 +1,6 @@
 User-agent: *
 Disallow: /admin.html
 Disallow: /privacy.html
+Disallow: /console.html
+Disallow: /scoreboard.html
 Allow: /
