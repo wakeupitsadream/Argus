@@ -176,7 +176,7 @@
         <button data-act="adj" data-ms="10000">+10с</button>
       </div>
       <div class="row" style="margin-top:8px">
-        <input id="f-setclock" placeholder="мм:сс" inputmode="numeric" style="flex:2">
+        <input id="f-setclock" placeholder="мм:сс — как на табло арены" inputmode="numeric" style="flex:2">
         <button data-act="setclock">Выставить</button>
       </div>
       <div class="period-row" style="margin-top:12px">
@@ -219,8 +219,9 @@
   <script type="module">
     import {
       initState, sanitizeState, clockElapsed, clockRunning, startClock, stopClock,
-      adjustClock, setClockMs, setPeriod, setScore, addPenalty, removePenalty,
-      activePenalties, penaltyLeft, setSport, periodLabel, fmtClock, SPORTS,
+      setPeriod, setScore, addPenalty, removePenalty, activePenalties, penaltyLeft,
+      setSport, periodLabel, fmtClock, SPORTS,
+      displayedClockMs, adjustDisplayedClock, setDisplayedClockMs, periodExpired, isCountdown,
     } from './assets/scoreboard-core.js';
 
     const $ = (id) => document.getElementById(id);
@@ -369,10 +370,10 @@
     }
     function renderTick() {
       const el = $('c-clock');
-      const elapsed = clockElapsed(state, nowMs());
-      el.textContent = fmtClock(elapsed);
+      const now = nowMs();
+      el.textContent = fmtClock(displayedClockMs(state, now));
       el.classList.toggle('run', clockRunning(state));
-      el.classList.toggle('over', elapsed >= state.periodMin * 60000); // время периода вышло
+      el.classList.toggle('over', periodExpired(state, now)); // время периода вышло
       const b = $('btn-clock');
       b.textContent = clockRunning(state) ? '⏸ Остановить' : '▶ Запустить';
       b.classList.toggle('running', clockRunning(state));
@@ -446,10 +447,11 @@
           if (debounced('clock')) return;
           state = clockRunning(state) ? stopClock(state, now) : startClock(state, now);
           break;
-        case 'adj': state = adjustClock(state, Number(btn.dataset.ms), now); break;
+        case 'adj': state = adjustDisplayedClock(state, Number(btn.dataset.ms), now); break;
         case 'setclock': {
+          // вводится то, что на табло арены: для хоккея — остаток периода
           const m = String($('f-setclock').value || '').match(/^(\d{1,2})[:.,\s](\d{1,2})$/);
-          if (m) state = setClockMs(state, (Number(m[1]) * 60 + Number(m[2])) * 1000, now);
+          if (m) state = setDisplayedClockMs(state, (Number(m[1]) * 60 + Number(m[2])) * 1000, now);
           break;
         }
         case 'period': state = setPeriod(state, state.period + Number(btn.dataset.d), now); break;
@@ -484,8 +486,8 @@
           break;
         case 'KeyZ': state = setScore(state, 'home', -1, now); break;
         case 'KeyX': state = setScore(state, 'away', -1, now); break;
-        case 'ArrowLeft': state = adjustClock(state, e.shiftKey ? -10_000 : -1000, now); break;
-        case 'ArrowRight': state = adjustClock(state, e.shiftKey ? 10_000 : 1000, now); break;
+        case 'ArrowLeft': state = adjustDisplayedClock(state, e.shiftKey ? -10_000 : -1000, now); break;
+        case 'ArrowRight': state = adjustDisplayedClock(state, e.shiftKey ? 10_000 : 1000, now); break;
         case 'KeyP':
           if (!debounced('period')) state = setPeriod(state, state.period + 1, now);
           break;
@@ -630,19 +632,22 @@
     if (mode === 'local') startLocal();
     else if (mode === 'remote' && boardId) startRemote();
     else {
-      // экран выбора; если есть недавнее табло — предлагаем продолжить
+      // экран выбора; показываем ВСЕ запомненные табло этого устройства —
+      // параллельные трансляции = несколько табло, по одному на эфир
       try {
-        const last = JSON.parse(localStorage.getItem(LS_BOARDS) || '[]')[0];
-        if (last && last.id && last.token) {
-          const b = $('btn-resume');
-          b.textContent = `Продолжить последнее табло (${last.id})`;
-          b.hidden = false;
-          b.addEventListener('click', () => {
-            boardId = last.id; token = last.token; mode = 'remote';
+        const list = JSON.parse(localStorage.getItem(LS_BOARDS) || '[]').filter((b) => b && b.id && b.token);
+        const anchor = $('btn-resume');
+        list.forEach((b, i) => {
+          const btn = document.createElement('button');
+          btn.className = 'big';
+          btn.textContent = i === 0 ? `Продолжить последнее табло (${b.id})` : `Открыть табло ${b.id}`;
+          btn.addEventListener('click', () => {
+            boardId = b.id; token = b.token; mode = 'remote';
             history.replaceState(null, '', `?id=${boardId}#key=${token}`);
             startRemote();
           });
-        }
+          anchor.parentNode.insertBefore(btn, anchor);
+        });
       } catch (e) { /* нет так нет */ }
       $('setup-choice').hidden = false;
     }

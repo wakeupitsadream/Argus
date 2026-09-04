@@ -4,6 +4,7 @@ import {
   initState, clockElapsed, clockRunning, startClock, stopClock, adjustClock,
   setClockMs, setPeriod, setScore, addPenalty, removePenalty, activePenalties,
   penaltyLeft, setSport, periodLabel, fmtClock, sanitizeState,
+  displayedClockMs, adjustDisplayedClock, setDisplayedClockMs, periodExpired, isCountdown,
 } from '../assets/scoreboard-core.js';
 
 const T0 = 1_000_000;
@@ -175,4 +176,44 @@ test('sanitizeState: showClock — по умолчанию true, false сохр�
   assert.equal(sanitizeState({}).showClock, true);
   assert.equal(sanitizeState({ showClock: false }).showClock, false);
   assert.equal(sanitizeState({ showClock: 'нет' }).showClock, true); // мусор → дефолт
+});
+
+
+test('хоккей: время на убывание — 20:00 → 0:00, футбол — вверх', () => {
+  let h = startClock(initState('hockey', T0), T0);
+  assert.equal(isCountdown(h), true);
+  assert.equal(displayedClockMs(h, T0), 20 * 60000);            // старт периода: 20:00
+  assert.equal(displayedClockMs(h, T0 + 90_000), 18.5 * 60000); // прошло 1:30 → 18:30
+  assert.equal(displayedClockMs(h, T0 + 25 * 60000), 0);        // пересидели — на нуле
+  assert.equal(periodExpired(h, T0 + 20 * 60000), true);
+
+  let f = startClock(initState('football', T0), T0);
+  assert.equal(isCountdown(f), false);
+  assert.equal(displayedClockMs(f, T0 + 90_000), 90_000);       // футбол считает вверх
+});
+
+test('коррекция и «Выставить» — в экранных величинах (для хоккея — остаток)', () => {
+  let h = startClock(initState('hockey', T0), T0);
+  // прошло 60с (на экране 19:00); «+10с» экрану → 19:10, т.е. наиграно 50с
+  h = adjustDisplayedClock(h, 10_000, T0 + 60_000);
+  assert.equal(displayedClockMs(h, T0 + 60_000), 19 * 60000 + 10_000);
+  assert.equal(clockElapsed(h, T0 + 60_000), 50_000);
+  // сверка с табло арены: «Выставить 12:34» = остаток 12:34
+  h = setDisplayedClockMs(h, 12 * 60000 + 34_000, T0 + 100_000);
+  assert.equal(displayedClockMs(h, T0 + 100_000), 12 * 60000 + 34_000);
+  // футбол: те же операции работают в прошедшем времени
+  let f = setDisplayedClockMs(initState('football', T0), 5 * 60000, T0);
+  assert.equal(displayedClockMs(f, T0), 5 * 60000);
+  f = adjustDisplayedClock(f, -60_000, T0);
+  assert.equal(displayedClockMs(f, T0), 4 * 60000);
+});
+
+test('обратный отсчет не ломает штрафы (внутри всё по наигранному)', () => {
+  let h = startClock(initState('hockey', T0), T0);
+  h = addPenalty(h, 'away', 2, '7', T0 + 60_000);
+  // «+30с» экрану (остаток растет) — штрафу это ДОБАВЛЯЕТ 30с к отбытию? Нет:
+  // elapsed уменьшился на 30с, штраф привязан к игровому времени → остаток штрафа +30с
+  h = adjustDisplayedClock(h, 30_000, T0 + 90_000);
+  const left = penaltyLeft(h.penalties[0], clockElapsed(h, T0 + 90_000));
+  assert.equal(left, 120_000); // сидел 30с, откатили 30с игрового — снова полный
 });
