@@ -91,6 +91,11 @@
     .linkbox input { font-size: 12px; color: var(--muted); }
     .linkbox button { flex: 0 0 auto; }
 
+    .chk { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700;
+      color: var(--ink); margin-top: 12px; cursor: pointer; }
+    .chk input { width: 20px; height: 20px; accent-color: var(--brand); }
+    .keys-hint { margin-top: 12px; }
+    @media (hover: none) { .keys-hint { display: none; } } /* на телефоне клавиш нет */
     #setup-choice { display: flex; flex-direction: column; gap: 12px; padding: 30px 10px; }
     #load-screen { text-align: center; padding: 60px 20px; }
     #load-screen .err { color: var(--live); font-weight: 700; margin-top: 12px; }
@@ -133,6 +138,7 @@
       <input id="f-away" list="clubs" maxlength="40">
       <label>Турнир (строка под табло)</label>
       <input id="f-tourn" maxlength="80" placeholder="Первенство области · 2015 г.р.">
+      <label class="chk"><input type="checkbox" id="f-showclock" checked> Показывать часы на табло</label>
       <datalist id="clubs">
         <option>Юниор</option><option>Сарматы</option><option>АкБарс</option>
         <option>АкБарс-Динамо</option><option>Нефтехимик</option><option>Пестрецы</option>
@@ -178,6 +184,7 @@
         <span class="plabel" id="c-period2">1-й период</span>
         <button data-act="period" data-d="1">+</button>
       </div>
+      <p class="muted keys-hint">Клавиши (когда пульт в фокусе): <b>Пробел</b> — старт/стоп · <b>1</b>/<b>2</b> — голы · <b>Z</b>/<b>X</b> — отмена гола · <b>←</b>/<b>→</b> — ±1 с (с Shift ±10 с) · <b>P</b> — след. период</p>
     </div>
 
     <div class="card" id="card-pens">
@@ -345,6 +352,8 @@
       set('f-home', state.home.name === 'Хозяева' ? '' : state.home.name);
       set('f-away', state.away.name === 'Гости' ? '' : state.away.name);
       set('f-tourn', state.tournament);
+      const cb = $('f-showclock');
+      if (document.activeElement !== cb) cb.checked = state.showClock !== false;
     }
     function renderAll() { renderForm(); render(); }
     function render() {
@@ -453,6 +462,38 @@
       save(); render();
     });
 
+    // Горячие клавиши для одиночки-оператора: ноут с OBS стоит рядом,
+    // жать клавишу быстрее, чем целиться в кнопку. e.code — независимо
+    // от раскладки (ЙЦУКЕН/QWERTY). В полях ввода клавиши не перехватываем.
+    document.addEventListener('keydown', (e) => {
+      if ($('app').hidden) return;
+      const t = e.target;
+      if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const now = nowMs();
+      let handled = true;
+      switch (e.code) {
+        case 'Space': case 'KeyK':
+          if (!debounced('clock')) state = clockRunning(state) ? stopClock(state, now) : startClock(state, now);
+          break;
+        case 'Digit1': case 'Numpad1':
+          if (!debounced('goal-home')) state = setScore(state, 'home', 1, now);
+          break;
+        case 'Digit2': case 'Numpad2':
+          if (!debounced('goal-away')) state = setScore(state, 'away', 1, now);
+          break;
+        case 'KeyZ': state = setScore(state, 'home', -1, now); break;
+        case 'KeyX': state = setScore(state, 'away', -1, now); break;
+        case 'ArrowLeft': state = adjustClock(state, e.shiftKey ? -10_000 : -1000, now); break;
+        case 'ArrowRight': state = adjustClock(state, e.shiftKey ? 10_000 : 1000, now); break;
+        case 'KeyP':
+          if (!debounced('period')) state = setPeriod(state, state.period + 1, now);
+          break;
+        default: handled = false;
+      }
+      if (handled) { e.preventDefault(); save(); render(); }
+    });
+
     // сброс: confirm() в OBS-доке не показывается — двухтаповое подтверждение
     let resetArmed = 0;
     $('btn-reset').addEventListener('click', () => {
@@ -471,6 +512,11 @@
       Object.assign(state, { rev: keep.rev, pseq: keep.pseq, tournament: keep.tournament, periodMin: keep.periodMin });
       state.home.name = keep.home; state.away.name = keep.away;
       save(); renderAll();
+    });
+
+    $('f-showclock').addEventListener('change', (e) => {
+      state.showClock = e.target.checked;
+      save(); render();
     });
 
     for (const [id, apply] of [

@@ -28,6 +28,7 @@ export function initState(sport = 'hockey', now = 0) {
     period: 1,
     periodMin: cfg.periodMin,
     clock: { baseMs: 0, startedAt: 0 },
+    showClock: true, // одиночка-оператор может скрыть таймер с табло
     penalties: [],
     rev: 0,       // монотонный счетчик правок — база синхронизации пультов
     updatedAt: now,
@@ -218,6 +219,7 @@ export function sanitizeState(raw, now = 0) {
       baseMs: num(c.baseMs, 0, 6 * 3600_000),
       startedAt: num(c.startedAt, 0, tMax),
     },
+    showClock: raw.showClock !== false,
     penalties: (Array.isArray(raw.penalties) ? raw.penalties : []).slice(0, 8)
       .filter((p) => p && (p.team === 'home' || p.team === 'away'))
       .map((p, i) => ({

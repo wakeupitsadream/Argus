@@ -192,6 +192,7 @@
       $('tourn').textContent = state.tournament || '';
       $('tourn').hidden = !state.tournament;
       $('period').textContent = periodLabel(state);
+      $('clock').hidden = state.showClock === false;
     }
 
     const prevScore = { home: -1, away: -1 };

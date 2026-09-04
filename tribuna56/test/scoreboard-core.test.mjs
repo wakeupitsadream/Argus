@@ -170,3 +170,9 @@ test('sanitizeState: разметка вырезается (XSS в пульт н
   assert.ok(s.updatedAt <= now + 60_000);
   assert.ok(s.clock.startedAt <= now + 60_000); // «часы из будущего» не разносят табло
 });
+
+test('sanitizeState: showClock — по умолчанию true, false сохраняется', () => {
+  assert.equal(sanitizeState({}).showClock, true);
+  assert.equal(sanitizeState({ showClock: false }).showClock, false);
+  assert.equal(sanitizeState({ showClock: 'нет' }).showClock, true); // мусор → дефолт
+});
