@@ -13,8 +13,9 @@
 // истечения в игровом времени: сдвиг часов сдвигает и остаток штрафа.
 
 export const SPORTS = {
-  hockey: { label: 'Хоккей', periods: 3, periodMin: 20, periodWord: 'период', otWord: 'ОТ', penalties: true },
-  football: { label: 'Футбол', periods: 2, periodMin: 30, periodWord: 'тайм', otWord: 'ДВ', penalties: false },
+  // countdown: хоккейное время идет НА УБЫВАНИЕ (20:00 → 0:00), футбольное — вверх
+  hockey: { label: 'Хоккей', periods: 3, periodMin: 20, periodWord: 'период', otWord: 'ОТ', penalties: true, countdown: true },
+  football: { label: 'Футбол', periods: 2, periodMin: 30, periodWord: 'тайм', otWord: 'ДВ', penalties: false, countdown: false },
 };
 
 export function initState(sport = 'hockey', now = 0) {
@@ -117,6 +118,36 @@ export function adjustClock(s, deltaMs, now) {
 
 export function setClockMs(s, ms, now) {
   return adjustClock(s, ms - clockElapsed(s, now), now);
+}
+
+// ---- отображаемое время ----
+// Внутри состояние всегда считает НАИГРАННОЕ (elapsed, вверх) — так штрафы
+// и синхронизация не зависят от направления. Направление — только слой
+// отображения и ввода: у хоккея показываем остаток периода (20:00 → 0:00).
+export const isCountdown = (s) => Boolean((SPORTS[s.sport] || SPORTS.hockey).countdown);
+
+export function displayedClockMs(s, now) {
+  const e = clockElapsed(s, now);
+  return isCountdown(s) ? Math.max(0, s.periodMin * 60000 - e) : e;
+}
+
+// Кнопки коррекции работают в терминах ЭКРАННОГО времени: «+1с» всегда
+// увеличивает то, что видит оператор (для хоккея это остаток → elapsed −1с).
+export function adjustDisplayedClock(s, deltaMs, now) {
+  return adjustClock(s, isCountdown(s) ? -deltaMs : deltaMs, now);
+}
+
+// «Выставить мм:сс» — оператор вводит то, что видит на табло арены:
+// для хоккея это остаток периода, для футбола — прошедшее время.
+export function setDisplayedClockMs(s, ms, now) {
+  const target = isCountdown(s) ? Math.max(0, s.periodMin * 60000 - ms) : ms;
+  return setClockMs(s, target, now);
+}
+
+// «Время периода вышло»: наиграли номинал периода (у хоккея в этот момент
+// остаток на табло — 0:00).
+export function periodExpired(s, now) {
+  return clockElapsed(s, now) >= s.periodMin * 60000;
 }
 
 // Новый период: часы в 0 и стоят, недосиженные штрафы переезжают.

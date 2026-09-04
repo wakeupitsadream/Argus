@@ -89,6 +89,7 @@
       min-width: 108px; text-align: center; padding-bottom: 3px;
     }
     .clock.stopped { color: #b9cbe8; }
+    .clock.over { color: #ffc257; }
 
     /* нижний ряд: удаления + турнир */
     .sub { display: flex; align-items: center; gap: 8px; min-height: 34px; }
@@ -150,7 +151,7 @@
   </div>
 
   <script type="module">
-    import { sanitizeState, clockElapsed, clockRunning, activePenalties, penaltyLeft, periodLabel, fmtClock, initState, startClock, addPenalty, setScore } from './assets/scoreboard-core.js';
+    import { sanitizeState, clockElapsed, clockRunning, activePenalties, penaltyLeft, periodLabel, fmtClock, initState, startClock, addPenalty, setScore, displayedClockMs, isCountdown } from './assets/scoreboard-core.js';
     import { teamBadge } from './assets/badges.js';
 
     const $ = (id) => document.getElementById(id);
@@ -215,8 +216,11 @@
     function renderTick() {
       const now = nowMs();
       const clockEl = $('clock');
-      clockEl.textContent = fmtClock(clockElapsed(state, now));
+      const shown = displayedClockMs(state, now);
+      clockEl.textContent = fmtClock(shown);
       clockEl.classList.toggle('stopped', !clockRunning(state));
+      // хоккейный остаток дошел до нуля — подсветить, что период доигран
+      clockEl.classList.toggle('over', isCountdown(state) && shown <= 0 && clockElapsed(state, now) > 0);
       for (const t of ['home', 'away']) {
         const g = clockElapsed(state, now);
         const html = activePenalties(state, t, now).slice(0, 2).map((p) =>
