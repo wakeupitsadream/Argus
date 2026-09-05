@@ -7,6 +7,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.4"
+    "@neondatabase/serverless": "^1.1.0"
   }
 }
