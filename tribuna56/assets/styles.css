@@ -408,6 +408,19 @@ h3 { font-size: 17px; font-weight: 600; }
 .video-load .icon { width: 42px; height: 42px; color: var(--tv-accent); transition: transform .15s; }
 .video-load:hover .icon { transform: scale(1.12); }
 
+/* ambient-превью: размытый muted-плеер тихо играет под кнопкой карточки —
+   «за мутным стеклом»; клик тот же — открывает настоящий плеер */
+.video-card .frame { overflow: hidden; }
+.ambient-frame {
+  position: absolute; left: -8%; top: -8%; width: 116%; height: 116%; /* запас под blur по краям */
+  border: 0; pointer-events: none;
+  filter: blur(7px) saturate(1.1) brightness(.72);
+}
+.frame.has-ambient .video-load {
+  background: rgba(6, 18, 38, .28); /* легкая тонировка стекла поверх видео */
+  text-shadow: 0 1px 8px rgba(0, 0, 0, .55);
+}
+
 /* Эмблемки клубов */
 .badge-pair { display: inline-flex; align-items: center; flex: none; }
 .badge-pair .club-badge + .club-badge { margin-left: -7px; }

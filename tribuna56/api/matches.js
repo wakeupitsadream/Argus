@@ -18,7 +18,9 @@ const LOOKBACK_MS = 4 * 3600_000;
 
 // Кэш ТОЛЬКО на успешные ответы: заглушка об ошибке БД или 404,
 // закэшированные CDN, минуту прятали бы каталог от всех посетителей.
-const cacheOk = (res) => res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+// Малый SWR: удаленный/правленный админкой матч не должен «висеть» на
+// главной минутами (клиент дополнительно шлет ?v=<30с-ведро> — см. format.js).
+const cacheOk = (res) => res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=30');
 const noCache = (res) => res.setHeader('Cache-Control', 'no-store');
 
 export default async function handler(req, res) {
