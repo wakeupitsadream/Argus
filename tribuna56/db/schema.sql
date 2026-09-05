@@ -1,9 +1,17 @@
--- «Трибуна 56» — схема БД Supabase (Postgres).
--- Применяется вручную: Supabase Dashboard → SQL Editor → вставить целиком → Run.
--- Повторный запуск на чистом проекте; для миграций правьте точечно.
+-- «Трибуна+» — схема БД (Postgres: Neon или Supabase).
+--
+-- Neon (боевой вариант): вручную НИЧЕГО запускать не нужно — api/_lib/db.js
+-- при ошибке «relation … does not exist» разворачивает схему сам и повторяет
+-- запрос. Копия этих выражений живет в api/_lib/schema.js; тест
+-- test/db-bootstrap.test.mjs следит, чтобы файлы не разъехались.
+--
+-- Supabase (альтернативный бэкенд): Dashboard → SQL Editor → вставить
+-- целиком → Run.
+--
+-- Все выражения идемпотентны: повторный запуск безопасен.
 
 -- ========== Матчи каталога ==========
-create table matches (
+create table if not exists matches (
   id           bigint generated always as identity primary key,
   sport        text not null,               -- id вида спорта из assets/data.js (hockey|football|...)
   league       text,                        -- турнир/лига, свободный текст
@@ -25,12 +33,12 @@ create table matches (
   updated_at   timestamptz not null default now()
 );
 
-create unique index matches_source_uidx on matches (source, source_key)
+create unique index if not exists matches_source_uidx on matches (source, source_key)
   where source_key is not null;
-create index matches_list_idx on matches (published, starts_at);
+create index if not exists matches_list_idx on matches (published, starts_at);
 
 -- ========== Заявки ==========
-create table requests (
+create table if not exists requests (
   id           uuid primary key default gen_random_uuid(),
   match_id     bigint references matches(id) on delete set null,
   custom_match jsonb,                       -- {sport, teams, venue, date_text} — «моего матча нет в списке»
@@ -46,12 +54,12 @@ create table requests (
   created_at   timestamptz not null default now()
 );
 
-create index requests_status_idx on requests (status, created_at desc);
+create index if not exists requests_status_idx on requests (status, created_at desc);
 
 -- ========== Очередь импорта ==========
 -- Отклоненные строки не удаляются: unique(source, source_key) — «надгробие»,
 -- не дающее отвергнутому матчу воскреснуть при следующем прогоне импортёра.
-create table import_queue (
+create table if not exists import_queue (
   id          uuid primary key default gen_random_uuid(),
   source      text not null,
   source_key  text not null,
@@ -68,7 +76,7 @@ create table import_queue (
 -- ========== Табло для OBS-трансляций ==========
 -- Одна строка = одно табло. token задает пульт при первой записи;
 -- дальнейшие записи только с тем же token. Чтение — публичное (через API).
-create table scoreboards (
+create table if not exists scoreboards (
   id          text primary key check (id ~ '^[a-z0-9]{4,24}$'),
   token       text not null,
   data        jsonb not null default '{}'::jsonb,
@@ -76,8 +84,10 @@ create table scoreboards (
 );
 
 -- ========== updated_at автоматом ==========
-create function set_updated_at() returns trigger language plpgsql as
+create or replace function set_updated_at() returns trigger language plpgsql as
 $$ begin new.updated_at = now(); return new; end $$;
+
+drop trigger if exists matches_touch on matches;
 
 create trigger matches_touch before update on matches
   for each row execute function set_updated_at();
