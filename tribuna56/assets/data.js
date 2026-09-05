@@ -8,7 +8,7 @@ export const BRAND = {
   phoneHref: 'tel:+79867753117',
   telegram: 'https://t.me/Tribuna156',
   // TODO(владелец): заменить на собственную группу, когда появится
-  vk: 'https://vk.com/club188914503', // группа с записями трансляций
+  vk: 'https://vk.com/tribuna_plus', // наша группа (id 241086908)
 };
 
 // Виды спорта каталога. glyph — id SVG-символа в спрайте (index.html/match.html).

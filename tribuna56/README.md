@@ -86,7 +86,8 @@ project (регион EU) → SQL Editor → `db/schema.sql` → Run → Setting
 | `TELEGRAM_CHAT_ID` | id чата владельца |
 | `ADMIN_TOKEN` | `openssl rand -hex 32` — пароль админки |
 | `CRON_SECRET` | `openssl rand -hex 32` — Vercel сам шлет его в заголовке cron |
-| `VK_SERVICE_TOKEN` | опционально, для VK-адаптеров импортёра |
+| `VK_SERVICE_TOKEN` | опционально: сервисный ключ приложения VK — автодетект эфиров группы (LIVE/finished сами) и VK-адаптеры импортёра |
+| `VK_GROUP_ID` | опционально: числовой id группы (по умолчанию 241086908 — vk.com/tribuna_plus) |
 
 Cron `0 3 * * *` UTC (8:00 по Оренбургу) подхватится из `vercel.json`.
 

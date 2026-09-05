@@ -4,6 +4,7 @@
 
 import { sbConfigured, sbSelect } from './_lib/supabase.js';
 import { SPORT_IDS } from '../assets/data.js';
+import { maybeCheckVkLive } from './_lib/vklive.js';
 
 const PUBLIC_FIELDS = [
   'id', 'sport', 'league', 'age_group', 'team_home', 'team_away',
@@ -34,6 +35,10 @@ export default async function handler(req, res) {
 
   const q = req.query || {};
   try {
+    // главная опрашивает каталог каждые 90с — заодно (раз в минуту)
+    // проверяем, не начался/закончился ли эфир в нашей группе VK
+    await maybeCheckVkLive();
+
     if (q.id) {
       const id = Number(q.id);
       if (!Number.isInteger(id) || id <= 0) {
