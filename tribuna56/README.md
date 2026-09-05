@@ -24,7 +24,7 @@ tribuna56/
 ├── match.html        страница матча (/match/:id через rewrite)
 ├── admin.html        админка (вход по ADMIN_TOKEN)
 ├── privacy.html      политика конфиденциальности (152-ФЗ)
-├── db/schema.sql     схема БД — применяется в Supabase SQL Editor
+├── db/schema.sql     схема БД (Neon применяет ее сам; вручную — только Supabase)
 ├── assets/           стили, данные, чистая логика, DOM-слои
 ├── api/              serverless-функции (+ api/_lib/ — общие хелперы)
 └── test/             юнит-тесты (node --test)
@@ -51,10 +51,11 @@ Neon; есть `SUPABASE_URL`+`SUPABASE_SERVICE_KEY` → Supabase (PostgREST).
 **Neon через Vercel Marketplace (самый короткий путь):**
 1. Vercel Dashboard → проект → Storage → Create Database → **Neon** →
    подключить к проекту. `DATABASE_URL` появится в env автоматически.
-2. Neon Console → SQL Editor → вставить содержимое `db/schema.sql` → Run.
-   (Блок RLS в конце схемы нужен только Supabase; в Neon выполнять его
-   безопасно, можно не вырезать.)
-3. Redeploy проекта в Vercel, чтобы функции увидели новую переменную.
+2. Redeploy проекта в Vercel, чтобы функции увидели новую переменную.
+
+Таблицы создаются АВТОМАТИЧЕСКИ: при первом запросе к пустой базе сервер
+сам прогоняет схему (`api/_lib/schema.js`, копия `db/schema.sql`) и
+повторяет запрос — SQL Editor не нужен.
 
 Free-тариф Neon засыпает между запросами и просыпается сам за ~секунду —
 в отличие от Supabase, специальный keep-alive не нужен.
@@ -118,8 +119,9 @@ Cron `0 3 * * *` UTC (8:00 по Оренбургу) подхватится из 
 с тестовыми данными. Логотипы команд подтягиваются как на сайте
 (`assets/badges.js`): точное имя клуба → реальное лого, иначе монограмма.
 
-Если БД уже развернута ранее — выполните в SQL-редакторе блок
-`scoreboards` из `db/schema.sql` (новая таблица + RLS).
+Если БД на Supabase развернута ранее — выполните в SQL Editor блок
+`scoreboards` из `db/schema.sql` (новая таблица + RLS). На Neon недостающая
+таблица создастся сама при первом обращении.
 
 ## Брендинг
 
