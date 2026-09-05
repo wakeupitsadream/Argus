@@ -50,6 +50,25 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, match: rows[0] });
     }
 
+    // Архив: завершенные эфиры с видео — портфолио подтягивает их само.
+    // Фильтр «есть видео» делаем в JS: or=() PostgREST не переварил бы
+    // транслятор Neon, а выборка тут маленькая.
+    if (q.archive === '1') {
+      const ap = new URLSearchParams();
+      ap.set('select', PUBLIC_FIELDS);
+      ap.set('published', 'is.true');
+      ap.set('status', 'eq.finished');
+      ap.set('order', 'starts_at.desc');
+      ap.set('limit', '50');
+      const rows = await sbSelect('matches', ap.toString());
+      const lim = Math.min(Math.max(Number(q.limit) || 30, 1), 50);
+      const withVideo = (rows || [])
+        .filter((m) => m.stream_url || m.highlights_url)
+        .slice(0, lim);
+      cacheOk(res);
+      return res.status(200).json({ ok: true, matches: withVideo });
+    }
+
     const p = new URLSearchParams();
     p.set('select', PUBLIC_FIELDS);
     p.set('published', 'is.true');

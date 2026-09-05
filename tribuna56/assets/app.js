@@ -14,6 +14,7 @@ const store = {
   state: 'loading', // loading | ready | unavailable
   seeded: false, // каталог из вшитого seed (БД не подключена/недоступна)
   filters: { sport: 'all', age: 'all', when: 'all' },
+  archive: [], // завершенные эфиры из БД для портфолио
 };
 
 const catalogEl = document.getElementById('catalog');
@@ -121,7 +122,42 @@ function matchCard(m) {
     </div>`;
 }
 
+// Клик по постеру подгружает iframe (общий паттерн портфолио и live-блока)
+function bindVideoLoads(rootEl) {
+  for (const btn of rootEl.querySelectorAll('.video-load')) {
+    btn.addEventListener('click', () => {
+      btn.closest('.frame').innerHTML =
+        `<iframe src="${esc(`${btn.dataset.src}&autoplay=1`)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Трансляция"></iframe>`;
+    });
+  }
+}
+
+// «Сейчас в эфире» над каталогом: плеер прямо на главной. Показывается
+// даже при пустом каталоге (предсезон) — эфир важнее расписания.
+function liveBlockHtml() {
+  const live = store.matches.find((m) => displayStatus(m) === 'live');
+  if (!live) return '';
+  const src = vkEmbedUrl(live.stream_url);
+  const title = `${live.team_home} — ${live.team_away}`;
+  return `
+    <div class="live-now" data-live-id="${live.id}">
+      <div class="live-now-head">
+        <span class="badge badge-live"><span class="live-dot"></span>Сейчас в эфире</span>
+        <span class="live-now-title">${teamBadgePair(live.team_home, live.team_away, 20)}<span>${esc(title)}</span></span>
+        <a class="btn btn-ghost btn-sm" href="/match/${live.id}">Страница матча</a>
+      </div>
+      <div class="frame">
+        ${src
+          ? `<button class="video-load" type="button" data-src="${esc(src)}" aria-label="Смотреть эфир: ${esc(title)}">${icon('i-play')}<span>Смотреть эфир</span></button>`
+          : `<div class="video-placeholder">${icon('i-play')}<span>Эфир идет — <a href="/match/${live.id}">открыть страницу матча</a></span></div>`}
+      </div>
+    </div>`;
+}
+
 function renderCatalog() {
+  // зритель уже смотрит эфир во встроенном плеере — не перерисовываем
+  // каталог под ним (фоновое автообновление не должно сбрасывать видео)
+  if (catalogEl.querySelector('.live-now iframe')) return;
   if (store.state === 'loading') {
     catalogEl.innerHTML = '<div class="match-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
     return;
@@ -138,7 +174,7 @@ function renderCatalog() {
   const list = visibleMatches();
   if (!list.length) {
     const preseason = store.seeded && !store.matches.length;
-    catalogEl.innerHTML = `
+    catalogEl.innerHTML = liveBlockHtml() + `
       <div class="state-plate">
         <b>${store.matches.length
           ? 'По выбранным фильтрам матчей нет'
@@ -149,10 +185,12 @@ function renderCatalog() {
             ? 'Федерации публикуют календари за 1–2 недели до первых туров — матчи появятся здесь автоматически. А свой матч можно вписать вручную прямо сейчас: жмите «Моего матча нет в списке».'
             : 'Впишите свой матч вручную — снимем и его.'}
       </div>`;
+    bindVideoLoads(catalogEl);
     return;
   }
   const now = new Date().toISOString();
   catalogEl.innerHTML = `
+    ${liveBlockHtml()}
     ${store.seeded ? `<p class="calc-note">Расписание сверено вручную ${esc(SEED_GENERATED_AT.split('-').reverse().join('.'))} по данным федераций и лиг. Дату и время подтверждаем при заявке.</p>` : ''}
     ${groupByDay(list).map((g) => `
       <div class="day-group">
@@ -160,6 +198,7 @@ function renderCatalog() {
         <div class="match-list">${g.matches.map(matchCard).join('')}</div>
       </div>`).join('')}`;
 
+  bindVideoLoads(catalogEl);
   for (const card of catalogEl.querySelectorAll('.match-card')) {
     const m = store.matches.find((x) => String(x.id) === card.dataset.id);
     if (!m) continue;
@@ -197,6 +236,28 @@ function renderHeroFacts() {
 
 const PORTFOLIO_VISIBLE = 6;
 
+// Завершенные эфиры из БД попадают в архив сами: админ жмет «Завершить» —
+// матч со ссылкой на запись появляется тут при следующей загрузке страницы.
+const archiveDateFmt = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric',
+});
+
+async function loadArchive() {
+  try {
+    const r = await fetch('/api/matches?archive=1');
+    const data = await r.json();
+    if (!data.ok) return;
+    store.archive = (data.matches || []).map((m) => ({
+      home: m.team_home,
+      away: m.team_away,
+      age: m.age_group,
+      date: archiveDateFmt.format(new Date(m.starts_at)),
+      vkUrl: m.highlights_url || m.stream_url,
+    }));
+    if (store.archive.length) renderPortfolio();
+  } catch { /* БД молчит — статичное портфолио уже на экране */ }
+}
+
 function portfolioCard(v) {
   const src = vkEmbedUrl(v.vkUrl);
   const title = v.home ? `${v.home} — ${v.away}` : v.title || 'Запись трансляции';
@@ -216,16 +277,20 @@ function portfolioCard(v) {
 }
 
 function renderPortfolio() {
-  const list = [...PORTFOLIO].reverse(); // новые записи первыми
+  // свежие эфиры из БД — первыми, затем статичный архив прошлого сезона;
+  // дедуп по ссылке (матч мог быть вписан и туда, и туда)
+  const seen = new Set();
+  const list = [...(store.archive || []), ...[...PORTFOLIO].reverse()]
+    .filter((v) => {
+      const key = v.vkUrl || `${v.home}|${v.date}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   const wrap = document.getElementById('portfolio-grid');
   const visible = store.portfolioAll ? list : list.slice(0, PORTFOLIO_VISIBLE);
   wrap.innerHTML = visible.map(portfolioCard).join('');
-  for (const btn of wrap.querySelectorAll('.video-load')) {
-    btn.addEventListener('click', () => {
-      btn.closest('.frame').innerHTML =
-        `<iframe src="${esc(`${btn.dataset.src}&autoplay=1`)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Запись трансляции"></iframe>`;
-    });
-  }
+  bindVideoLoads(wrap);
   const moreBtn = document.getElementById('portfolio-more');
   if (moreBtn) {
     const hidden = list.length - PORTFOLIO_VISIBLE;
@@ -286,6 +351,10 @@ function init() {
     document.getElementById('request').scrollIntoView({ behavior: 'smooth' });
   });
   loadMatches();
+  loadArchive();
+  // мягкое автообновление: начавшийся эфир появляется на открытой странице
+  // сам; если зритель уже смотрит плеер — renderCatalog не тронет DOM
+  setInterval(loadMatches, 90_000);
 }
 
 init();
