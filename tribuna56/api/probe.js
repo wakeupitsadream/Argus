@@ -47,6 +47,20 @@ export default async function handler(req, res) {
     });
     // VK и старые .ru-сайты отдают windows-1251 — декодируем по заголовку/мете
     const buf = Buffer.from(await r.arrayBuffer());
+    // b64=1: бинарник (логотип клуба) страницами base64 — среда разработки
+    // до .ru-хостов не дотягивается, а картинки нужны в assets/img/clubs
+    if (q.b64 === '1') {
+      const b64 = buf.toString('base64');
+      return res.status(200).json({
+        ok: true,
+        status: r.status,
+        final_url: r.url,
+        content_type: r.headers.get('content-type') || '',
+        total_len: b64.length,
+        start,
+        body: b64.slice(start, start + SLICE),
+      });
+    }
     let charset = ((r.headers.get('content-type') || '').match(/charset=([\w-]+)/i) || [])[1];
     if (!charset) {
       charset = (buf.subarray(0, 2048).toString('latin1').match(/charset=["']?([\w-]+)/i) || [])[1];

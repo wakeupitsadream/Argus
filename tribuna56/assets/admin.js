@@ -308,6 +308,7 @@ function renderImport() {
     <div class="toolbar">
       <button class="btn btn-sm" id="btn-run-import" type="button">Проверить обновления</button>
       <button class="mini-btn" id="btn-reload-queue" type="button">Обновить очередь</button>
+      ${state.queue.length > 1 ? `<button class="mini-btn primary" id="btn-approve-all" type="button">Подтвердить все (${state.queue.length})</button>` : ''}
     </div>
     ${state.lastReport ? `<div class="import-report">${esc(reportText(state.lastReport))}</div>` : ''}
     ${state.queue.length
@@ -326,6 +327,20 @@ function renderImport() {
     renderImport();
   });
   $('btn-reload-queue').addEventListener('click', async () => { await guard(loadQueue); renderImport(); });
+  $('btn-approve-all')?.addEventListener('click', async () => {
+    const n = state.queue.length;
+    if (!confirm(`Подтвердить все ${n} ${plural(n, 'матч', 'матча', 'матчей')} из очереди? Помеченные «похож на дубль» останутся на ручную проверку.`)) return;
+    const btn = $('btn-approve-all');
+    btn.disabled = true;
+    btn.textContent = 'Подтверждаем…';
+    await guard(async () => {
+      const r = await api('/api/admin/import?id=all', { method: 'PATCH', body: JSON.stringify({ action: 'approve' }) });
+      await Promise.all([loadQueue(), loadMatches()]);
+      toast(`В каталог добавлено: ${r.approved}${r.skipped ? `, оставлено на проверку: ${r.skipped}` : ''}${r.failed ? `, с ошибкой: ${r.failed}` : ''}`);
+    });
+    renderImport();
+    renderMatches();
+  });
 
   for (const card of pane.querySelectorAll('.queue-card')) {
     card.addEventListener('click', async (e) => {

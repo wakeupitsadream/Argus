@@ -72,6 +72,26 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const id = String(q.id || '');
       const { action } = readBody(req);
+
+      // Массовое подтверждение: вся очередь одним кликом. Строки с пометкой
+      // «похож на дубль» пропускаем — их решает человек.
+      if (id === 'all' && action === 'approve') {
+        const rows = await sbSelect('import_queue',
+          'select=*&status=eq.pending&order=created_at.asc&limit=200');
+        const result = { approved: 0, skipped: 0, failed: 0 };
+        for (const item of rows || []) {
+          if (item.payload && item.payload.possible_duplicate_of) { result.skipped++; continue; }
+          try {
+            await approve(item);
+            result.approved++;
+          } catch (e) {
+            result.failed++;
+            console.warn('[admin/import] approve_all', item.id, e && e.message);
+          }
+        }
+        return res.status(200).json({ ok: true, ...result });
+      }
+
       if (!UUID_RE.test(id) || !['approve', 'reject'].includes(action)) {
         return res.status(400).json({ ok: false, error: 'validation' });
       }
