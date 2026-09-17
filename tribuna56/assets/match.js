@@ -4,7 +4,8 @@
 
 import { BRAND, sportLabel } from './data.js';
 import { displayStatus, STATUS_LABELS } from './catalog.js';
-import { formatMatchDate, vkEmbedUrl } from './format.js';
+import { formatMatchDate, vkEmbedUrl, withAutoplayMuted, cacheBucket } from './format.js';
+import { nudgeVkMutedPlay } from './vkplayer.js';
 import { SEED_MATCHES } from './seed-matches.js';
 import { initNav, initThemeToggle, fillBrand, toast, esc, icon } from './ui.js';
 import { teamBadgePair } from './badges.js';
@@ -22,7 +23,8 @@ function matchIdFromUrl() {
 
 async function loadMatch(id) {
   try {
-    const r = await fetch(`/api/matches?id=${id}`);
+    // ?v=<30с-ведро>: свежий LIVE/статус не залипает в CDN-кэше
+    const r = await fetch(`/api/matches?id=${id}&v=${cacheBucket()}`);
     const data = await r.json(); // без API здесь бросит → seed-фолбэк
     if (r.status === 404 && data.error === 'not_found') {
       // БД жива, но матча в ней нет — возможно, это ссылка на seed-каталог
@@ -56,7 +58,9 @@ function playerBlock(m, st) {
       'Следите за каталогом — новая дата появится там.');
   }
   if (st === 'live') {
-    const src = vkEmbedUrl(m.stream_url);
+    // эфир стартует сам, без звука (браузеры разрешают только muted-автозапуск);
+    // звук зритель включает кнопкой громкости в плеере
+    const src = withAutoplayMuted(vkEmbedUrl(m.stream_url));
     if (src) {
       return `<iframe src="${esc(src)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Прямая трансляция"></iframe>`;
     }
@@ -112,6 +116,11 @@ function render(m) {
         <a class="btn btn-ghost" href="/#matches">Все матчи</a>
       </div>
     </section>`;
+
+  if (st === 'live') {
+    const liveFrame = root.querySelector('.player-frame iframe');
+    if (liveFrame) nudgeVkMutedPlay(liveFrame); // страховка muted-автозапуска
+  }
 
   document.getElementById('btn-share').addEventListener('click', async () => {
     const url = location.href;

@@ -18,7 +18,9 @@ const LOOKBACK_MS = 4 * 3600_000;
 
 // Кэш ТОЛЬКО на успешные ответы: заглушка об ошибке БД или 404,
 // закэшированные CDN, минуту прятали бы каталог от всех посетителей.
-const cacheOk = (res) => res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+// Малый SWR: удаленный/правленный админкой матч не должен «висеть» на
+// главной минутами (клиент дополнительно шлет ?v=<30с-ведро> — см. format.js).
+const cacheOk = (res) => res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=30');
 const noCache = (res) => res.setHeader('Cache-Control', 'no-store');
 
 export default async function handler(req, res) {
@@ -89,9 +91,25 @@ export default async function handler(req, res) {
       p.append('starts_at', `lte.${new Date(q.to).toISOString()}`);
     }
 
-    const rows = await sbSelect('matches', p.toString());
+    const rows = (await sbSelect('matches', p.toString())) || [];
+
+    // идущий эфир не должен выпадать из каталога из-за окна «4 часа назад»
+    // (матч затянулся или эфир включили поздно): live-матчи подмешиваем
+    // отдельным запросом — or=() транслятор Neon не умеет
+    const lp = new URLSearchParams();
+    lp.set('select', PUBLIC_FIELDS);
+    lp.set('published', 'is.true');
+    lp.set('status', 'eq.live');
+    lp.set('limit', '20');
+    if (q.sport && SPORT_IDS.includes(q.sport)) lp.append('sport', `eq.${q.sport}`);
+    if (q.age) lp.append('age_group', `eq.${String(q.age).slice(0, 60)}`);
+    const liveRows = (await sbSelect('matches', lp.toString())) || [];
+    const seen = new Set(rows.map((m) => m.id));
+    const merged = [...rows, ...liveRows.filter((m) => !seen.has(m.id))]
+      .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+
     cacheOk(res);
-    return res.status(200).json({ ok: true, matches: rows || [] });
+    return res.status(200).json({ ok: true, matches: merged });
   } catch (e) {
     console.warn('[matches] Supabase недоступен:', e && e.message);
     noCache(res);

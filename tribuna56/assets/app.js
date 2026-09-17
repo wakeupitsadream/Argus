@@ -2,7 +2,9 @@
 
 import { SPORTS, SERVICES, BUNDLE, PORTFOLIO, FAQ, BRAND, sportLabel } from './data.js';
 import { filterMatches, groupByDay, displayStatus, STATUS_LABELS, ageGroups } from './catalog.js';
-import { formatTime, formatDayLabel, dateKey, vkEmbedUrl, TZ } from './format.js';
+import { formatTime, formatDayLabel, dateKey, vkEmbedUrl, withAutoplayMuted, cacheBucket, TZ } from './format.js';
+import { initAmbientPreviews, releaseAmbient } from './ambient.js';
+import { nudgeVkMutedPlay } from './vkplayer.js';
 import { formatRub, plural, quoteServices } from './pricing.js';
 import { SEED_MATCHES, SEED_GENERATED_AT } from './seed-matches.js';
 import { initNav, initStickyCta, initThemeToggle, fillBrand, esc, icon } from './ui.js';
@@ -12,12 +14,14 @@ import { mountRequestForm } from './request-form.js';
 const store = {
   matches: [],
   state: 'loading', // loading | ready | unavailable
+  loadedOnce: false, // скелетон показываем только до первого ответа
   seeded: false, // каталог из вшитого seed (БД не подключена/недоступна)
   filters: { sport: 'all', age: 'all', when: 'all' },
   archive: [], // завершенные эфиры из БД для портфолио
 };
 
 const catalogEl = document.getElementById('catalog');
+const liveSlotEl = document.getElementById('live-slot');
 const filtersEl = document.getElementById('filters');
 
 const weekdayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
@@ -27,22 +31,32 @@ const todayKey = () => dateKey(new Date().toISOString());
 // ---------- Каталог ----------
 
 async function loadMatches() {
-  store.state = 'loading';
-  renderCatalog();
+  if (!store.loadedOnce) {
+    store.state = 'loading';
+    renderCatalog();
+  }
   try {
-    const r = await fetch('/api/matches');
+    // ?v=<30с-ведро>: правки админки (удаление, LIVE) не залипают в CDN-кэше
+    const r = await fetch(`/api/matches?v=${cacheBucket()}`);
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'unavailable');
     store.matches = data.matches || [];
+    store.seeded = false;
     store.state = 'ready';
   } catch {
-    // БД не подключена или недоступна → вшитый каталог реальных матчей
+    // фоновый полл сорвался (сеть моргнула, БД икнула): держим последние
+    // удачные данные — играющий эфир и каталог не трогаем, правки админки
+    // доедут следующим успешным поллом
+    if (store.loadedOnce) return;
+    // первая загрузка: БД не подключена или недоступна → вшитый каталог
     const cutoff = Date.now() - 4 * 3600_000;
     store.matches = SEED_MATCHES.filter((m) => Date.parse(m.starts_at) >= cutoff);
     store.seeded = true;
     store.state = 'ready';
   }
+  store.loadedOnce = true;
   renderFilters();
+  renderLive();
   renderCatalog();
   renderHeroFacts();
 }
@@ -122,42 +136,66 @@ function matchCard(m) {
     </div>`;
 }
 
-// Клик по постеру подгружает iframe (общий паттерн портфолио и live-блока)
+// Клик по карточке подгружает настоящий плеер (вместо ambient-превью)
 function bindVideoLoads(rootEl) {
   for (const btn of rootEl.querySelectorAll('.video-load')) {
     btn.addEventListener('click', () => {
-      btn.closest('.frame').innerHTML =
+      const frame = btn.closest('.frame');
+      releaseAmbient(frame); // превью снято, observer его больше не вернет
+      frame.innerHTML =
         `<iframe src="${esc(`${btn.dataset.src}&autoplay=1`)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Трансляция"></iframe>`;
     });
   }
 }
 
-// «Сейчас в эфире» над каталогом: плеер прямо на главной. Показывается
-// даже при пустом каталоге (предсезон) — эфир важнее расписания.
-function liveBlockHtml() {
-  const live = store.matches.find((m) => displayStatus(m) === 'live');
-  if (!live) return '';
-  const src = vkEmbedUrl(live.stream_url);
+// «Сейчас в эфире» над каталогом: плеер стартует сам, без звука (звук —
+// кнопкой громкости в плеере). Живет в своем слоте отдельно от каталога:
+// фоновые обновления списка не трогают играющий iframe.
+// режим экономии трафика (Save-Data): эфир не стартует сам, ждет клика
+const liteMode = () => Boolean(navigator.connection && navigator.connection.saveData);
+
+function liveBlockHtml(live) {
+  const base = vkEmbedUrl(live.stream_url);
+  const src = liteMode() ? base : withAutoplayMuted(base);
   const title = `${live.team_home} — ${live.team_away}`;
+  const player = !src
+    ? `<div class="video-placeholder">${icon('i-play')}<span>Эфир идет — <a href="/match/${live.id}">открыть страницу матча</a></span></div>`
+    : liteMode()
+      ? `<button class="video-load" type="button" data-src="${esc(src)}" aria-label="Смотреть эфир: ${esc(title)}">${icon('i-play')}<span>Смотреть эфир</span></button>`
+      : `<iframe src="${esc(src)}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="no-referrer" title="Прямая трансляция: ${esc(title)}"></iframe>`;
   return `
-    <div class="live-now" data-live-id="${live.id}">
+    <div class="live-now" data-live-id="${live.id}" data-live-src="${esc(live.stream_url || '')}">
       <div class="live-now-head">
         <span class="badge badge-live"><span class="live-dot"></span>Сейчас в эфире</span>
         <span class="live-now-title">${teamBadgePair(live.team_home, live.team_away, 20)}<span>${esc(title)}</span></span>
         <a class="btn btn-ghost btn-sm" href="/match/${live.id}">Страница матча</a>
       </div>
-      <div class="frame">
-        ${src
-          ? `<button class="video-load" type="button" data-src="${esc(src)}" aria-label="Смотреть эфир: ${esc(title)}">${icon('i-play')}<span>Смотреть эфир</span></button>`
-          : `<div class="video-placeholder">${icon('i-play')}<span>Эфир идет — <a href="/match/${live.id}">открыть страницу матча</a></span></div>`}
-      </div>
+      <div class="frame">${player}</div>
     </div>`;
 }
 
+let unnudgeLive = null;
+
+function renderLive() {
+  if (!liveSlotEl) return;
+  const live = store.matches.find((m) => displayStatus(m) === 'live') || null;
+  const cur = liveSlotEl.querySelector('.live-now');
+  const sameLive = cur && live
+    && cur.dataset.liveId === String(live.id)
+    && cur.dataset.liveSrc === String(live.stream_url || '');
+  if (sameLive || (!cur && !live)) return; // играющий плеер не трогаем
+  if (unnudgeLive) { unnudgeLive(); unnudgeLive = null; }
+  liveSlotEl.innerHTML = live ? liveBlockHtml(live) : '';
+  const frame = liveSlotEl.querySelector('iframe');
+  if (frame) unnudgeLive = nudgeVkMutedPlay(frame);
+  bindVideoLoads(liveSlotEl); // Save-Data: постер вместо автозапуска
+}
+
+// подпись последней отрисовки каталога: фоновый полл без изменений не должен
+// перерисовывать список (фокус на карточке, анонсы aria-live, лишний DOM)
+let lastCatalogSig = null;
+
 function renderCatalog() {
-  // зритель уже смотрит эфир во встроенном плеере — не перерисовываем
-  // каталог под ним (фоновое автообновление не должно сбрасывать видео)
-  if (catalogEl.querySelector('.live-now iframe')) return;
   if (store.state === 'loading') {
     catalogEl.innerHTML = '<div class="match-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
     return;
@@ -172,9 +210,16 @@ function renderCatalog() {
     return;
   }
   const list = visibleMatches();
+  const sig = JSON.stringify([
+    store.seeded, store.matches.length, store.filters, todayKey(),
+    list.map((m) => [m.id, displayStatus(m), m.starts_at, m.team_home, m.team_away,
+      m.league, m.age_group, m.venue, m.stream_url, m.highlights_url]),
+  ]);
+  if (sig === lastCatalogSig) return;
+  lastCatalogSig = sig;
   if (!list.length) {
     const preseason = store.seeded && !store.matches.length;
-    catalogEl.innerHTML = liveBlockHtml() + `
+    catalogEl.innerHTML = `
       <div class="state-plate">
         <b>${store.matches.length
           ? 'По выбранным фильтрам матчей нет'
@@ -185,12 +230,10 @@ function renderCatalog() {
             ? 'Федерации публикуют календари за 1–2 недели до первых туров — матчи появятся здесь автоматически. А свой матч можно вписать вручную прямо сейчас: жмите «Моего матча нет в списке».'
             : 'Впишите свой матч вручную — снимем и его.'}
       </div>`;
-    bindVideoLoads(catalogEl);
     return;
   }
   const now = new Date().toISOString();
   catalogEl.innerHTML = `
-    ${liveBlockHtml()}
     ${store.seeded ? `<p class="calc-note">Расписание сверено вручную ${esc(SEED_GENERATED_AT.split('-').reverse().join('.'))} по данным федераций и лиг. Дату и время подтверждаем при заявке.</p>` : ''}
     ${groupByDay(list).map((g) => `
       <div class="day-group">
@@ -198,7 +241,6 @@ function renderCatalog() {
         <div class="match-list">${g.matches.map(matchCard).join('')}</div>
       </div>`).join('')}`;
 
-  bindVideoLoads(catalogEl);
   for (const card of catalogEl.querySelectorAll('.match-card')) {
     const m = store.matches.find((x) => String(x.id) === card.dataset.id);
     if (!m) continue;
@@ -222,14 +264,17 @@ function renderHeroFacts() {
   }
   const live = store.matches.find((m) => displayStatus(m) === 'live');
   const liveEl = document.getElementById('hero-live');
-  if (live && liveEl) {
+  if (!liveEl) return;
+  if (live) {
     liveEl.innerHTML = `
       <a class="badge badge-live" style="font-size:13px; padding:8px 13px" href="/match/${live.id}">
         <span class="live-dot"></span>
         Сейчас в эфире: ${esc(live.team_home)} — ${esc(live.team_away)}
       </a>`;
-    liveEl.hidden = false;
+  } else {
+    liveEl.innerHTML = ''; // эфир закончился/матч удален — бейдж исчезает
   }
+  liveEl.hidden = !live;
 }
 
 // ---------- Портфолио: клик подгружает плеер (15 iframe разом — тяжело) ----------
@@ -244,7 +289,7 @@ const archiveDateFmt = new Intl.DateTimeFormat('ru-RU', {
 
 async function loadArchive() {
   try {
-    const r = await fetch('/api/matches?archive=1');
+    const r = await fetch(`/api/matches?archive=1&v=${cacheBucket()}`);
     const data = await r.json();
     if (!data.ok) return;
     store.archive = (data.matches || []).map((m) => ({
@@ -264,7 +309,7 @@ function portfolioCard(v) {
   const meta = [v.age, v.date].filter(Boolean).join(' · ');
   return `
     <figure class="video-card" style="margin:0">
-      <div class="frame">
+      <div class="frame"${src ? ` data-ambient="${esc(v.vkUrl)}"` : ''}>
         ${src
           ? `<button class="video-load" type="button" data-src="${esc(src)}" aria-label="Смотреть: ${esc(title)}">${icon('i-play')}<span>Смотреть запись</span></button>`
           : `<div class="video-placeholder">${icon('i-play')}<span>Ролик скоро здесь</span></div>`}
@@ -291,6 +336,7 @@ function renderPortfolio() {
   const visible = store.portfolioAll ? list : list.slice(0, PORTFOLIO_VISIBLE);
   wrap.innerHTML = visible.map(portfolioCard).join('');
   bindVideoLoads(wrap);
+  initAmbientPreviews(wrap); // видео карточек тихо играют «за мутным стеклом»
   const moreBtn = document.getElementById('portfolio-more');
   if (moreBtn) {
     const hidden = list.length - PORTFOLIO_VISIBLE;
@@ -353,7 +399,7 @@ function init() {
   loadMatches();
   loadArchive();
   // мягкое автообновление: начавшийся эфир появляется на открытой странице
-  // сам; если зритель уже смотрит плеер — renderCatalog не тронет DOM
+  // сам; live-слот отделен от каталога, играющий плеер не перерисовывается
   setInterval(loadMatches, 90_000);
 }
 

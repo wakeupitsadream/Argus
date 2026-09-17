@@ -63,3 +63,20 @@ test('archive=1 без БД → unavailable без кэша', async () => {
     assert.equal(res.headers['Cache-Control'], 'no-store');
   });
 });
+
+test('список: идущий эфир не выпадает из окна «4 часа назад» (подмешивается отдельным запросом)', async () => {
+  const scheduled = { id: 5, team_home: 'Юниор', team_away: 'Сарматы', starts_at: '2099-01-01T10:00:00Z', status: 'scheduled', stream_url: null };
+  const oldLive = { id: 2, team_home: 'ОГПЗ', team_away: 'Буревестник', starts_at: '2020-01-01T10:00:00Z', status: 'live', stream_url: 'https://vk.com/video-1_2' };
+  await withEnv(SB, () => withFetchSpy((url) => ({
+    body: JSON.stringify(/status=eq\.live/.test(url) ? [oldLive, scheduled] : [scheduled]),
+  }), async (calls) => {
+    const res = makeRes();
+    await handler(makeReq({ sport: 'hockey' }), res);
+    assert.equal(res.body.ok, true);
+    assert.deepEqual(res.body.matches.map((m) => m.id), [2, 5]); // live старше, но в списке; без дублей
+    assert.equal(calls.length, 2);
+    assert.match(calls[1].url, /status=eq\.live/);
+    assert.match(calls[1].url, /sport=eq\.hockey/); // фильтры зеркалятся
+    assert.doesNotMatch(calls[1].url, /starts_at=gte/);
+  }));
+});

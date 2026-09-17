@@ -46,6 +46,12 @@ export function formatMatchDate(iso) {
   return `${day} · ${formatTime(iso)}`;
 }
 
+// Кэш-«ведро» для клиентских фетчей: ?v=<bucket> меняется раз в sec секунд,
+// поэтому CDN коалесцирует одновременных посетителей внутри окна, но правка
+// из админки (удаление матча, LIVE, «Завершить») видна максимум через sec
+// секунд — старый URL после смены ведра больше никто не спрашивает.
+export const cacheBucket = (sec = 30, now = Date.now()) => Math.floor(now / (sec * 1000));
+
 const VK_HOSTS = new Set([
   'vk.com', 'www.vk.com', 'm.vk.com', 'vk.ru', 'www.vk.ru',
   'vkvideo.ru', 'www.vkvideo.ru', 'm.vkvideo.ru',
@@ -75,3 +81,9 @@ export function vkEmbedUrl(url) {
   return `https://vk.com/video_ext.php?oid=${m[1]}&id=${m[2]}&hd=2` +
     (list && /^[\w-]+$/.test(list) ? `&list=${list}` : '');
 }
+
+// Автозапуск без звука: браузеры разрешают autoplay только замьюченным
+// плеерам. autoplay/js_api задокументированы (dev.vk.com/ru/widgets/video),
+// mute=1 — нет, но его шлют embed-коды самого VK; js_api включает
+// postMessage-API плеера — им страхуем mute+play (assets/vkplayer.js).
+export const withAutoplayMuted = (src) => (src ? `${src}&autoplay=1&mute=1&js_api=1` : null);
