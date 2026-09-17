@@ -6,16 +6,17 @@
 // безвреден: остается родная кнопка Play плеера VK.
 // Протокол: dev.vk.com/ru/widgets/video (vk.com/js/api/videoplayer.js).
 
-const VK_ORIGIN = 'https://vk.com';
-
 // Возвращает функцию отписки — вызвать, если iframe заменяется другим.
 export function nudgeVkMutedPlay(iframe) {
   if (!iframe) return () => {};
+  // origin берем из src: готовый embed-код может быть и с vkvideo.ru
+  let origin;
+  try { origin = new URL(iframe.src).origin; } catch { return () => {}; }
   const send = (msg) => {
-    try { iframe.contentWindow && iframe.contentWindow.postMessage(msg, VK_ORIGIN); } catch { /* плеер еще не готов */ }
+    try { iframe.contentWindow && iframe.contentWindow.postMessage(msg, origin); } catch { /* плеер еще не готов */ }
   };
   const onMsg = (e) => {
-    if (e.origin !== VK_ORIGIN || !iframe.contentWindow || e.source !== iframe.contentWindow) return;
+    if (e.origin !== origin || !iframe.contentWindow || e.source !== iframe.contentWindow) return;
     if (e.data && e.data.event === 'inited') {
       send({ method: 'mute' });
       send({ method: 'play' });

@@ -411,7 +411,8 @@ h3 { font-size: 17px; font-weight: 600; }
 /* ambient-превью: размытый muted-плеер тихо играет под кнопкой карточки —
    «за мутным стеклом»; клик тот же — открывает настоящий плеер */
 .video-card .frame { overflow: hidden; }
-.ambient-frame {
+/* селектор сильнее «.video-card iframe» — иначе inset:0/100% съедают запас под blur */
+.video-card .frame iframe.ambient-frame {
   position: absolute; left: -8%; top: -8%; width: 116%; height: 116%; /* запас под blur по краям */
   border: 0; pointer-events: none;
   filter: blur(7px) saturate(1.1) brightness(.72);
