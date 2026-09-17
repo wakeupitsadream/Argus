@@ -7,7 +7,8 @@
 const ALLOWED_HOSTS = new Set([
   'oofs56.ru', 'www.oofs56.ru',
   'yflrussia.ru', 'www.yflrussia.ru',
-  'r-hockey.ru', 'www.r-hockey.ru',
+  'r-hockey.ru', 'www.r-hockey.ru', 'img.r-hockey.ru',
+  'fhr.ru', 'www.fhr.ru', 'static.fhr.ru', 'cdn.fhr.ru',
   'fh56.ru', 'www.fh56.ru',
   'pfo.fhr.ru', 'junior.fhr.ru',
   'russiabasket.ru', 'www.russiabasket.ru', 'orenburg.russiabasket.ru',
