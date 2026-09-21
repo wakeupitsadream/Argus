@@ -1,0 +1,8 @@
+build/
+memstick/
+*.o
+*.elf
+*.prx
+PARAM.SFO
+__pycache__/
+.venv*/

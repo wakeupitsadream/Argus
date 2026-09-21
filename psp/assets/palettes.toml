@@ -1,0 +1,25 @@
+# Палитры регионов. Цвета — "#rrggbb". Слоты: 0 верх, 1 верх-вариант, 2 стены, 3 акцент,
+# 4 тень, 5 свечение глаза, 6 вода, 7 запас. Туман — в цвет sky_bottom; fog_near/fog_far —
+# смещения глубины относительно цели камеры (0 = плоскость острова, минус — ближе к камере).
+# Компилируется в build/assets/palettes.pal (tools/mkassets.py).
+
+[hub]
+sky_top    = "#1e2a4f"
+sky_bottom = "#7d92b8"
+fog_near   = -4.0
+fog_far    = 34.0
+slots = ["#ece1cb", "#dccfb6", "#b39b7c", "#f0b35a", "#5c6b8f", "#fff3c9", "#6fa3c9", "#d9707f"]
+
+[mirrors]
+sky_top    = "#3b1f4e"
+sky_bottom = "#c98a7a"
+fog_near   = -4.0
+fog_far    = 32.0
+slots = ["#f3e6d3", "#e4d3bd", "#b48d7e", "#ffd166", "#6b4a6e", "#fff7d6", "#7fb2c9", "#e07a8a"]
+
+[gray]
+sky_top    = "#2a2d34"
+sky_bottom = "#8a8f99"
+fog_near   = -4.0
+fog_far    = 34.0
+slots = ["#e2e2e2", "#d0d0d0", "#a3a3a3", "#c9c9c9", "#6a6a6a", "#f2f2f2", "#9a9a9a", "#b5b5b5"]

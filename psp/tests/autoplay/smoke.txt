@@ -1,0 +1,9 @@
+# smoke: остров хаба, три ракурса камеры, выход. Кадры при 60 fps.
+@30 shot hub_a0
+@31 press R
+@32 release R
+@90 shot hub_a1
+@91 press R
+@92 release R
+@150 shot hub_a2
+@160 quit

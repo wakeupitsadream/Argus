@@ -1,0 +1,91 @@
+#include "autoplay.h"
+#include "platform.h"
+#include <stdio.h>
+#include <string.h>
+
+static const struct { const char *name; unsigned bit; } k_buttons[] = {
+    {"cross", BTN_CROSS}, {"circle", BTN_CIRCLE}, {"square", BTN_SQUARE}, {"triangle", BTN_TRIANGLE},
+    {"L", BTN_L}, {"R", BTN_R}, {"up", BTN_UP}, {"down", BTN_DOWN}, {"left", BTN_LEFT},
+    {"right", BTN_RIGHT}, {"start", BTN_START}, {"select", BTN_SELECT},
+};
+
+static unsigned button_bit(const char *name) {
+    for (size_t i = 0; i < sizeof k_buttons / sizeof k_buttons[0]; i++) {
+        if (strcmp(k_buttons[i].name, name) == 0) return k_buttons[i].bit;
+    }
+    return 0;
+}
+
+int autoplay_parse(autoplay_t *ap, const char *text) {
+    memset(ap, 0, sizeof *ap);
+    if (!text) return 0;
+    int line_no = 0;
+    const char *p = text;
+    while (*p) {
+        const char *eol = strchr(p, '\n');
+        size_t n = eol ? (size_t)(eol - p) : strlen(p);
+        char line[128];
+        if (n >= sizeof line) n = sizeof line - 1;
+        memcpy(line, p, n);
+        line[n] = 0;
+        p += n + (eol ? 1 : 0);
+        line_no++;
+
+        char *s = line;
+        while (*s == ' ' || *s == '\t' || *s == '\r') s++;
+        if (*s == 0 || *s == '#') continue;
+        if (ap->count >= AP_MAX_EVENTS) { plat_log("autoplay: слишком много событий"); return -1; }
+
+        ap_event_t *e = &ap->ev[ap->count];
+        char cmd[16] = {0}, arg[AP_NAME_LEN] = {0};
+        int frame = 0;
+        if (sscanf(s, "@%d %15s %31s", &frame, cmd, arg) < 2) {
+            plat_log("autoplay: строка %d: ожидается '@<кадр> <команда>'", line_no);
+            return -1;
+        }
+        e->frame = frame;
+        if (strcmp(cmd, "press") == 0 || strcmp(cmd, "release") == 0) {
+            e->kind = cmd[0] == 'p' ? AP_PRESS : AP_RELEASE;
+            e->btn = button_bit(arg);
+            if (!e->btn) { plat_log("autoplay: строка %d: неизвестная кнопка '%s'", line_no, arg); return -1; }
+        } else if (strcmp(cmd, "stick") == 0) {
+            e->kind = AP_STICK;
+            if (sscanf(s, "@%*d %*s %f %f", &e->x, &e->y) != 2) {
+                plat_log("autoplay: строка %d: stick <x> <y>", line_no);
+                return -1;
+            }
+        } else if (strcmp(cmd, "shot") == 0) {
+            e->kind = AP_SHOT;
+            if (!arg[0]) { plat_log("autoplay: строка %d: shot <имя>", line_no); return -1; }
+            snprintf(e->name, sizeof e->name, "%s", arg);
+        } else if (strcmp(cmd, "quit") == 0) {
+            e->kind = AP_QUIT;
+        } else {
+            plat_log("autoplay: строка %d: неизвестная команда '%s'", line_no, cmd);
+            return -1;
+        }
+        ap->count++;
+    }
+    ap->active = ap->count > 0;
+    return ap->count;
+}
+
+int autoplay_step(autoplay_t *ap, int frame, input_t *out, char out_shot[AP_NAME_LEN]) {
+    int flags = 0;
+    while (ap->next < ap->count && ap->ev[ap->next].frame <= frame) {
+        const ap_event_t *e = &ap->ev[ap->next++];
+        switch (e->kind) {
+        case AP_PRESS:   ap->input.buttons |= e->btn; break;
+        case AP_RELEASE: ap->input.buttons &= ~e->btn; break;
+        case AP_STICK:   ap->input.lx = e->x; ap->input.ly = e->y; break;
+        case AP_SHOT:
+            flags |= AP_FLAG_SHOT;
+            if (out_shot) snprintf(out_shot, AP_NAME_LEN, "%s", e->name);
+            break;
+        case AP_QUIT:    flags |= AP_FLAG_QUIT; break;
+        default: break;
+        }
+    }
+    if (out) *out = ap->input;
+    return flags;
+}

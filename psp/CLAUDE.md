@@ -1,0 +1,46 @@
+# ARGUS (PSP homebrew) — правила для Claude Code
+
+Игра для Sony PSP на C11 + PSPSDK (тулчейн pspdev). Дизайн — `docs/GDD.md`, инженерные решения — `docs/TECH.md`. Читай оба перед правками.
+
+## Команды
+
+```
+make test        # юнит-тесты core/ на хосте (ASan/UBSan), запускать первыми
+make assets      # Python-инструменты: levels/*.toml → build/assets/*.msh, палитры, XMB-картинки
+make psp         # CMake + тулчейн pspdev → build/ARGUS/EBOOT.PBP + data/
+make run-emu SCRIPT=tests/autoplay/smoke.txt   # прогон в PPSSPPHeadless, PNG в build/shots/
+make clean
+```
+
+Тулчейн: `PSPDEV=$HOME/pspdev` (ставится `ci/session-start.sh`). Эмулятор: `PPSSPP_HEADLESS=$HOME/ppsspp/PPSSPPHeadless`.
+
+## Структура
+
+`core/` — чистый C11 без `<psp*.h>`, вся логика и построение кадра (`frame_t`); собирается и host-gcc.
+`platform/psp/` — единственное место с PSP API: sceGu, ввод, файлы, аудио, коллбэки.
+`tools/` — Python (pillow, numpy, fonttools; tomllib из stdlib). `assets/`, `levels/` — исходники данных в TOML.
+`tests/` — `minitest.h`, `unit/`, `autoplay/` (скрипты ввода по кадрам), `golden/` (эталонные кадры).
+
+## Правила (нарушение = баг на железе)
+
+1. `core/` не включает `<psp*.h>`; сначала `make test`, потом `make psp`.
+2. Всё, что читает GPU (вершины, индексы, текстуры, CLUT, дисплей-лист), выровнено на 16 байт (`memalign(16)` / `__attribute__((aligned(16)))`); после записи CPU — `sceKernelDcacheWritebackRange` или `sceKernelDcacheWritebackAll` до отрисовки.
+3. Не менять память, на которую ссылается текущий кадр; временные вершины — только через `sceGuGetMemory` (живут до `sceGuFinish`).
+4. Экран 480×272, ширина буфера 512, Z 16-бит, `sceGuDepthRange(65535, 0)` + `GU_GEQUAL` + clear depth 0.
+5. Текстуры — степень двойки ≤ 512×512; после изменения — `sceGuTexFlush`; VRAM только через `guGetStaticVramBuffer` в `gu_render.c`; бюджет VRAM — `docs/TECH.md` §2.4.
+6. Цвет везде `0xAABBGGRR` (в памяти байты R, G, B, A).
+7. Только форматы вершин из `core/mesh.h`; порядок полей texcoord → color → normal → position; новые структуры не изобретать.
+8. Один `sceGuStart … sceGuFinish; sceGuSync; sceDisplayWaitVblankStart; sceGuSwapBuffers` на кадр.
+9. Каждый проход рендера сам выставляет всё состояние (blend, depth mask, fog, lighting, texture) и не полагается на предыдущий.
+10. Логика — фиксированный шаг 1/60; движение, цвет, масштаб только через `tween` + `ease` из `core/ease.h`; никаких линейных переходов камеры и UI.
+11. Прыжка нет; перемещение только через `walk_move` по сетке; физики нет.
+12. В геймплее нет `malloc`; пулы фиксированного размера с явными лимитами; выделение только при загрузке уровня; результат `malloc` проверять.
+13. Пути только через `fs_path()` от `argv[0]`; никаких `ms0:/` в коде; бинарные файлы — магия + версия, little-endian.
+14. `PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU)`; аудио-колбэк короткий, без malloc, IO и блокировок.
+15. Строки только через `STR_*` из сгенерированного заголовка, UTF-8, обе колонки (ru, en) в `assets/strings.csv`.
+16. Уровни и головоломки — в TOML; новый экземпляр головоломки не требует правок C; новый тип компонента — только с unit-тестом.
+17. Бюджеты: ≤ 8 000 треугольников и ≤ 100 draw-call на кадр, ≤ 16 МБ кучи; при превышении — профилировать, не добавлять.
+18. Перед коммитом: `make test` и `make run-emu` со smoke-скриптом; золотые кадры обновлять отдельным коммитом.
+19. Не угадывать API: сверяться с `$PSPDEV/psp/sdk/include`; непроверенное на железе помечать словом «проверить» в коде и коммите.
+20. Стиль: C11, 4 пробела, snake_case, префикс модуля, `static` по умолчанию, без VLA и рекурсии в геймплее; host-сборка с `-Wall -Wextra -Werror`.
+21. Отладочный вывод — `plat_log` и оверлей, не `pspDebugScreenPrintf` в игровых сборках; `build/` и `memstick/` не коммитить.

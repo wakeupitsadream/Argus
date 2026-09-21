@@ -1,0 +1,53 @@
+# Сборка EBOOT.PBP игры ARGUS (psp/) в официальном образе тулчейна pspdev + хост-тесты core/.
+# Артефакт ARGUS.zip → распаковать, папку ARGUS положить в ms0:/PSP/GAME/ на карте памяти PSP.
+name: psp-build
+
+on:
+  push:
+    paths: ["psp/**", ".github/workflows/psp-build.yml"]
+  pull_request:
+    paths: ["psp/**", ".github/workflows/psp-build.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: host tests (core/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install --quiet pillow numpy
+      - run: make test
+        working-directory: psp
+
+  eboot:
+    name: EBOOT.PBP (pspdev/pspdev:latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Образ pspdev — Alpine с тулчейном в /usr/local/pspdev; JS-actions внутри Alpine не работают,
+      # поэтому сборка идёт через docker run на обычном раннере.
+      - name: build
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w/psp pspdev/pspdev:latest sh -c '
+            set -e
+            apk add --no-cache build-base cmake ninja python3 py3-pillow py3-numpy >/dev/null
+            make assets psp PSPDEV=/usr/local/pspdev
+            ls -la build/ARGUS build/ARGUS/data'
+      - name: version stamp
+        run: |
+          cd psp/build/ARGUS && echo "argus $(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD) $(date -u +%Y-%m-%dT%H:%MZ)" > VERSION.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ARGUS
+          path: psp/build/ARGUS
+          if-no-files-found: error
+      - name: release on tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd psp/build && zip -r ARGUS-${GITHUB_REF_NAME}.zip ARGUS
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: psp/build/ARGUS-*.zip
