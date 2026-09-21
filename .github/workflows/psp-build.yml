@@ -30,7 +30,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/w" -w /w/psp pspdev/pspdev:latest sh -c '
             set -e
-            apk add --no-cache build-base cmake ninja python3 py3-pillow py3-numpy >/dev/null
+            apk add --no-cache build-base cmake ninja-build python3 py3-pillow py3-numpy >/dev/null
             make assets psp PSPDEV=/usr/local/pspdev
             ls -la build/ARGUS build/ARGUS/data'
       - name: version stamp
