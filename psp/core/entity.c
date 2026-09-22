@@ -63,6 +63,7 @@ int entity_can_interact(int type) {
     case ENT_SEGMENT:
     case ENT_ECHO:
     case ENT_STONE_TEXT:
+    case ENT_TRIGGER:
         return 1;
     default:
         return 0;

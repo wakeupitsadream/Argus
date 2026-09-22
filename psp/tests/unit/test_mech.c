@@ -938,6 +938,58 @@ TEST(test_mech_block_solid) {
     level_free(&l);
 }
 
+TEST(test_mech_memory_by_triggers) {
+    /* Последовательность вводится кнопками-постаментами: у каждой своё значение
+     * (params[0]) и id панели (params[1]). Игра вызывает memory_input с этими
+     * значениями — проверяем ровно эту связку, включая сброс при ошибке. */
+    enum { T_PANEL = 1, T_A = 2, T_B = 3, T_C = 4, T_DOOR = 5 };
+    static const row_t ROWS[] = {
+        { T_PANEL, ENT_MEMORY_PANEL, 4, 4, 3, 1, 2, 0, 3 },  /* ждёт 3,1,2 */
+        { T_A,     ENT_TRIGGER,      2, 4, 1, T_PANEL, 0, 0, 0 },
+        { T_B,     ENT_TRIGGER,      3, 4, 2, T_PANEL, 0, 0, 0 },
+        { T_C,     ENT_TRIGGER,      5, 4, 3, T_PANEL, 0, 0, 0 },
+        { T_DOOR,  ENT_DOOR,         6, 6, 0, 0, 0, 0, 0 },
+    };
+    static const level_link_t LINKS[] = { { T_PANEL, 0, 0, T_DOOR, 0, 0 } };
+    level_entity_t ents[5];
+    fill_ents(ROWS, 5, MAP_FLAT, ents);
+    mech_spec_t spec = {0};
+    spec.map = MAP_FLAT;
+    spec.ents = ents;
+    spec.ent_count = 5;
+    spec.links = LINKS;
+    spec.link_count = 1;
+
+    size_t len = 0;
+    void *blob = build_mech_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+
+    /* Неверный первый ввод сбрасывает прогресс. */
+    CHECK_EQ(memory_input(&es, T_PANEL, 1), 0);
+    CHECK_EQ(entities_by_id(&es, T_PANEL)->state, 0);
+
+    /* Верный порядок 3,1,2 собирает последовательность и открывает дверь. */
+    CHECK_EQ(memory_input(&es, T_PANEL, 3), 1);
+    CHECK_EQ(memory_input(&es, T_PANEL, 1), 1);
+    CHECK_EQ(memory_input(&es, T_PANEL, 2), 2);
+    entities_propagate(&es);
+    CHECK_EQ(entities_by_id(&es, T_DOOR)->state, 1);
+
+    /* Повторный ввод ничего не ломает. */
+    CHECK_EQ(memory_input(&es, T_PANEL, 1), 2);
+    entities_propagate(&es);
+    CHECK_EQ(entities_by_id(&es, T_DOOR)->state, 1);
+
+    /* Кнопка-постамент интерактивна: игра найдёт её «крестом». */
+    CHECK_EQ(entity_can_interact(ENT_TRIGGER), 1);
+    level_free(&l);
+}
+
 void tests_mech(void) {
     puts("mech puzzle tests");
     RUN(test_mech_block_push);
@@ -947,6 +999,7 @@ void tests_mech(void) {
     RUN(test_mech_water);
     RUN(test_mech_water_walk);
     RUN(test_mech_memory);
+    RUN(test_mech_memory_by_triggers);
     RUN(test_mech_segment);
     RUN(test_mech_segment_trap);
     RUN(test_mech_float_on_plate);

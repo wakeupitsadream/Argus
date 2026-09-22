@@ -59,3 +59,5 @@ PROMPT_USE,Крест — тронуть,Cross — touch
 SMALL_EYE_FOUND,Малый глаз открыт,A small eye opens
 BEAM_LOCKED,Луч не доходит,The beam falls short
 BONUS_LOCKED,Ход откроют три пера,Three feathers open the way
+MEMORY_RESET,Порядок сбился,The order breaks
+MEMORY_DONE,Порядок сошёлся,The order holds

@@ -498,6 +498,8 @@ static int prompt_str_for(int type) {
     case ENT_PRISM:
     case ENT_SEGMENT: return STR_PROMPT_TURN;
     case ENT_BLOCK: return STR_PROMPT_PUSH;
+    case ENT_TRIGGER:
+    case ENT_MEMORY_PANEL: return STR_PROMPT_USE;
     case ENT_LEVER: return STR_PROMPT_PULL;
     default: return STR_PROMPT_USE;
     }
@@ -508,6 +510,19 @@ static void show_msg(game_t *g, int str_id) {
     if (str_id < 0 || str_id >= STR_COUNT) return;
     g->msg_str = str_id;
     g->msg_frames = MSG_FRAMES;
+}
+
+/* Отклик на ввод в панель памяти: принято, сброшено, собрано. */
+static void memory_feedback(game_t *g, int result) {
+    if (result == 2) {
+        audio_play(&g->audio, SFX_EYE_BIG);
+        show_msg(g, STR_MEMORY_DONE);
+    } else if (result == 0) {
+        audio_play(&g->audio, SFX_DENY);
+        show_msg(g, STR_MEMORY_RESET);
+    } else {
+        audio_play(&g->audio, SFX_PLATE);
+    }
 }
 
 /* Взаимодействие с тем, что рядом. Типы, которые entity.c намеренно не обрабатывает сам,
@@ -538,8 +553,16 @@ static void do_interact(game_t *g) {
         water_valve_use(&g->entities, id);
         break;
     case ENT_MEMORY_PANEL:
-        /* Панель вводит следующее значение по порядку: подробный ввод — дело головоломки. */
-        memory_input(&g->entities, id, (int)e->state + 1);
+        /* Нажатие по самой панели вводит следующее значение по порядку: так решается
+         * простая последовательность 1,2,3,4, которой вводится семейство. */
+        memory_feedback(g, memory_input(&g->entities, id, (int)e->state + 1));
+        break;
+
+    case ENT_TRIGGER:
+        /* Кнопка-постамент: params[0] — её значение, params[1] — id панели памяти.
+         * Так собирается настоящая головоломка на память: запомнить порядок огней
+         * и нажать постаменты в нём, а не тыкать в саму панель. */
+        memory_feedback(g, memory_input(&g->entities, e->def->params[1], e->def->params[0]));
         break;
     case ENT_SEGMENT:
         segment_rotate(&g->entities, e->def->params[0], 1);
