@@ -646,6 +646,15 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         int variant = (act == ACT_ENDING_B) ? 1 : 0;
         g->screens.ending_variant = variant;
         world_set_flag(&g->world, variant ? WFLAG_ENDING_SEEN_B : WFLAG_ENDING_SEEN_A, 1);
+        /* Финал меняет мир, а не только текст: разбуженный Аргус приводит рассвет,
+         * отпущенный — серость. Цвет живёт в палитре, поэтому достаточно повторного
+         * резолва (TECH.md §2.4): ни одного ассета не трогаем. */
+        const palette_t *end_pal = palette_find(&g->pals, variant ? "gray" : "dawn");
+        if (end_pal) {
+            g->pal = end_pal;
+            recolor_objects(g);
+            if (g->island_ok) mesh_recolor(&g->island, g->pal, &g->light);
+        }
         autosave(g);
         screens_goto(&g->screens, SCR_ENDING);
         break;
@@ -653,7 +662,18 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     case ACT_LANG: set_lang(g, (g->lang + 1) % LANG_COUNT); break;
     case ACT_QUIT: g->pending_quit = 1; break;
     case ACT_RESUME: screens_goto(&g->screens, SCR_GAME); break;
-    case ACT_TO_TITLE: screens_goto(&g->screens, SCR_TITLE); break;
+    case ACT_TO_TITLE:
+        /* Из титров возвращаемся к обычному виду мира: палитра уровня и его геометрия. */
+        if (g->level_ok) {
+            const palette_t *pal = palette_find(&g->pals, g->level.palette);
+            if (pal && pal != g->pal) {
+                g->pal = pal;
+                recolor_objects(g);
+                if (g->island_ok) mesh_recolor(&g->island, g->pal, &g->light);
+            }
+        }
+        screens_goto(&g->screens, SCR_TITLE);
+        break;
     case ACT_ENDING_DONE: screens_goto(&g->screens, SCR_CREDITS); break;
     default: break;
     }

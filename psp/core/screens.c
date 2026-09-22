@@ -157,13 +157,15 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
         break;
     case SCR_CHOICE:
         frame_push_panel(f, 0, 0, 300, SCR_H, (196u << 24) | shade, (120u << 24) | shade);
-        frame_push_text_shadow(f, FONT_DISPLAY, TEXT_LEFT, 40, 96, title_c, "%s", STR(STR_CHOICE_TITLE));
+        frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 40, 96, title_c, "%s", STR(STR_CHOICE_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 118, dim_c, "%s", STR(STR_CHOICE_LINE));
         if (s->frames > 60) build_menu(s, f, pal, lang, 166);
         break;
     case SCR_ENDING:
         frame_push_panel(f, 0, 86, SCR_W, 96, (150u << 24) | shade, (150u << 24) | shade);
-        frame_push_text_shadow(f, FONT_DISPLAY, TEXT_CENTER, SCR_W / 2, 132, title_c, "%s",
+        /* Плакатная гарнитура знает только капс и цифры (tools/fontgen.py), а заголовки
+         * финалов — обычные фразы, поэтому здесь заголовочная. */
+        frame_push_text_shadow(f, FONT_TITLE, TEXT_CENTER, SCR_W / 2, 132, title_c, "%s",
                                STR(s->ending_variant ? STR_ENDING_B_TITLE : STR_ENDING_A_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 164, body_c, "%s",
                                STR(s->ending_variant ? STR_ENDING_B_LINE : STR_ENDING_A_LINE));
