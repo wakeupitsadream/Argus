@@ -21,6 +21,7 @@
 #define EYES_TOTAL 4        /* больших глаз в игре */
 #define BONUS_FEATHERS 3    /* перьев за просьбы отголосков, чтобы открылся бонусный остров */
 #define PORTAL_MARKS_MAX 6  /* столбов света: пул спрайтов кадра делится с лучом и пылью */
+#define CAPTION_MAX_W 430   /* шире — подпись острова уходит за край кадра */
 #define CAPTION_HOLD 200    /* кадров: карточка с названием острова держится ~3,3 с */
 #define HINT_HOLD 900       /* кадров: подсказки по управлению живут 15 с на острове */
 #define HUD_FADE 60         /* кадр затухания — 1 с */
@@ -1228,8 +1229,13 @@ static void build_hud(game_t *g, frame_t *f) {
     float caption_a = fade_out(g->level_frames, CAPTION_HOLD, HUD_FADE);
     if (caption_a > 0.0f && g->level_ok && g->level.name_str_id != 0xFFFFFFFFu) {
         unsigned a = (unsigned)(caption_a * 255.0f);
-        frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 20, 40, (a << 24) | (accent & 0x00FFFFFFu),
-                               "%s", i18n_str((int)g->level.name_str_id));
+        const char *cap = i18n_str((int)g->level.name_str_id);
+        /* Длинное имя острова не режем и не сжимаем экран под него: берём кегль
+         * меньше. Обрезанная подпись на входе — первое, что выдаёт самоделку. */
+        int face = FONT_TITLE;
+        if (g->font_ok && font_measure(&g->font, FONT_TITLE, cap) > CAPTION_MAX_W) face = FONT_BODY;
+        frame_push_text_shadow(f, face, TEXT_LEFT, 20, 40, (a << 24) | (accent & 0x00FFFFFFu),
+                               "%s", cap);
         frame_push_panel(f, 20, 48, 96, 2, ((unsigned)(caption_a * 200.0f) << 24) | (accent & 0x00FFFFFFu),
                          ((unsigned)(caption_a * 40.0f) << 24) | (accent & 0x00FFFFFFu));
     }

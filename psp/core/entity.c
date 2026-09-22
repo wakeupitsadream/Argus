@@ -180,7 +180,10 @@ static void ent_refresh_blockers(entities_t *es) {
         const entity_t *e = &es->items[i];
         if (!e->active) continue;
         int type = ent_type(e);
-        if (type != ENT_BLOCK && type != ENT_FLOAT_BLOCK) continue;
+        /* Спящий страж тоже занимает клетку: на этом держится обещание GDD §1.4 —
+         * статуя ходит, пока на неё не смотрят, и перекрывает проход. Без этого
+         * механика взгляда осталась бы чистым украшением. */
+        if (type != ENT_BLOCK && type != ENT_FLOAT_BLOCK && type != ENT_SLEEPER) continue;
         int cx = 0, cz = 0;
         if (level_cell_at(es->level, e->x, e->z, &cx, &cz)) level_set_blocked(mut, cx, cz, 1);
     }
@@ -208,7 +211,10 @@ void entities_init(entities_t *es, const level_t *l, world_t *w) {
         /* Зеркало и призма: состояние 0..3 задаёт автор уровня углом в TOML.
          * Иначе любое зеркало стартовало бы в состоянии 0, и авторская расстановка
          * («этот уголок уже повёрнут») молча терялась бы. */
-        e->phase = 0.0f;
+        /* Спящий страж стартует с заданной фазы (params[2], градусы): без неё
+         * все стражи на острове ходят по кругу ноздря в ноздрю, и коридор либо
+         * всегда открыт, либо всегда закрыт — расставить ритм автору нечем. */
+        e->phase = (def->type == ENT_SLEEPER) ? wrap_deg((float)def->params[2]) : 0.0f;
         tween_set(&e->anim, 0.0f);
         e->state = 0;
         if (def->type == ENT_MIRROR || def->type == ENT_PRISM) {

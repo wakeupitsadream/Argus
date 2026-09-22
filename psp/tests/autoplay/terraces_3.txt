@@ -1,0 +1,43 @@
+# Часовые Террасы, остров 3: большой глаз открывается. Доказательство решаемости.
+# Око поворачивает первый рукав, переходит на площадку B, рычагом открывает створку
+# перед башней, доворачивает второй рукав и встаёт на плиту. Координаты сверены прогоном:
+# шаг Око ≈ 0,057 клетки за кадр, рука дотягивается на 1,1.
+@20 press cross
+@21 release cross
+@60 level terraces_3 0
+@130 assert level_ok=1
+@131 assert seg1=0
+@135 shot t3_start
+@140 stick 0.707 0.707
+@205 stick 0.0 0.0
+@215 assert prompt=101
+@220 press cross
+@221 release cross
+@285 assert seg1=1
+@290 shot t3_bridge
+@295 stick 0.707 0.707
+@420 stick 0.0 0.0
+# к рычагу по диагонали: от рукояти сегмента нужно отойти, иначе крест попадёт в неё
+@435 stick 1.0 0.0
+@455 stick 0.0 0.0
+@465 assert prompt=104
+@470 press cross
+@471 release cross
+@535 assert seg3=1
+@540 stick -1.0 0.0
+@560 stick 0.0 0.0
+@570 assert prompt=102
+@575 press cross
+@576 release cross
+# второй поворот — только после MECH_SEG_FRAMES: на эти 36 кадров ввод закрыт
+@650 press cross
+@651 release cross
+@720 assert seg2=2
+@725 shot t3_arm2
+@730 stick 0.707 0.707
+@836 stick 0.0 0.0
+@842 stick -0.707 0.707
+@862 stick 0.0 0.0
+@880 assert eyes>=1
+@885 shot t3_eye
+@900 quit

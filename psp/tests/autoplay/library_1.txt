@@ -1,0 +1,35 @@
+# Библиотека Сна, остров 1: панель памяти собирается четырьмя нажатиями.
+# Око идёт через зал к панели, вводит 1,2,3,4 нажатиями по самой панели,
+# створка открывается, за ней — глаз из просьбы библиотекаря.
+@20 press cross
+@21 release cross
+@60 level library_1 0
+@130 assert level_ok=1
+@131 assert seg1=0
+@135 shot lib1_hall
+@140 stick 0.707 0.707
+@330 stick 0.0 0.0
+@350 assert prompt=142
+@360 press cross
+@361 release cross
+@390 press cross
+@391 release cross
+@420 press cross
+@421 release cross
+@450 press cross
+@451 release cross
+# state панели — сколько значений уже введено; собранная последовательность = 4
+@490 assert ent142=4
+@491 assert seg1=1
+@495 shot lib1_open
+@500 stick 0.707 0.707
+@570 stick 0.0 0.0
+@590 stick -0.707 0.707
+@620 stick 0.0 0.0
+@635 assert prompt=148
+@640 press cross
+@641 release cross
+@665 assert small_eyes>=1
+@666 assert flag148=1
+@670 shot lib1_eye
+@680 quit

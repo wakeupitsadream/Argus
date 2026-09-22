@@ -482,6 +482,25 @@ TEST(test_entity_sleeper_freeze) {
     CHECK_NEAR(d->z, fz, 1e-6);
     CHECK_NEAR(d->phase, fp, 1e-6);
 
+    /* Клетка под спящим закрыта для ходьбы и открывается, когда он ушёл: ради этого
+     * стражи и добавлены в ent_refresh_blockers — иначе взгляд ничего не решал бы. */
+    world_reset(&w);
+    entities_init(&es, &l, &w);
+    entities_tick(&es, &near_cam, 1);              /* под взглядом страж стоит на месте */
+    int cx = 0, cz = 0;
+    CHECK(level_cell_at(&l, sx, sz, &cx, &cz));
+    CHECK_EQ(level_cell_blocked(&l, cx, cz), 1);
+    for (int i = 0; i < 60; i++) entities_tick(&es, &far_cam, 0);   /* ушёл по кругу */
+    const entity_t *mv = entities_by_id_const(&es, ID_SLEEP);
+    CHECK(mv != NULL);
+    if (mv) {
+        int mx = 0, mz = 0;
+        CHECK(level_cell_at(&l, mv->x, mv->z, &mx, &mz));
+        CHECK(mx != cx || mz != cz);
+        CHECK_EQ(level_cell_blocked(&l, mx, mz), 1);
+        CHECK_EQ(level_cell_blocked(&l, cx, cz), 0);
+    }
+
     /* Прочие сущности парят: фаза растёт и остаётся в [0, 360). */
     const entity_t *lever = entities_by_id_const(&es, ID_LEVER);
     if (lever) {
