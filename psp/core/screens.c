@@ -142,8 +142,8 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
         break;
     case SCR_PAUSE:
         frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 44, 86, title_c, "%s", STR(STR_PAUSE_TITLE));
-        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 112, dim_c, "%s %d / %d",
-                               STR(STR_EYE_COUNT), eyes, eyes_total);
+        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 112, dim_c,
+                               i18n_str(STR_EYE_COUNT_OF), eyes, eyes_total);
         build_menu(s, f, pal, lang, 158);
         break;
     case SCR_CHOICE:
@@ -164,8 +164,8 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
     case SCR_CREDITS:
         frame_push_text_shadow(f, FONT_TITLE, TEXT_CENTER, SCR_W / 2, 110, title_c, "%s", STR(STR_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 140, body_c, "%s", STR(STR_CREDITS_LINE));
-        frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 162, dim_c, "%s %d / %d",
-                               STR(STR_EYE_COUNT), eyes, eyes_total);
+        frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 162, dim_c,
+                               i18n_str(STR_EYE_COUNT_OF), eyes, eyes_total);
         break;
     default:
         break;

@@ -70,6 +70,12 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
             snprintf(e->name, sizeof e->name, "%s", arg);
             e->arg = 0;
             sscanf(s, "@%*d %*s %*s %d", &e->arg);
+        } else if (strcmp(cmd, "set") == 0) {
+            e->kind = AP_SET;
+            if (sscanf(s, "@%*d %*s %47s %d", e->name, &e->arg) != 2) {
+                plat_log("autoplay: строка %d: set <счётчик> <число>", line_no);
+                return -1;
+            }
         } else if (strcmp(cmd, "quit") == 0) {
             e->kind = AP_QUIT;
         } else {
@@ -120,6 +126,11 @@ int autoplay_step(autoplay_t *ap, int frame, input_t *out, char out_shot[AP_NAME
             flags |= AP_FLAG_LEVEL;
             snprintf(ap->level_name, sizeof ap->level_name, "%.*s", AP_NAME_LEN - 1, e->name);
             ap->level_entry = e->arg;
+            break;
+        case AP_SET:
+            flags |= AP_FLAG_SET;
+            snprintf(ap->set_name, sizeof ap->set_name, "%.*s", AP_NAME_LEN - 1, e->name);
+            ap->set_value = e->arg;
             break;
         case AP_QUIT:    flags |= AP_FLAG_QUIT; break;
         default: break;

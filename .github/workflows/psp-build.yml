@@ -15,9 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m pip install --quiet pillow numpy
+      - run: python3 -m pip install --quiet pillow numpy fonttools
       - run: make test
         working-directory: psp
+      # Данные уровней проверяем независимым разборщиком: он читает .lvl по таблице
+      # смещений из docs/FORMATS.md и ловит то, что компилятор мог записать неверно.
+      - name: verify levels
+        working-directory: psp
+        run: |
+          for lvl in build/assets/*.lvl; do
+            python3 tools/levelc.py --verify "$lvl"
+          done
 
   eboot:
     name: EBOOT.PBP (pspdev/pspdev:latest)

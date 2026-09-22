@@ -53,6 +53,7 @@ typedef struct {
     unsigned sky_top, sky_bottom, fog_color; /* 0xAABBGGRR */
     float fog_near, fog_far;
     float desat;   /* 0..1 — сила обесцвечивания в режиме взгляда (серый квад поверх сцены) */
+    float vignette;/* 0..1 — затемнение к краям кадра, цвет берётся от sky_top */
     float curtain; /* 0..1 — чёрный занавес перехода между экранами, поверх всего */
 } frame_env_t;
 

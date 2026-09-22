@@ -8,6 +8,11 @@
 void *plat_read_file(const char *rel_path, size_t *out_len);
 /* Пишет файл по пути относительно каталога игры. 0 при успехе. */
 int plat_write_file(const char *rel_path, const void *data, size_t len);
+/* Переименовывает файл внутри каталога игры, затирая приёмник. 0 при успехе.
+ * Нужен для атомарного сохранения: сначала пишем временный файл, потом подменяем им
+ * основной. На PSP — sceIoRename (приёмник удаляем сами: sceIoRename не затирает),
+ * на хосте — rename(). */
+int plat_rename_file(const char *from_rel, const char *to_rel);
 /* Память с выравниванием 16 байт (требование GPU). */
 void *plat_alloc16(size_t bytes);
 void plat_free(void *p);

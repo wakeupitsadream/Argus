@@ -121,12 +121,14 @@ int save_write_file(const save_data_t *d) {
     unsigned char buf[SAVE_BUF_SIZE]; /* на стеке: в геймплее нет malloc */
     size_t len = 0;
     if (save_serialize(d, buf, sizeof buf, &len) != 0) return -1;
-    /* Сначала временный файл: если запись оборвётся, старый save.bin цел.
-     * Настоящего переименования в core нет (нужен sceIoRename в platform.h) —
-     * пишем в save.bin только после успешной записи save.tmp. */
+    /* Атомарная замена: пишем временный файл целиком, потом подменяем им основной.
+     * Обрыв питания посреди записи оставляет прежний save.bin нетронутым, а не
+     * наполовину записанным (его CRC всё равно бы не сошёлся, но прогресс терялся бы). */
     if (plat_write_file(SAVE_TMP_FILE, buf, len) != 0) return -1;
-    if (plat_write_file(SAVE_FILE, buf, len) != 0) return -1;
-    return 0;
+    if (plat_rename_file(SAVE_TMP_FILE, SAVE_FILE) == 0) return 0;
+    /* Переименование не удалось (например, файловая система без него) —
+     * пишем напрямую: лучше записать, чем потерять сохранение. */
+    return plat_write_file(SAVE_FILE, buf, len);
 }
 
 int save_read_file(save_data_t *d) {

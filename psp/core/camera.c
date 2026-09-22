@@ -4,11 +4,11 @@
 
 #define CAM_TURN_FRAMES 36     /* 0,6 с на поворот 90° */
 #define CAM_LOOK_FRAMES 15     /* 0,25 с на наезд в режиме взгляда */
-#define CAM_PITCH_DEG 33.0f
+#define CAM_PITCH_DEG 30.0f    /* ниже изометрии: видно больше стен и неба, силуэт читается */
 #define CAM_DIST 40.0f
-#define CAM_HALF_W 13.0f     /* полуширина ортокадра: остров 24 клетки должен влезать силуэтом */
+#define CAM_HALF_W 13.5f     /* полуширина ортокадра: остров 24 клетки должен влезать силуэтом */
 #define CAM_LOOK_SCALE 0.85f
-#define CAM_FOLLOW 0.14f       /* коэффициент экспоненциального сглаживания цели */
+#define CAM_FOLLOW 0.10f       /* коэффициент экспоненциального сглаживания цели */
 #define CAM_NEAR 1.0f
 #define CAM_FAR_SCALE 2.5f
 

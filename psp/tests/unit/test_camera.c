@@ -143,8 +143,10 @@ TEST(test_cam_project) {
     v3_norm(fwd);
     v3_cross(right, fwd, up);
     v3_norm(right);
+    /* Чуть внутрь края: ровно на границе результат зависит от округления
+     * последнего бита мантиссы, а проверяем мы не округление, а масштаб кадра. */
     float edge[3];
-    v3_scale(edge, right, fc.half_w);
+    v3_scale(edge, right, fc.half_w * 0.999f);
     v3_add(edge, target, edge);
     CHECK_EQ(cam_project(&fc, edge, &sx, &sy, &depth), 1);
     CHECK_NEAR(sx, CAM_SCREEN_W, 0.5);

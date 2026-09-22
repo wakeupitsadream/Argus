@@ -10,42 +10,47 @@
 # Камень тёплый, почти белый сверху; стены уходят в холодный серо-лиловый — тёплый свет,
 # холодная тень. Акцент (золото) носят только Око, хвост и рычаги.
 sky_top    = "#0d1430"
-sky_bottom = "#a08d93"
-fog_near   = -2.0
-fog_far    = 18.0
-slots = ["#f8f3e8", "#e7dcc9", "#8a6f74", "#f0a03a", "#2a2742", "#fff2cf", "#68a0c2", "#c4707c"]
+sky_bottom = "#b3a0a8"
+fog_near   = 2.0
+fog_far    = 22.0
+slots = ["#f8f2e4", "#dcd8d2", "#6b5766", "#ffa22e", "#211f38", "#fff2cf", "#68a0c2", "#c4707c"]
 
 [mirrors]
-sky_top    = "#2b1633"
-sky_bottom = "#c07f6a"
-fog_near   = -6.0
-fog_far    = 24.0
-slots = ["#f7e9d6", "#e6d2bd", "#9d7b70", "#ffc857", "#4a3352", "#fff6d8", "#7fb2c9", "#e07a8a"]
+# Сад Зеркал: закатное тепло. Камень тёплый, стены — тёмная слива, акцент — золото луча.
+sky_top    = "#2a1430"
+sky_bottom = "#bc8c79"
+fog_near   = 2.0
+fog_far    = 22.0
+slots = ["#fbf1e0", "#e0d5cb", "#79545f", "#ffc94e", "#2c1d3a", "#fff6d8", "#7fb2c9", "#e07a8a"]
 
 [terraces]
-sky_top    = "#10233a"
-sky_bottom = "#9aa6a8"
-fog_near   = -6.0
-fog_far    = 26.0
-slots = ["#eef0ea", "#dcdfd6", "#8e9490", "#e8b14a", "#34415a", "#fdf3cf", "#79a8bf", "#c2766b"]
+# Часовые Террасы: холодное утро. Камень белёсый, стены — синий сланец, акцент — латунь.
+sky_top    = "#0c1e36"
+sky_bottom = "#a3b2b4"
+fog_near   = 2.0
+fog_far    = 22.0
+slots = ["#f2f4ee", "#d2d8d3", "#566370", "#f5b544", "#1c2739", "#fdf3cf", "#79a8bf", "#c2766b"]
 
 [water]
-sky_top    = "#0d2333"
-sky_bottom = "#7fa2ae"
-fog_near   = -6.0
-fog_far    = 22.0
-slots = ["#e8efee", "#d3dedc", "#7d9698", "#e4c268", "#2c4356", "#f6fbe9", "#5c9bb8", "#b98b6a"]
+# Тихая Вода: светящаяся бирюза. Камень холодный, стены — глубокий сине-зелёный.
+sky_top    = "#07202f"
+sky_bottom = "#95b5b8"
+fog_near   = 2.0
+fog_far    = 20.0
+slots = ["#eef5f2", "#cbdbd9", "#47616a", "#ecc766", "#12303c", "#f6fbe9", "#4f93b4", "#b98b6a"]
 
 [library]
-sky_top    = "#1b1526"
-sky_bottom = "#6d6475"
-fog_near   = -6.0
-fog_far    = 20.0
-slots = ["#eae3d8", "#d6cdc0", "#8b7f78", "#d9a05b", "#332b42", "#f7ecd2", "#6b8ba8", "#a4707f"]
+# Библиотека Сна: тишина и фиолет. Самый тёмный регион, туман ближе всех.
+sky_top    = "#150f22"
+sky_bottom = "#837484"
+fog_near   = 1.0
+fog_far    = 17.0
+slots = ["#ece5d8", "#cdc5c2", "#4d4255", "#e3a959", "#1a1426", "#f7ecd2", "#6b8ba8", "#a4707f"]
 
 [gray]
-sky_top    = "#1d2026"
-sky_bottom = "#8a8f99"
-fog_near   = -6.0
-fog_far    = 26.0
-slots = ["#e6e6e6", "#d2d2d2", "#9c9c9c", "#c4c4c4", "#3f4350", "#f2f2f2", "#93a0a6", "#b5b5b5"]
+# Обесцвеченный финал: та же структура светлот, но цвета из неё вынуты.
+sky_top    = "#15181f"
+sky_bottom = "#9aa0a6"
+fog_near   = 2.0
+fog_far    = 22.0
+slots = ["#f0f0ef", "#d4d4d4", "#595b62", "#c8c8c8", "#202430", "#f2f2f2", "#93a0a6", "#b5b5b5"]

@@ -155,6 +155,59 @@ static void draw_desat(float amount) {
     sceGuEnable(GU_DEPTH_TEST);
 }
 
+/* Виньетка: мягкое затемнение к краям кадра. Делается кольцом гуро-треугольников
+ * между внутренним эллипсом (прозрачным) и границей экрана с запасом (тёмной) —
+ * без текстуры и без второго прохода, один draw-call на 2·VIGNETTE_SEGS треугольников.
+ * Это половина «дорогого» кадра: взгляд перестаёт уезжать в угол. */
+#define VIGNETTE_SEGS 24
+#define VIGNETTE_IN_X 250.0f   /* полуоси прозрачного центра, пиксели */
+#define VIGNETTE_IN_Y 150.0f
+#define VIGNETTE_OUT  1.12f    /* насколько внешний контур выходит за экран */
+
+static void draw_vignette(float amount, unsigned color_rgb) {
+    if (amount <= 0.002f) return;
+    if (amount > 1.0f) amount = 1.0f;
+    const float cx = (float)SCR_WIDTH * 0.5f, cy = (float)SCR_HEIGHT * 0.5f;
+    unsigned alpha = (unsigned)(amount * 255.0f);
+    unsigned dark = (alpha << 24) | (color_rgb & 0x00FFFFFFu);
+    unsigned clear = color_rgb & 0x00FFFFFFu; /* альфа 0: центр не трогаем */
+
+    int n = 6 * VIGNETTE_SEGS;
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory((int)((unsigned)n * sizeof(vtx2d_t)));
+    if (!v) return;
+    for (int i = 0; i < VIGNETTE_SEGS; i++) {
+        float a0 = 6.2831853f * (float)i / (float)VIGNETTE_SEGS;
+        float a1 = 6.2831853f * (float)(i + 1) / (float)VIGNETTE_SEGS;
+        float c0 = cosf(a0), s0 = sinf(a0), c1 = cosf(a1), s1 = sinf(a1);
+        /* Внешняя точка — на границе экрана в этом направлении, с запасом:
+         * так угол кадра получает полную густоту, а не остаток градиента. */
+        float t0 = fminf(fabsf(c0) > 1e-4f ? cx / fabsf(c0) : 1.0e6f,
+                         fabsf(s0) > 1e-4f ? cy / fabsf(s0) : 1.0e6f) * VIGNETTE_OUT;
+        float t1 = fminf(fabsf(c1) > 1e-4f ? cx / fabsf(c1) : 1.0e6f,
+                         fabsf(s1) > 1e-4f ? cy / fabsf(s1) : 1.0e6f) * VIGNETTE_OUT;
+        vtx2d_t in0 = { clear, cx + c0 * VIGNETTE_IN_X, cy + s0 * VIGNETTE_IN_Y, 0.0f };
+        vtx2d_t in1 = { clear, cx + c1 * VIGNETTE_IN_X, cy + s1 * VIGNETTE_IN_Y, 0.0f };
+        vtx2d_t out0 = { dark, cx + c0 * t0, cy + s0 * t0, 0.0f };
+        vtx2d_t out1 = { dark, cx + c1 * t1, cy + s1 * t1, 0.0f };
+        v[i * 6 + 0] = in0;  v[i * 6 + 1] = out0; v[i * 6 + 2] = out1;
+        v[i * 6 + 3] = in0;  v[i * 6 + 4] = out1; v[i * 6 + 5] = in1;
+    }
+
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_CULL_FACE);
+    sceGuShadeModel(GU_SMOOTH);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
+    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+    sceGuEnable(GU_DEPTH_TEST);
+}
+
 /* Чёрный занавес перехода — поверх всего, включая текст. */
 static void draw_curtain(float amount) {
     if (amount <= 0.002f) return;
@@ -287,6 +340,8 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
     draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */
     gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
+    /* Виньетка — по сцене и свечениям, но до текста: подписи должны остаться чистыми. */
+    draw_vignette(f->env.vignette, f->env.sky_top);
     gu_text_draw(f);            /* 2D-наложение поверх сцены */
     draw_curtain(f->env.curtain); /* занавес перехода — поверх всего, включая текст */
     sceGuFinish();

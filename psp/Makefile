@@ -13,7 +13,7 @@ TEST_SRC        := $(wildcard tests/unit/*.c)
 HOST_CFLAGS     := -std=c11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Icore -Itests -Ibuild/assets
 PSP_ENV         := PSPDEV=$(PSPDEV) PATH=$(PSPDEV)/bin:$$PATH
 
-.PHONY: all assets psp test run-emu clean check-toolchain
+.PHONY: all assets psp test run-emu golden-check golden-update clean check-toolchain
 
 all: test assets psp
 
@@ -40,6 +40,14 @@ test: assets
 
 run-emu: psp
 	python3 tools/run_emu.py --emu $(PPSSPP_HEADLESS) --game $(BUILD)/ARGUS --script $(SCRIPT) --seconds $(SECONDS) --out $(BUILD)/shots
+
+# Золотые кадры: защита от незаметной порчи картинки. Обновлять отдельным коммитом,
+# приложив к нему причину — «камера стала шире», «палитра хаба холоднее».
+golden-check:
+	python3 tools/imgdiff.py --check $(BUILD)/shots tests/golden
+
+golden-update:
+	python3 tools/imgdiff.py --update $(BUILD)/shots tests/golden
 
 clean:
 	rm -rf $(BUILD)

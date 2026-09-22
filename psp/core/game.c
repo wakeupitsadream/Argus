@@ -25,6 +25,10 @@
 #define DOOR_DROP 1.5f       /* насколько открытая дверь уходит в пол */
 #define ENT_VIS_RATE 0.18f   /* догоняющее сглаживание двери и панели (как у камеры) */
 #define DUST_COUNT 28        /* пылинок в воздухе: остаток пула нужен лучу и свечениям */
+#define VIGNETTE_BASE 0.40f  /* затемнение краёв кадра; в режиме взгляда чуть сильнее */
+#define TAIL_FEATHERS_MAX 12 /* перьев на хвосте: больше не влезает в пул мешей кадра */
+#define TAIL_FAN_DEG 150.0f  /* раскрытие веера */
+#define TAIL_TILT_DEG 26.0f  /* наклон пера наружу */
 #define DT (1.0f / 60.0f)
 
 static const char *const MESH_FILES[MESH_COUNT] = {
@@ -554,6 +558,14 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
                 if (g->screens.current != SCR_GAME) screens_goto(&g->screens, SCR_GAME);
             }
         }
+        if (flags & AP_FLAG_SET) {
+            /* Отладка: выставить счётчик прогресса, не проходя игру. */
+            int value = g->ap.set_value < 0 ? 0 : g->ap.set_value;
+            if (strcmp(g->ap.set_name, "eyes") == 0) g->world.eyes_opened = (unsigned short)value;
+            else if (strcmp(g->ap.set_name, "small_eyes") == 0) g->world.small_eyes = (unsigned short)value;
+            else if (strcmp(g->ap.set_name, "feathers") == 0) g->world.feathers = (unsigned short)value;
+            else plat_log("autoplay: неизвестный счётчик '%s'", g->ap.set_name);
+        }
         if (flags & AP_FLAG_QUIT) g->pending_quit = 1;
     }
     unsigned pressed = in.buttons & ~g->prev_buttons;
@@ -747,6 +759,28 @@ static float entity_glow_size(const entity_t *e, float *bright) {
     }
 }
 
+/* Веер перьев на хвосте. Раскрывается по мере прогресса: большие глаза дают по перу
+ * с запасом, малые — по одному на четыре. Перья кладутся от краёв к центру, поэтому
+ * веер растёт симметрично, а не отращивает одну сторону. */
+static void build_tail_feathers(game_t *g, frame_t *f, float x, float y, float z,
+                                float yaw, float hover) {
+    if (!g->object_ok[MESH_PEACOCK_FEATHER]) return;
+    int n = (int)g->world.eyes_opened * 2 + (int)(g->world.small_eyes / 4);
+    if (n > TAIL_FEATHERS_MAX) n = TAIL_FEATHERS_MAX;
+    if (n <= 0) return;
+    for (int k = 0; k < n; k++) {
+        /* Позиция пера в веере: 0,5 — середина, края — 0 и 1. */
+        float t = (n == 1) ? 0.5f : (float)k / (float)(n - 1);
+        float ang = yaw + (t - 0.5f) * TAIL_FAN_DEG;
+        float lean = TAIL_TILT_DEG * (0.6f + 0.4f * fabsf(t - 0.5f) * 2.0f);
+        frame_mesh_t *m = frame_push_mesh(f, &g->objects[MESH_PEACOCK_FEATHER],
+                                          x, y + 0.15f + hover * 0.04f, z, ang);
+        if (!m) return;
+        m->pitch_deg = lean;
+        m->scale = 0.85f + 0.15f * (1.0f - fabsf(t - 0.5f) * 2.0f);
+    }
+}
+
 /* Сущности рисуются по живому состоянию (entities_t), а не по данным уровня:
  * иначе блок стоял бы на месте, дверь не открывалась, а собранный глаз не исчезал. */
 static void build_entities(game_t *g, frame_t *f) {
@@ -809,6 +843,10 @@ static void build_entities(game_t *g, frame_t *f) {
             frame_mesh_t *m = frame_push_mesh(f, &g->objects[mi], x, y, z, yaw);
             if (m) { m->scale = scale; m->pitch_deg = pitch; }
         }
+
+        /* Павлиний хвост — счётчик прогресса в мире, а не в интерфейсе (GDD §1.1):
+         * каждое перо соответствует открытому глазу, малые глаза добавляют пух. */
+        if (type == ENT_PEACOCK_TAIL) build_tail_feathers(g, f, x, y, z, yaw, hover);
 
         float bright = 0.0f;
         float size = entity_glow_size(e, &bright);
@@ -888,9 +926,11 @@ static void build_hud(game_t *g, frame_t *f) {
     frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 26, dim,
                            "%s", g->lang == LANG_RU ? "RU" : "EN");
 
-    /* Счёт глаз — единственная постоянная цифра на экране: остальное живёт в мире. */
-    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 44, accent, "%s %d / %d",
-                           STR(STR_EYE_COUNT), (int)g->world.eyes_opened, EYES_TOTAL);
+    /* Счёт глаз — единственная постоянная цифра на экране: остальное живёт в мире.
+     * Формат берётся из строки (STR_EYE_COUNT_OF = «Глаза: %d из %d»), поэтому число
+     * и порядок спецификаторов задаёт assets/strings.csv, а не код. */
+    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 44, accent,
+                           i18n_str(STR_EYE_COUNT_OF), (int)g->world.eyes_opened, EYES_TOTAL);
 
     /* Реплика важнее подсказки: она появляется в ответ на действие игрока. */
     if (g->msg_frames > 0 && g->msg_str >= 0 && g->msg_str < STR_COUNT) {
@@ -932,6 +972,8 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.fog_near = g->cam.dist + g->pal->fog_near;
     f->env.fog_far = g->cam.dist + g->pal->fog_far;
     f->env.desat = g->desat.value;
+    /* Виньетка — постоянная часть кадра; в режиме взгляда мир сужается ещё немного. */
+    f->env.vignette = VIGNETTE_BASE + 0.18f * g->desat.value;
 
     float curtain = screens_curtain(&g->screens);
     if (g->travel.value > curtain) curtain = g->travel.value;

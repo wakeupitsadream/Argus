@@ -427,17 +427,21 @@ TEST(test_save_file_io) {
     CHECK_EQ(save_read_file(&dst), 0);
     check_same(&src, &dst);
 
-    /* Временный файл содержит ту же запись. */
+    /* Запись атомарна: временный файл переименован в save.bin, значит его больше нет,
+     * а в save.bin лежит ровно та запись, которую дал save_serialize. */
     unsigned char expect[SAVE_BUF_SIZE];
     size_t len = 0;
     CHECK_EQ(save_serialize(&src, expect, sizeof expect, &len), 0);
     size_t got_len = 0;
     void *tmp = plat_read_file("save.tmp", &got_len);
-    CHECK(tmp != NULL);
-    if (tmp) {
+    CHECK(tmp == NULL);
+    if (tmp) plat_free(tmp);
+    void *saved = plat_read_file("save.bin", &got_len);
+    CHECK(saved != NULL);
+    if (saved) {
         CHECK_EQ(got_len, len);
-        CHECK(memcmp(tmp, expect, len) == 0);
-        plat_free(tmp);
+        CHECK(memcmp(saved, expect, len) == 0);
+        plat_free(saved);
     }
 
     /* Перезапись: второе сохранение читается как второе. */

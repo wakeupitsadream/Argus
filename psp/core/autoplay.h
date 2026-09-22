@@ -9,6 +9,7 @@
  *   "@<кадр> level <имя> [вход]"      — перейти на остров (имя файла levels/<имя>.toml,
  *                                       необязательный id сущности-входа); нужен тестам,
  *                                       чтобы не идти до острова пешком
+ *   "@<кадр> set <счётчик> <число>"   — отладка: eyes, small_eyes, feathers
  *   "@<кадр> quit"                    — выход
  * '#' — комментарий. */
 #ifndef ARGUS_AUTOPLAY_H
@@ -20,7 +21,7 @@
 #define AP_ASSERT_LEN 48
 #define AP_PENDING_MAX 4
 
-enum { AP_PRESS = 1, AP_RELEASE, AP_STICK, AP_SHOT, AP_QUIT, AP_ASSERT, AP_LEVEL };
+enum { AP_PRESS = 1, AP_RELEASE, AP_STICK, AP_SHOT, AP_QUIT, AP_ASSERT, AP_LEVEL, AP_SET };
 
 typedef struct {
     int frame, kind;
@@ -39,13 +40,15 @@ typedef struct {
     int assert_count;
     char level_name[AP_NAME_LEN]; /* уровень из события level этого кадра */
     int level_entry;
+    char set_name[AP_NAME_LEN];   /* счётчик из события set этого кадра */
+    int set_value;
 } autoplay_t;
 
 /* Возвращает число событий или -1 при ошибке разбора (номер строки в plat_log). */
 int autoplay_parse(autoplay_t *ap, const char *text);
 
 /* Флаги результата шага. */
-enum { AP_FLAG_SHOT = 1, AP_FLAG_QUIT = 2, AP_FLAG_ASSERT = 4, AP_FLAG_LEVEL = 8 };
+enum { AP_FLAG_SHOT = 1, AP_FLAG_QUIT = 2, AP_FLAG_ASSERT = 4, AP_FLAG_LEVEL = 8, AP_FLAG_SET = 16 };
 
 /* Имя уровня и вход последнего события level (действительны в кадре AP_FLAG_LEVEL). */
 /* Применяет события кадра frame, копирует синтетический ввод в *out.

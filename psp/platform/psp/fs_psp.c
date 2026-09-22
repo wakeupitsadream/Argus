@@ -84,6 +84,16 @@ int plat_write_file(const char *rel_path, const void *data, size_t len) {
     return 0;
 }
 
+int plat_rename_file(const char *from_rel, const char *to_rel) {
+    char from[320], to[320];
+    fs_path(from, sizeof from, from_rel);
+    fs_path(to, sizeof to, to_rel);
+    /* sceIoRename не перезаписывает существующий приёмник (вернёт ошибку),
+     * поэтому сначала удаляем его. Отсутствие файла — не ошибка. */
+    sceIoRemove(to);
+    return sceIoRename(from, to) < 0 ? -1 : 0;
+}
+
 void plat_log(const char *fmt, ...) {
     char line[256];
     va_list ap;

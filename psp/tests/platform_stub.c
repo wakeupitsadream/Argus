@@ -49,6 +49,13 @@ int plat_write_file(const char *rel_path, const void *data, size_t len) {
     return w == len ? 0 : -1;
 }
 
+int plat_rename_file(const char *from_rel, const char *to_rel) {
+    char from[512], to[512];
+    resolve(from_rel, from, sizeof from);
+    resolve(to_rel, to, sizeof to);
+    return rename(from, to) == 0 ? 0 : -1;
+}
+
 void plat_gpu_writeback(const void *p, size_t bytes) {
     (void)p; (void)bytes; /* на хосте кэша GPU нет */
 }
