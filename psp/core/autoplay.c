@@ -70,6 +70,13 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
             plat_log("autoplay: строка %d: неизвестная команда '%s'", line_no, cmd);
             return -1;
         }
+        /* Шаг читает список строго по порядку, поэтому кадры обязаны не убывать:
+         * иначе более ранние события молча не сработают. */
+        if (ap->count > 0 && e->frame < ap->ev[ap->count - 1].frame) {
+            plat_log("autoplay: строка %d: кадр %d идёт после %d — события не по порядку",
+                     line_no, e->frame, ap->ev[ap->count - 1].frame);
+            return -1;
+        }
         ap->count++;
     }
     ap->active = ap->count > 0;

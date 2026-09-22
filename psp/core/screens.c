@@ -22,6 +22,10 @@ static void set_menu(screens_t *s) {
         s->items[s->item_count++] = ACT_LANG;
         s->items[s->item_count++] = ACT_TO_TITLE;
         break;
+    case SCR_CHOICE:
+        s->items[s->item_count++] = ACT_ENDING_A;
+        s->items[s->item_count++] = ACT_ENDING_B;
+        break;
     default:
         break;
     }
@@ -81,6 +85,9 @@ int screens_tick(screens_t *s, unsigned pressed) {
     case SCR_TITLE:
     case SCR_PAUSE:
         return menu_action(s, pressed);
+    case SCR_CHOICE:
+        /* Выбор финала не принимаем, пока вопрос не дочитан. */
+        return s->frames > 60 ? menu_action(s, pressed) : ACT_NONE;
     case SCR_ENDING:
         /* Финал ждёт подтверждения, но не раньше, чем текст прочитан. */
         if (s->frames > 90 && (pressed & (BTN_CROSS | BTN_START))) return ACT_ENDING_DONE;
@@ -101,6 +108,8 @@ static int action_str(int action, int lang) {
     case ACT_QUIT: return STR_MENU_QUIT;
     case ACT_RESUME: return STR_PAUSE_RESUME;
     case ACT_TO_TITLE: return STR_PAUSE_MENU;
+    case ACT_ENDING_A: return STR_CHOICE_WAKE;
+    case ACT_ENDING_B: return STR_CHOICE_RELEASE;
     default: return STR_TITLE;
     }
 }
@@ -136,6 +145,11 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
         frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 112, dim_c, "%s %d / %d",
                                STR(STR_EYE_COUNT), eyes, eyes_total);
         build_menu(s, f, pal, lang, 158);
+        break;
+    case SCR_CHOICE:
+        frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 44, 92, title_c, "%s", STR(STR_CHOICE_TITLE));
+        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 118, dim_c, "%s", STR(STR_CHOICE_LINE));
+        if (s->frames > 60) build_menu(s, f, pal, lang, 166);
         break;
     case SCR_ENDING:
         frame_push_text_shadow(f, FONT_TITLE, TEXT_CENTER, SCR_W / 2, 118, title_c, "%s",

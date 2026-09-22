@@ -10,6 +10,7 @@
 #include "input_psp.h"
 #include "gu_render.h"
 #include "gu_text.h"
+#include "audio_psp.h"
 #include "game.h"
 #include "platform.h"
 
@@ -37,6 +38,7 @@ int main(int argc, char *argv[]) {
         plat_log("argus: текст отключён (gu_text_init)");
         s_game.font_ok = 0;
     }
+    if (audio_psp_start(&s_game.audio) != 0) plat_log("argus: звук недоступен — играем молча");
     fs_mkdir("shots");
 
     plat_stats_t stats;
@@ -71,6 +73,8 @@ int main(int argc, char *argv[]) {
     if (s_game.assert_pass || s_game.assert_fail) {
         plat_log("AUTOPLAY ИТОГ: пройдено %d, провалено %d", s_game.assert_pass, s_game.assert_fail);
     }
+    /* Звук останавливаем до game_shutdown: колбэк читает s_game.audio и эмбиент-буфер. */
+    audio_psp_stop();
     game_shutdown(&s_game);
     r_term();
     sceKernelExitGame();

@@ -7,12 +7,14 @@
 #include "palette.h"
 #include "ease.h"
 
-enum { SCR_TITLE = 0, SCR_GAME, SCR_PAUSE, SCR_ENDING, SCR_CREDITS, SCR_COUNT };
+enum { SCR_TITLE = 0, SCR_GAME, SCR_PAUSE, SCR_ENDING, SCR_CREDITS, SCR_CHOICE, SCR_COUNT };
 
 /* Действия меню, которые возвращает screens_tick. */
 enum {
     ACT_NONE = 0, ACT_NEW, ACT_CONTINUE, ACT_LANG, ACT_QUIT,
-    ACT_RESUME, ACT_TO_TITLE, ACT_ENDING_DONE
+    ACT_RESUME, ACT_TO_TITLE, ACT_ENDING_DONE,
+    ACT_ENDING_A, /* разбудить Аргуса */
+    ACT_ENDING_B  /* закрыть собственный глаз и отпустить мир */
 };
 
 #define SCREEN_MAX_ITEMS 5

@@ -74,6 +74,16 @@ TEST(test_autoplay_parse_and_step) {
     CHECK_EQ(in.buttons, BTN_R);
 }
 
+TEST(test_autoplay_out_of_order) {
+    /* Шаг читает события по порядку, поэтому разбор обязан отвергать скрипт,
+     * где кадр уменьшился: иначе более раннее событие молча не сработает. */
+    autoplay_t ap;
+    const char *bad = "@100 shot a\n@50 press cross\n";
+    CHECK_EQ(autoplay_parse(&ap, bad), -1);
+    const char *good = "@50 press cross\n@50 release cross\n@100 shot a\n";
+    CHECK_EQ(autoplay_parse(&ap, good), 3);
+}
+
 TEST(test_autoplay_long_lines) {
     autoplay_t ap;
     /* Комментарий длиннее буфера разбора не должен ломать следующие строки. */
@@ -285,6 +295,7 @@ void tests_core(void) {
     RUN(test_tween);
     RUN(test_autoplay_parse_and_step);
     RUN(test_autoplay_long_lines);
+    RUN(test_autoplay_out_of_order);
     RUN(test_autoplay_errors);
     RUN(test_palette_file);
     RUN(test_mesh_shading);

@@ -1,0 +1,34 @@
+# Арт-прогон: кадр хаба во всех четырёх ракурсах + край острова и режим взгляда.
+# Нужен для арт-правок палитры и карты высот: смотрим силуэт, контраст, туман.
+@30 press cross
+@31 release cross
+@120 assert level_ok=1
+@130 shot art_spawn
+@140 stick 0.0 -1.0
+@230 stick 0.0 0.0
+@280 shot art_a0
+@290 press R
+@291 release R
+@350 shot art_a1
+@360 press R
+@361 release R
+@420 shot art_a2
+@430 press R
+@431 release R
+@490 shot art_a3
+@500 press R
+@501 release R
+@560 assert cam_angle=0
+@561 assert py>0.4
+@570 press circle
+@600 shot art_look
+@601 assert look=1
+@610 release circle
+# уходим к восточному краю: проверяем «висящую» кромку и дальние террасы в тумане
+@620 stick 1.0 0.0
+@720 stick 0.0 0.0
+@760 shot art_edge
+@761 assert py>0.4
+@770 assert tris<=8000
+@771 assert draws<=200
+@780 quit

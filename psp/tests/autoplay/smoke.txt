@@ -1,20 +1,25 @@
-# smoke вехи 2: ресурсы загрузились, Око ходит, камера крутится, взгляд выцветает мир.
+# smoke: ресурсы загрузились, игра стартует с заставки, Око ходит, камера крутится,
+# взгляд выцветает мир. Первый крест — пункт меню заставки (новая игра или продолжить).
+# События обязаны идти по возрастанию кадра: autoplay_step читает список по порядку.
+@20 press cross
+@21 release cross
 @30 assert level_ok=1
 @31 assert font_ok=1
 @32 assert strings_ok=1
-@40 shot hub_start
-@50 stick 0.0 -1.0
-@140 stick 0.0 0.0
-@150 shot hub_walk
-@160 press R
-@161 release R
-@210 shot hub_rotated
-@220 press circle
-@250 shot hub_look
-@251 assert look=1
-@252 assert desat>0.5
-@260 release circle
-@290 assert tris<=8000
-@291 assert draws<=200
-@300 shot hub_final
-@310 quit
+@90 assert screen=1
+@95 shot hub_start
+@100 stick 0.0 -1.0
+@190 stick 0.0 0.0
+@200 shot hub_walk
+@210 press R
+@211 release R
+@260 shot hub_rotated
+@270 press circle
+@300 shot hub_look
+@301 assert look=1
+@302 assert desat>0.5
+@310 release circle
+@340 assert tris<=8000
+@341 assert draws<=100
+@350 shot hub_final
+@360 quit

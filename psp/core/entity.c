@@ -50,7 +50,7 @@ static void ent_seg_reset(entities_t *es) {
 }
 
 /* Поддерживает ли тип взаимодействие «крестом». */
-static int ent_can_interact(int type) {
+int entity_can_interact(int type) {
     switch (type) {
     case ENT_LEVER:
     case ENT_MIRROR:
@@ -262,7 +262,7 @@ int entities_interact(entities_t *es, float px, float pz, float dir_x, float dir
     float best_d2 = reach > 0.0f ? reach * reach : 0.0f;
     for (int i = 0; i < es->count; i++) {
         entity_t *e = &es->items[i];
-        if (!e->active || !ent_can_interact(ent_type(e))) continue;
+        if (!e->active || !entity_can_interact(ent_type(e))) continue;
         float dx = e->x - px, dz = e->z - pz;
         float d2 = dx * dx + dz * dz;
         if (d2 < best_d2) { best_d2 = d2; best = e; }

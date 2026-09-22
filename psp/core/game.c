@@ -3,6 +3,8 @@
 #include "strings_ids.h"
 #include "screens.h"
 #include "entity_types.h"
+#include "level_ids.h"
+#include "quests_data.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +17,14 @@
 #define SLEEPER_RATE 26.0f  /* градусов в секунду у спящих объектов */
 #define TITLE_ORBIT 6.0f    /* градусов в секунду: медленный облёт на заставке */
 #define EYES_TOTAL 4        /* больших глаз в игре */
+#define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
+#define MSG_FRAMES 210      /* 3,5 с на реплику */
+#define BEAM_STEP 0.38f      /* шаг спрайтов вдоль луча */
+#define BEAM_SPRITES_MAX 40  /* бюджет спрайтов на луч: остальное — пылинки и свечения */
+#define TRAVEL_FRAMES 20     /* затемнение при переходе между островами */
+#define DOOR_DROP 1.5f       /* насколько открытая дверь уходит в пол */
+#define ENT_VIS_RATE 0.18f   /* догоняющее сглаживание двери и панели (как у камеры) */
+#define DUST_COUNT 28        /* пылинок в воздухе: остаток пула нужен лучу и свечениям */
 #define DT (1.0f / 60.0f)
 
 static const char *const MESH_FILES[MESH_COUNT] = {
@@ -47,18 +57,6 @@ static int mesh_for_entity(int type) {
     case ENT_FEATHER: return MESH_FEATHER;
     case ENT_SLEEPER: return MESH_ECHO;
     default: return -1;
-    }
-}
-
-/* Светятся ли глаза и перья — для аддитивных билбордов. */
-static int entity_glow(int type, float *size) {
-    switch (type) {
-    case ENT_SMALL_EYE: *size = 0.9f; return 1;
-    case ENT_BIG_EYE: *size = 2.2f; return 1;
-    case ENT_FEATHER: *size = 0.7f; return 1;
-    case ENT_RECEIVER: *size = 0.8f; return 1;
-    case ENT_PEACOCK_TAIL: *size = 3.0f; return 1;
-    default: return 0;
     }
 }
 
@@ -139,6 +137,134 @@ static void load_ghost_meshes(game_t *g) {
     }
 }
 
+/* Тональность региона (GDD §1.6): каждое взаимодействие звучит нотой своего аккорда.
+ * Ноты — номера MIDI: 57 — ля большой октавы. Имя региона совпадает с именем палитры. */
+typedef struct {
+    const char *region;
+    int root_midi;
+    int chord[4];
+} region_chord_t;
+
+static const region_chord_t REGION_CHORDS[] = {
+    { "hub",      57, { 0, 7, 12, 16 } },  /* ля: открытая квинта, спокойствие */
+    { "mirrors",  60, { 0, 4, 7, 11 } },   /* до-мажор с большой септимой: свет */
+    { "terraces", 55, { 0, 5, 7, 10 } },   /* соль-сус: механика, без наклонения */
+    { "water",    62, { 0, 3, 7, 10 } },   /* ре-минор с септимой: вода */
+    { "library",  53, { 0, 7, 14, 19 } },  /* фа: пустые квинты, тишина зала */
+    { "gray",     50, { 0, 5, 10, 12 } },  /* ре: серый финал */
+};
+
+static void audio_set_region(game_t *g, const char *region) {
+    const region_chord_t *pick = &REGION_CHORDS[0];
+    for (unsigned i = 0; i < sizeof REGION_CHORDS / sizeof REGION_CHORDS[0]; i++) {
+        if (strncmp(REGION_CHORDS[i].region, region, 16) == 0) { pick = &REGION_CHORDS[i]; break; }
+    }
+    audio_set_chord(&g->audio, pick->root_midi, pick->chord, 4);
+}
+
+/* Подключает эмбиент-петлю региона. Прошлый буфер не освобождается сразу: его мог
+ * читать поток звука — он отпустит его к следующему вызову микшера (правило 14). */
+static void audio_set_region_ambient(game_t *g, const char *region) {
+    char rel[40];
+    snprintf(rel, sizeof rel, "data/amb_%.16s.pcm", region);
+    size_t len = 0;
+    void *pcm = plat_read_file(rel, &len);
+    if (!pcm) {
+        plat_log("game: нет %s — регион без эмбиента", rel);
+        audio_set_ambient(&g->audio, NULL, 0, 0.0f);
+    } else {
+        audio_set_ambient(&g->audio, (const short *)pcm, (int)(len / sizeof(short)), 0.7f);
+    }
+    if (g->ambient_old) plat_free(g->ambient_old); /* прошлый уже пережил свои кадры */
+    g->ambient_old = g->ambient_pcm;
+    g->ambient_free_in = 12;  /* 0,2 с — заведомо больше буфера pspaudiolib (≈23 мс) */
+    g->ambient_pcm = pcm;
+}
+
+/* Пере-раскрашивает предметы и силуэты под текущую палитру: цвет живёт в палитре,
+ * а не в ассете, поэтому смена региона — это только повторный резолв (TECH.md §2.4). */
+static void recolor_objects(game_t *g) {
+    for (int i = 0; i < MESH_COUNT; i++) {
+        if (g->object_ok[i]) mesh_recolor(&g->objects[i], g->pal, &g->light);
+    }
+    unsigned color = (0xD0u << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu);
+    for (int i = 0; i < 3; i++) {
+        if (g->ghost_ok[i]) mesh_recolor_flat(&g->ghost[i], color);
+    }
+}
+
+/* Загружает остров и ставит на него Око. entry_id — id сущности-входа (0 — спавн уровня).
+ * Старое освобождается только после удачной загрузки нового: неудача оставляет игру живой. */
+static int load_level(game_t *g, int index, int entry_id) {
+    const char *lvl_path = level_data_path((unsigned)index);
+    const char *msh_path = level_mesh_path((unsigned)index);
+    if (!lvl_path || !msh_path) { plat_log("game: нет уровня %d", index); return -1; }
+
+    size_t len = 0;
+    void *blob = plat_read_file(lvl_path, &len);
+    level_t lv;
+    if (!blob || level_load(&lv, blob, len) != 0) {
+        if (blob) plat_free(blob);
+        plat_log("game: не читается %s", lvl_path);
+        return -1;
+    }
+    size_t mlen = 0;
+    void *mblob = plat_read_file(msh_path, &mlen);
+    mesh_t msh;
+    if (!mblob || mesh_load(&msh, mblob, mlen) != 0) {
+        if (mblob) plat_free(mblob);
+        level_free(&lv);
+        plat_log("game: не читается %s", msh_path);
+        return -1;
+    }
+
+    if (g->level_ok) level_free(&g->level);
+    if (g->island_ok) mesh_free(&g->island);
+    g->level = lv;
+    g->island = msh;
+    g->level_ok = 1;
+    g->island_ok = 1;
+    g->level_index = index;
+
+    const palette_t *pal = palette_find(&g->pals, g->level.palette);
+    if (pal && pal != g->pal) { g->pal = pal; recolor_objects(g); }
+    mesh_recolor(&g->island, g->pal, &g->light);
+
+    player_init(&g->player, &g->level);
+    const level_entity_t *entry = entry_id > 0 ? level_entity_by_id(&g->level, entry_id) : NULL;
+    if (entry) {
+        float y = walk_floor_at(&g->level, entry->x, entry->z);
+        if (y > WALK_NO_FLOOR) {
+            g->player.pos.x = entry->x;
+            g->player.pos.z = entry->z;
+            g->player.pos.y = y;
+            g->player.yaw_deg = entry->yaw_deg;
+        }
+    }
+
+    entities_init(&g->entities, &g->level, &g->world);
+    entities_propagate(&g->entities);
+    memset(&g->beam, 0, sizeof g->beam);
+    /* Двери, открытые сохранённым рычагом, не должны выезжать на глазах у игрока. */
+    memset(g->ent_vis, 0, sizeof g->ent_vis);
+    for (int i = 0; i < g->entities.count && i < GAME_MAX_ENT_STATE; i++) {
+        g->ent_vis[i] = g->entities.items[i].state ? 1.0f : 0.0f;
+    }
+
+    float target[3] = { g->player.pos.x, g->player.pos.y + PLAYER_EYE_H, g->player.pos.z };
+    camera_init(&g->cam, g->level.cam_angle, g->level.cam_lock, target);
+    particles_init(&g->particles, 0x51F0A17Du + (unsigned)index * 7919u);
+    float dust[3] = { target[0], target[1] + 1.5f, target[2] };
+    particles_set_ambient(&g->particles, dust, 7.5f, DUST_COUNT, 0x88FFF0C4u);
+
+    audio_set_region(g, g->pal->name);
+    audio_set_region_ambient(g, g->pal->name);
+
+    plat_log("game: остров \"%s\": %d треугольников, %d сущностей, %d связей",
+             g->level.name, g->island.count / 3, g->entities.count, g->level.link_count);
+    return 0;
+}
+
 int game_init(game_t *g) {
     memset(g, 0, sizeof *g);
     size_t len = 0;
@@ -154,45 +280,17 @@ int game_init(game_t *g) {
     g->light.ambient = 0.58f;
     g->light.diffuse = 0.42f;
 
-    /* Уровень: данные и геометрия. Палитра берётся из уровня. */
-    blob = plat_read_file("data/hub.lvl", &len);
-    if (blob && level_load(&g->level, blob, len) == 0) {
-        g->level_ok = 1;
-        g->pal = palette_find(&g->pals, g->level.palette);
-    } else {
-        if (blob) plat_free(blob);
-        plat_log("game: нет data/hub.lvl — только геометрия");
-    }
-    if (!g->pal) g->pal = palette_find(&g->pals, "hub");
-    if (!g->pal) { plat_log("game: нет палитры"); return -1; }
-
-    blob = plat_read_file("data/hub.msh", &len);
-    if (blob && mesh_load(&g->island, blob, len) == 0) {
-        mesh_recolor(&g->island, g->pal, &g->light);
-        g->island_ok = 1;
-        plat_log("game: остров %d треугольников", g->island.count / 3);
-    } else {
-        if (blob) plat_free(blob);
-        plat_log("game: не удалось загрузить data/hub.msh");
-        return -1;
-    }
+    g->pal = palette_find(&g->pals, "hub");
+    if (!g->pal) { plat_log("game: нет палитры hub"); return -1; }
 
     load_meshes(g);
     load_ghost_meshes(g);
     load_text_resources(g);
 
-    if (g->level_ok) {
-        player_init(&g->player, &g->level);
-    } else {
-        memset(&g->player, 0, sizeof g->player);
-    }
-    float target[3] = { g->player.pos.x, g->player.pos.y + PLAYER_EYE_H, g->player.pos.z };
-    camera_init(&g->cam, g->level_ok ? g->level.cam_angle : 0, g->level_ok ? g->level.cam_lock : 0, target);
     tween_set(&g->desat, 0.0f);
-
-    particles_init(&g->particles, 0x51F0A17Du);
-    float dust_center[3] = { target[0], target[1] + 1.5f, target[2] };
-    particles_set_ambient(&g->particles, dust_center, 7.5f, 34, 0x88FFF0C4u);
+    tween_set(&g->travel, 0.0f);
+    g->travel_to = -1;
+    audio_init(&g->audio, 0x7F4A7C15u);
 
     world_reset(&g->world);
     save_data_t sd;
@@ -200,6 +298,12 @@ int game_init(game_t *g) {
     if (has_save) g->world = sd.world;
     screens_init(&g->screens, SCR_TITLE, has_save);
     g->title_yaw = 45.0f;
+
+    int start_level = (has_save && sd.level_index < LVL_COUNT) ? (int)sd.level_index : LVL_HUB;
+    if (load_level(g, start_level, 0) != 0 && load_level(g, LVL_HUB, 0) != 0) {
+        plat_log("game: нет стартового уровня");
+        return -1;
+    }
 
     char *script = (char *)plat_read_file("autoplay.txt", &len);
     if (script) {
@@ -232,6 +336,26 @@ static float metric_value(const game_t *g, const char *name) {
     if (strcmp(name, "cam_angle") == 0) return (float)g->cam.angle;
     if (strcmp(name, "look") == 0) return (float)g->player.look_active;
     if (strcmp(name, "desat") == 0) return g->desat.value;
+    if (strcmp(name, "eyes") == 0) return (float)g->world.eyes_opened;
+    if (strcmp(name, "small_eyes") == 0) return (float)g->world.small_eyes;
+    if (strcmp(name, "feathers") == 0) return (float)g->world.feathers;
+    if (strcmp(name, "screen") == 0) return (float)g->screens.current;
+    if (strcmp(name, "level") == 0) return (float)g->level_index;
+    if (strcmp(name, "prompt") == 0) return (float)g->prompt_id;
+    if (strcmp(name, "msg") == 0) return (float)(g->msg_frames > 0 ? g->msg_str : -1);
+    if (strcmp(name, "beam") == 0) return (float)g->beam.count;
+    if (strcmp(name, "receiver") == 0) return (float)g->beam.hit_receiver_id;
+    if (strcmp(name, "ents") == 0) return (float)g->entities.count;
+    /* "flagN" — флаг мира N (например flag30=1: малый глаз собран). */
+    if (strncmp(name, "flag", 4) == 0 && name[4]) {
+        int id = atoi(name + 4);
+        if (id > 0 && id < WORLD_FLAG_COUNT) return (float)world_flag(&g->world, id);
+    }
+    /* "entN" — состояние сущности N (рычаг включён, дверь открыта, глаз открыт). */
+    if (strncmp(name, "ent", 3) == 0 && name[3] >= '0' && name[3] <= '9') {
+        const entity_t *e = entities_by_id_const(&g->entities, atoi(name + 3));
+        if (e) return (float)e->state;
+    }
     return 0.0f / 0.0f;
 }
 
@@ -274,6 +398,133 @@ static void run_assert(game_t *g, const char *expr) {
     }
 }
 
+/* Сохранение текущего состояния: вызывается на событиях прогресса, не каждый кадр. */
+static void autosave(game_t *g) {
+    save_data_t sd;
+    memset(&sd, 0, sizeof sd);
+    sd.version = SAVE_VERSION;
+    sd.lang = g->lang;
+    sd.level_index = g->level_index;
+    sd.px = g->player.pos.x;
+    sd.py = g->player.pos.y;
+    sd.pz = g->player.pos.z;
+    sd.pyaw = g->player.yaw_deg;
+    sd.cam_angle = g->cam.angle;
+    sd.world = g->world;
+    if (save_write_file(&sd) == 0) {
+        g->screens.has_save = 1;
+        plat_log("game: сохранено (остров %d, глаз %d)", g->level_index, (int)g->world.eyes_opened);
+    }
+}
+
+/* Начинает переход на другой остров: занавес перехода отдельный от занавеса экранов,
+ * чтобы пауза и меню поверх смены острова не спорили за одну шкалу. */
+static void travel_begin(game_t *g, int level_index, int entry_id) {
+    if (g->travel_phase != 0 || level_index < 0 || level_index >= LVL_COUNT) return;
+    g->travel_to = level_index;
+    g->travel_entry = entry_id;
+    g->travel_phase = 1;
+    tween_start(&g->travel, 1.0f, TRAVEL_FRAMES);
+}
+
+static void travel_tick(game_t *g) {
+    if (g->travel_phase == 0) return;
+    tween_update(&g->travel, ease_in_out_cubic);
+    if (!tween_done(&g->travel)) return;
+    if (g->travel_phase == 1) {
+        if (g->travel_to >= 0 && load_level(g, g->travel_to, g->travel_entry) != 0) {
+            plat_log("game: переход на уровень %d не удался", g->travel_to);
+        }
+        g->travel_to = -1;
+        g->travel_phase = 2;
+        tween_start(&g->travel, 0.0f, TRAVEL_FRAMES);
+    } else {
+        g->travel_phase = 0;
+    }
+}
+
+/* Подсказка под тип сущности: игрок должен понимать действие до нажатия. */
+static int prompt_str_for(int type) {
+    switch (type) {
+    case ENT_ECHO: return STR_PROMPT_TALK;
+    case ENT_STONE_TEXT: return STR_PROMPT_READ;
+    case ENT_SMALL_EYE:
+    case ENT_FEATHER: return STR_PROMPT_TAKE;
+    case ENT_MIRROR:
+    case ENT_PRISM:
+    case ENT_SEGMENT: return STR_PROMPT_TURN;
+    case ENT_BLOCK: return STR_PROMPT_PUSH;
+    case ENT_LEVER: return STR_PROMPT_PULL;
+    default: return STR_PROMPT_USE;
+    }
+}
+
+/* Короткая реплика внизу экрана: надпись на камне, слова отголоска, отказ механизма. */
+static void show_msg(game_t *g, int str_id) {
+    if (str_id < 0 || str_id >= STR_COUNT) return;
+    g->msg_str = str_id;
+    g->msg_frames = MSG_FRAMES;
+}
+
+/* Взаимодействие с тем, что рядом. Типы, которые entity.c намеренно не обрабатывает сам,
+ * разбираются здесь: вентиль воды, панель памяти, сегмент, отголосок, надпись. */
+static void do_interact(game_t *g) {
+    if (!g->level_ok) return;
+    float dirx = sinf(g->player.yaw_deg * M3_DEG2RAD);
+    float dirz = cosf(g->player.yaw_deg * M3_DEG2RAD);
+    int id = entities_interact(&g->entities, g->player.pos.x, g->player.pos.z, dirx, dirz,
+                              INTERACT_REACH);
+    if (!id) return;
+    const entity_t *e = entities_by_id_const(&g->entities, id);
+    if (!e || !e->def) return;
+
+    /* Тон события: у каждого механизма свой голос из аккорда региона. */
+    switch (e->def->type) {
+    case ENT_LEVER: audio_play(&g->audio, SFX_LEVER); break;
+    case ENT_MIRROR:
+    case ENT_PRISM: audio_play(&g->audio, SFX_MIRROR); break;
+    case ENT_BLOCK: audio_play(&g->audio, SFX_BLOCK); break;
+    case ENT_SMALL_EYE: audio_play(&g->audio, SFX_EYE_SMALL); break;
+    case ENT_FEATHER: audio_play(&g->audio, SFX_FEATHER); break;
+    default: audio_play(&g->audio, SFX_INTERACT); break;
+    }
+
+    switch (e->def->type) {
+    case ENT_WATER_VALVE:
+        water_valve_use(&g->entities, id);
+        break;
+    case ENT_MEMORY_PANEL:
+        /* Панель вводит следующее значение по порядку: подробный ввод — дело головоломки. */
+        memory_input(&g->entities, id, (int)e->state + 1);
+        break;
+    case ENT_SEGMENT:
+        segment_rotate(&g->entities, e->def->params[0], 1);
+        break;
+    case ENT_STONE_TEXT:
+        if (e->def->name_str_id != 0xFFFFu) show_msg(g, (int)e->def->name_str_id);
+        break;
+    case ENT_SMALL_EYE:
+        show_msg(g, STR_SMALL_EYE_FOUND);
+        break;
+    case ENT_FEATHER:
+        show_msg(g, STR_FEATHER_FOUND);
+        break;
+    case ENT_ECHO: {
+        const quest_def_t *q = quest_find(QUESTS, QUEST_COUNT, id);
+        if (q) {
+            quest_talk(&g->world, q);
+            show_msg(g, quest_line_str(&g->world, q));
+        } else if (e->def->name_str_id != 0xFFFFu) {
+            show_msg(g, (int)e->def->name_str_id);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    entities_propagate(&g->entities);
+}
+
 static void set_lang(game_t *g, int lang) {
     if (!g->strings_ok || lang < 0 || lang >= LANG_COUNT) return;
     g->lang = lang;
@@ -299,10 +550,15 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     if (pressed & BTN_SELECT) g->show_debug = !g->show_debug;
 
     int act = screens_tick(&g->screens, pressed);
+    if (g->screens.item_count > 0 && !screens_busy(&g->screens)) {
+        if (pressed & (BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT)) audio_play(&g->audio, SFX_UI_MOVE);
+    }
+    if (act != ACT_NONE) audio_play(&g->audio, SFX_UI_OK);
     switch (act) {
     case ACT_NEW:
         world_reset(&g->world);
-        if (g->level_ok) player_init(&g->player, &g->level);
+        g->ending_started = 0;
+        load_level(g, LVL_HUB, 0);
         screens_goto(&g->screens, SCR_GAME);
         break;
     case ACT_CONTINUE: {
@@ -310,12 +566,27 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         if (save_read_file(&sd) == 0) {
             g->world = sd.world;
             set_lang(g, sd.lang);
-            g->player.pos.x = sd.px;
-            g->player.pos.y = sd.py;
-            g->player.pos.z = sd.pz;
-            g->player.yaw_deg = sd.pyaw;
+            if (sd.level_index < LVL_COUNT) load_level(g, (int)sd.level_index, 0);
+            /* Позиция ставится после загрузки: load_level ставит Око в точку спавна. */
+            float y = walk_floor_at(&g->level, sd.px, sd.pz);
+            if (y > WALK_NO_FLOOR) {
+                g->player.pos.x = sd.px;
+                g->player.pos.y = y;
+                g->player.pos.z = sd.pz;
+                g->player.yaw_deg = sd.pyaw;
+            }
+            g->ending_started = ((int)g->world.eyes_opened >= EYES_TOTAL);
         }
         screens_goto(&g->screens, SCR_GAME);
+        break;
+    }
+    case ACT_ENDING_A:
+    case ACT_ENDING_B: {
+        int variant = (act == ACT_ENDING_B) ? 1 : 0;
+        g->screens.ending_variant = variant;
+        world_set_flag(&g->world, variant ? WFLAG_ENDING_SEEN_B : WFLAG_ENDING_SEEN_A, 1);
+        autosave(g);
+        screens_goto(&g->screens, SCR_ENDING);
         break;
     }
     case ACT_LANG: set_lang(g, (g->lang + 1) % LANG_COUNT); break;
@@ -326,7 +597,7 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     default: break;
     }
 
-    int playing = (g->screens.current == SCR_GAME) && !screens_busy(&g->screens);
+    int playing = (g->screens.current == SCR_GAME) && !screens_busy(&g->screens) && g->travel_phase == 0;
     if (playing) {
         if (pressed & BTN_L) camera_rotate(&g->cam, -1);
         if (pressed & BTN_R) camera_rotate(&g->cam, 1);
@@ -334,6 +605,20 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         if (pressed & BTN_START) screens_goto(&g->screens, SCR_PAUSE);
         if (g->level_ok) player_tick(&g->player, &g->level, &in, g->cam.yaw.value);
         else g->player.look_active = (in.buttons & BTN_CIRCLE) ? 1 : 0;
+        if ((pressed & BTN_CROSS) && g->entities.busy_frames <= 0) do_interact(g);
+
+        /* Портал: мост уводит на соседний остров. Портал «сам в себя» — это ещё не
+         * собранный регион: игра честно говорит, что ход закрыт, вместо перезагрузки. */
+        if (g->level_ok) {
+            const level_portal_t *p = level_portal_at(&g->level, g->player.pos.x, g->player.pos.z);
+            if (p) {
+                if ((int)p->target_level == g->level_index && p->target_entry == 0) {
+                    if (g->msg_frames <= 0) { show_msg(g, STR_GATE_LOCKED); audio_play(&g->audio, SFX_DENY); }
+                } else {
+                    travel_begin(g, (int)p->target_level, (int)p->target_entry);
+                }
+            }
+        }
     } else {
         g->player.look_active = 0;
         g->player.speed = 0.0f;
@@ -357,57 +642,204 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         camera_update(&g->cam, target);
     }
 
-    /* Спящие сущности двигаются только вне наблюдения — фирменная механика (GDD §1.4). */
+    /* Сущности: анимации, спящие объекты (двигаются только вне наблюдения), плиты, луч. */
     if (g->level_ok) {
         frame_cam_t fc;
         camera_fill(&g->cam, &fc);
-        int n = g->level.entity_count < GAME_MAX_ENT_STATE ? g->level.entity_count : GAME_MAX_ENT_STATE;
-        for (int i = 0; i < n; i++) {
-            const level_entity_t *e = &g->level.entities[i];
-            float pos[3] = { e->x, e->y + 0.4f, e->z };
-            int watched = observe_is_watched(&fc, pos, 0.5f, g->player.look_active);
-            g->ent_watched[i] = (unsigned char)watched;
-            if (e->type == ENT_SLEEPER) {
-                if (!watched) g->ent_phase[i] += SLEEPER_RATE * DT;
-            } else {
-                g->ent_phase[i] += 12.0f * DT; /* лёгкое парение у остальных */
+        int eyes_before = (int)g->world.eyes_opened;
+        entities_tick(&g->entities, &fc, g->player.look_active);
+        plates_update(&g->entities, g->player.pos.x, g->player.pos.z);
+        beam_trace(&g->entities, &g->beam);
+        entities_propagate(&g->entities);
+
+        /* Открытие большого глаза — событие: сообщение, искры и автосохранение. */
+        if ((int)g->world.eyes_opened > eyes_before) {
+            show_msg(g, STR_EYE_OPENED);
+            const entity_t *eye = entities_by_id_const(&g->entities, g->entities.last_event);
+            if (eye) {
+                float pos[3] = { eye->x, eye->y + 0.6f, eye->z };
+                particles_emit_burst(&g->particles, pos, 14, g->pal->slots[SLOT_GLOW], 1.6f);
             }
-            if (g->ent_phase[i] > 360.0f) g->ent_phase[i] -= 360.0f;
+            audio_play(&g->audio, SFX_EYE_BIG);
+            autosave(g);
         }
+
+        /* Подсказка «можно нажать крест»: ближайшая сущность, с которой есть что делать. */
+        g->prompt_id = 0;
+        g->prompt_type = 0;
+        float best = INTERACT_REACH * INTERACT_REACH;
+        for (int i = 0; i < g->entities.count; i++) {
+            const entity_t *e = &g->entities.items[i];
+            if (!e->active || !e->def || !entity_can_interact((int)e->def->type)) continue;
+            float dx = e->x - g->player.pos.x, dz = e->z - g->player.pos.z;
+            float d2 = dx * dx + dz * dz;
+            if (d2 < best) { best = d2; g->prompt_id = e->def->id; g->prompt_type = (int)e->def->type; }
+        }
+
+        /* Все большие глаза открыты — финальный выбор (GDD §1.1). */
+        if (!g->ending_started && (int)g->world.eyes_opened >= EYES_TOTAL &&
+            g->screens.current == SCR_GAME && !screens_busy(&g->screens)) {
+            g->ending_started = 1;
+            screens_goto(&g->screens, SCR_CHOICE);
+        }
+
+        /* Визуальное состояние дверей и панелей догоняет логическое (как цель камеры). */
+        for (int i = 0; i < g->entities.count && i < GAME_MAX_ENT_STATE; i++) {
+            float want = g->entities.items[i].state ? 1.0f : 0.0f;
+            g->ent_vis[i] += (want - g->ent_vis[i]) * ENT_VIS_RATE;
+        }
+    }
+    travel_tick(g);
+    if (g->msg_frames > 0) g->msg_frames--;
+
+    /* Шаги: тон через каждые 0,95 единицы пути — ровно, без привязки к частоте кадров. */
+    if (playing && g->player.speed > 0.05f) {
+        g->step_dist += g->player.speed * DT;
+        if (g->step_dist >= 0.95f) { g->step_dist = 0.0f; audio_play(&g->audio, SFX_STEP); }
+    } else {
+        g->step_dist = 0.0f;
+    }
+
+    /* Прошлая эмбиент-петля отпускается, когда микшер точно ушёл со старого буфера. */
+    if (g->ambient_free_in > 0 && --g->ambient_free_in == 0 && g->ambient_old) {
+        plat_free(g->ambient_old);
+        g->ambient_old = NULL;
     }
 
     particles_tick(&g->particles);
     g->frame++;
 }
 
+/* Пока твин идёт, рисуем догоняющее значение; когда он закончился — логическое.
+ * Логика применяет позицию сразу (puzzle_mech.c), твин живёт только ради картинки. */
+static float anim_or(const entity_t *e, float logical) {
+    return tween_done(&e->anim) ? logical : e->anim.value;
+}
+
+/* Свечение сущности: размер и яркость 0..1. 0 — не светится. */
+static float entity_glow_size(const entity_t *e, float *bright) {
+    int type = e->def ? (int)e->def->type : 0;
+    switch (type) {
+    case ENT_SMALL_EYE: *bright = 0.85f; return 0.9f;
+    case ENT_FEATHER: *bright = 0.8f; return 0.7f;
+    case ENT_PEACOCK_TAIL: *bright = 0.9f; return 3.0f;
+    case ENT_BIG_EYE:
+        /* Закрытый глаз только тлеет — открытый горит: это и есть индикатор прогресса. */
+        *bright = e->state ? 1.0f : 0.25f;
+        return e->state ? 2.4f : 1.4f;
+    case ENT_EMITTER: *bright = 0.9f; return 0.8f;
+    case ENT_RECEIVER: *bright = e->inputs ? 1.0f : 0.2f; return 0.8f;
+    case ENT_MEMORY_PANEL: *bright = 0.3f + 0.7f * anim_or(e, 0.0f); return 0.6f;
+    case ENT_DOOR: *bright = 0.0f; return 0.0f;
+    default: return 0.0f;
+    }
+}
+
+/* Сущности рисуются по живому состоянию (entities_t), а не по данным уровня:
+ * иначе блок стоял бы на месте, дверь не открывалась, а собранный глаз не исчезал. */
+static void build_entities(game_t *g, frame_t *f) {
+    const entities_t *es = &g->entities;
+    for (int i = 0; i < es->count; i++) {
+        const entity_t *e = &es->items[i];
+        if (!e->def || !e->active) continue;
+        int type = (int)e->def->type;
+
+        float x = e->x, y = e->y, z = e->z, yaw = e->yaw;
+        float pitch = 0.0f, scale = 1.0f;
+        float hover = sinf(e->phase * M3_DEG2RAD);
+        float vis = (i < GAME_MAX_ENT_STATE) ? g->ent_vis[i] : (e->state ? 1.0f : 0.0f);
+
+        switch (type) {
+        case ENT_BLOCK: {
+            /* anim — координата вдоль оси толчка; ось задаёт yaw (0 → +x, 90 → +z). */
+            int q = ((int)(yaw / 90.0f + 0.5f)) & 3;
+            if (!tween_done(&e->anim)) { if (q == 0 || q == 2) x = e->anim.value; else z = e->anim.value; }
+            yaw = 0.0f; /* куб; поворот по направлению толчка выглядел бы дрожанием */
+            break;
+        }
+        case ENT_FLOAT_BLOCK:
+            y = anim_or(e, e->y);
+            break;
+        case ENT_LEVER:
+            pitch = -26.0f + 52.0f * anim_or(e, (float)e->state);
+            break;
+        case ENT_PLATE:
+            y -= 0.07f * anim_or(e, (float)e->state);
+            break;
+        case ENT_SEGMENT:
+            yaw = tween_done(&e->anim) ? e->yaw : e->def->yaw_deg + e->anim.value;
+            break;
+        case ENT_WATER_VALVE:
+            yaw = e->def->yaw_deg + 60.0f * anim_or(e, (float)es->water_steps);
+            break;
+        case ENT_MEMORY_PANEL:
+            scale = 1.0f + 0.05f * anim_or(e, 0.0f);
+            break;
+        case ENT_DOOR:
+            y -= DOOR_DROP * vis; /* открытая дверь уезжает в пол */
+            if (vis > 0.985f) continue;
+            break;
+        case ENT_ECHO:
+        case ENT_SLEEPER:
+            y += 0.35f + hover * 0.06f;
+            yaw += e->phase;
+            break;
+        case ENT_SMALL_EYE:
+        case ENT_BIG_EYE:
+            scale = 1.0f + hover * 0.04f;
+            break;
+        default:
+            break;
+        }
+
+        int mi = mesh_for_entity(type);
+        if (mi >= 0 && mi < MESH_COUNT && g->object_ok[mi]) {
+            frame_mesh_t *m = frame_push_mesh(f, &g->objects[mi], x, y, z, yaw);
+            if (m) { m->scale = scale; m->pitch_deg = pitch; }
+        }
+
+        float bright = 0.0f;
+        float size = entity_glow_size(e, &bright);
+        if (size > 0.0f && bright > 0.0f) {
+            float pulse = 0.78f + 0.22f * hover;
+            unsigned alpha = (unsigned)(bright * pulse * 200.0f);
+            if (alpha > 255u) alpha = 255u;
+            float pos[3] = { x, y + 0.35f, z };
+            frame_push_sprite(f, SPRITE_GLOW, pos, size, (alpha << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu));
+        }
+    }
+}
+
+/* Луч — цепочка аддитивных искр вдоль отрезков трассировки: отдельной геометрии нет,
+ * бюджет спрайтов ограничен, чтобы пылинки и свечения не вытеснялись (CLAUDE.md, п.17). */
+static void build_beam(game_t *g, frame_t *f) {
+    const beam_t *b = &g->beam;
+    if (b->count <= 0) return;
+    unsigned rgb = g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu;
+    int budget = BEAM_SPRITES_MAX;
+    for (int i = 0; i < b->count && budget > 0; i++) {
+        const beam_seg_t *seg = &b->segs[i];
+        float dx = seg->x1 - seg->x0, dz = seg->z1 - seg->z0;
+        float len = sqrtf(dx * dx + dz * dz);
+        int steps = (int)(len / BEAM_STEP);
+        if (steps < 1) steps = 1;
+        for (int k = 0; k <= steps && budget > 0; k++) {
+            float t = (float)k / (float)steps;
+            float pos[3] = { seg->x0 + dx * t, seg->y + 0.45f, seg->z0 + dz * t };
+            /* Бегущая волна вдоль луча: фаза зависит и от кадра, и от точки. */
+            float wave = sinf((float)(g->frame * 7 + k * 52) * M3_DEG2RAD);
+            unsigned alpha = (unsigned)(130.0f + 60.0f * wave);
+            frame_push_sprite(f, SPRITE_SPARK, pos, 0.40f, (alpha << 24) | rgb);
+            budget--;
+        }
+    }
+}
+
 static void build_world(game_t *g, frame_t *f) {
     if (g->island_ok) frame_push_mesh(f, &g->island, 0.0f, 0.0f, 0.0f, 0.0f);
-
     if (g->level_ok) {
-        int n = g->level.entity_count;
-        for (int i = 0; i < n; i++) {
-            const level_entity_t *e = &g->level.entities[i];
-            int mi = mesh_for_entity(e->type);
-            float phase = (i < GAME_MAX_ENT_STATE) ? g->ent_phase[i] : 0.0f;
-            float hover = sinf(phase * M3_DEG2RAD) * 0.06f;
-            if (mi >= 0 && mi < MESH_COUNT && g->object_ok[mi]) {
-                float yaw = e->yaw_deg;
-                float y = e->y;
-                if (e->type == ENT_ECHO || e->type == ENT_SLEEPER) { y += 0.35f + hover; yaw += phase; }
-                frame_mesh_t *m = frame_push_mesh(f, &g->objects[mi], e->x, y, e->z, yaw);
-                if (m && (e->type == ENT_SMALL_EYE || e->type == ENT_BIG_EYE)) {
-                    m->scale = 1.0f + sinf(phase * M3_DEG2RAD) * 0.04f;
-                }
-            }
-            float glow_size = 0.0f;
-            if (entity_glow(e->type, &glow_size)) {
-                float pos[3] = { e->x, e->y + 0.35f, e->z };
-                float pulse = 0.75f + 0.25f * sinf(phase * M3_DEG2RAD);
-                unsigned alpha = (unsigned)(pulse * 190.0f);
-                unsigned color = (alpha << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu);
-                frame_push_sprite(f, SPRITE_GLOW, pos, glow_size, color);
-            }
-        }
+        build_entities(g, f);
+        build_beam(g, f);
     }
 
     if (g->object_ok[MESH_EYE_BODY] && g->object_ok[MESH_EYE_HEAD] && g->object_ok[MESH_EYE_IRIS]) {
@@ -444,6 +876,22 @@ static void build_hud(game_t *g, frame_t *f) {
     frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 26, dim,
                            "%s", g->lang == LANG_RU ? "RU" : "EN");
 
+    /* Счёт глаз — единственная постоянная цифра на экране: остальное живёт в мире. */
+    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 44, accent, "%s %d / %d",
+                           STR(STR_EYE_COUNT), (int)g->world.eyes_opened, EYES_TOTAL);
+
+    /* Реплика важнее подсказки: она появляется в ответ на действие игрока. */
+    if (g->msg_frames > 0 && g->msg_str >= 0 && g->msg_str < STR_COUNT) {
+        unsigned a = 255u;
+        if (g->msg_frames < 30) a = (unsigned)(g->msg_frames * 255 / 30);
+        unsigned col = (a << 24) | (g->pal->slots[SLOT_TOP] & 0x00FFFFFFu);
+        frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, SCR_H - 52, col,
+                               "%s", i18n_str(g->msg_str));
+    } else if (g->prompt_id) {
+        frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, SCR_H - 52, accent,
+                               "%s", i18n_str(prompt_str_for(g->prompt_type)));
+    }
+
     if (g->show_debug) {
         const plat_stats_t *s = &g->stats;
         int y = 110, step = 15;
@@ -473,13 +921,14 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.fog_far = g->cam.dist + g->pal->fog_far;
     f->env.desat = g->desat.value;
 
-    f->env.curtain = screens_curtain(&g->screens);
+    float curtain = screens_curtain(&g->screens);
+    if (g->travel.value > curtain) curtain = g->travel.value;
+    f->env.curtain = curtain;
     camera_fill(&g->cam, &f->cam);
     build_world(g, f);
     if (g->screens.current == SCR_GAME) build_hud(g, f);
-    else if (g->screens.current == SCR_PAUSE) {
-        build_hud(g, f);
-        f->env.desat = 0.85f; /* сцена уходит на задний план под меню паузы */
+    else if (g->screens.current == SCR_PAUSE || g->screens.current == SCR_CHOICE) {
+        f->env.desat = 0.85f; /* сцена уходит на задний план под меню */
     }
     if (g->font_ok && g->strings_ok) {
         screens_build(&g->screens, f, g->pal, g->lang, (int)g->world.eyes_opened, EYES_TOTAL);
@@ -493,6 +942,10 @@ void game_build_frame(game_t *g, frame_t *f) {
 }
 
 void game_shutdown(game_t *g) {
+    /* Звук останавливает платформа до этого вызова (main.c), поэтому буферы отпускаем. */
+    audio_set_ambient(&g->audio, NULL, 0, 0.0f);
+    if (g->ambient_pcm) { plat_free(g->ambient_pcm); g->ambient_pcm = NULL; }
+    if (g->ambient_old) { plat_free(g->ambient_old); g->ambient_old = NULL; }
     if (g->font_ok) font_free(&g->font);
     for (int i = 0; i < LANG_COUNT; i++) i18n_free(&g->strings[i]);
     for (int i = 0; i < MESH_COUNT; i++) if (g->object_ok[i]) mesh_free(&g->objects[i]);

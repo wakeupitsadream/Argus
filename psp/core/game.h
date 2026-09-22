@@ -19,6 +19,10 @@
 #include "screens.h"
 #include "world.h"
 #include "save.h"
+#include "entity.h"
+#include "puzzles.h"
+#include "quest.h"
+#include "audio.h"
 
 /* Меши объектов (файлы data/mesh_<имя>.msh, порядок — как в MESH_FILES в game.c). */
 enum {
@@ -43,6 +47,7 @@ typedef struct {
 
     level_t level;
     int level_ok;
+    int level_index;
     mesh_t island;
     int island_ok;
     mesh_t objects[MESH_COUNT];
@@ -54,11 +59,29 @@ typedef struct {
     camera_t cam;
     screens_t screens;
     world_t world;
+    entities_t entities;
+    beam_t beam;
+    int msg_str;        /* строка, которую показываем внизу (реплика, надпись, подсказка) */
+    int msg_frames;     /* сколько кадров ещё показывать */
+    int prompt_id;      /* id сущности, с которой можно взаимодействовать прямо сейчас */
+    int prompt_type;    /* её тип (ENT_*) — от него зависит текст подсказки */
+
+    /* Переход между островами: свой занавес, независимый от смены экранов. */
+    int travel_to;      /* индекс целевого уровня или -1 */
+    int travel_entry;   /* id сущности-входа на нём */
+    int travel_phase;   /* 0 — нет перехода, 1 — гаснет, 2 — разгорается */
+    tween_t travel;     /* 0..1 — чернота перехода */
+    int ending_started; /* финальный выбор уже показан */
     float title_yaw;   /* медленный облёт острова на заставке */
     particles_t particles;
+
+    audio_t audio;          /* синтезатор: его читает поток звука, менять только через API */
+    void *ambient_pcm;      /* текущая петля региона (владеем) */
+    void *ambient_old;      /* прошлая петля: живёт ещё несколько кадров — её мог читать микшер */
+    int ambient_free_in;    /* кадров до освобождения ambient_old */
+    float step_dist;        /* пройденный путь: каждый шаг — тон */
     tween_t desat;                        /* выцветание сцены в режиме взгляда */
-    float ent_phase[GAME_MAX_ENT_STATE];  /* фаза анимации сущности */
-    unsigned char ent_watched[GAME_MAX_ENT_STATE];
+    float ent_vis[GAME_MAX_ENT_STATE];    /* визуальное состояние 0..1 (дверь, панель) */
 
     int frame;
     int show_debug;

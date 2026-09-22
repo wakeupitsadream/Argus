@@ -45,3 +45,16 @@ ENDING_A_LINE,Мир снова под присмотром — и снова н
 ENDING_B_TITLE,Око закрылось,The last eye closes
 ENDING_B_LINE,"Никто не смотрит. Значит, можно меняться.",No one is watching. So it may change.
 CREDITS_LINE,"Сделано в Оренбурге, одним человеком и машиной.",Made in Orenburg by one person and a machine.
+CHOICE_TITLE,Последний глаз,The last eye
+CHOICE_LINE,"Аргус спит. Ты можешь разбудить его — или закрыться следом.","Argus sleeps. Wake him, or close after him."
+CHOICE_WAKE,Разбудить Аргуса,Wake Argus
+CHOICE_RELEASE,Отпустить мир,Let the world go
+PROMPT_TALK,Крест — заговорить,Cross — speak
+PROMPT_READ,Крест — прочесть,Cross — read
+PROMPT_TAKE,Крест — взять,Cross — take
+PROMPT_TURN,Крест — повернуть,Cross — turn
+PROMPT_PUSH,Крест — толкнуть,Cross — push
+PROMPT_PULL,Крест — потянуть,Cross — pull
+PROMPT_USE,Крест — тронуть,Cross — touch
+SMALL_EYE_FOUND,Малый глаз открыт,A small eye opens
+BEAM_LOCKED,Луч не доходит,The beam falls short

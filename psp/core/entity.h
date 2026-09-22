@@ -47,6 +47,8 @@ void entities_propagate(entities_t *es);
 int entities_interact(entities_t *es, float px, float pz, float dir_x, float dir_z, float reach);
 entity_t *entities_by_id(entities_t *es, int id);
 const entity_t *entities_by_id_const(const entities_t *es, int id);
+/* Есть ли у типа действие по «кресту» — для подсказки на экране и для поиска цели. */
+int entity_can_interact(int type);
 /* Сколько больших глаз открыто на этом уровне. */
 int entities_eyes_open(const entities_t *es);
 

@@ -40,11 +40,24 @@ def build_levels(out_dir):
     levelc = ROOT / "tools" / "levelc.py"
     amsh = ROOT / "tools" / "amsh.py"
     tool_mtime = max(levelc.stat().st_mtime, amsh.stat().st_mtime)
-    for src in sorted((ROOT / "levels").glob("*.toml")):
+    sources = sorted((ROOT / "levels").glob("*.toml"))
+    # Коды LVL_* зависят от алфавитного списка уровней, а они лежат в порталах .lvl:
+    # появился новый уровень — все остальные .lvl устарели, даже если их TOML не менялся.
+    stamp = out_dir / "levels.list"
+    names = "\n".join(src.stem for src in sources)
+    if not stamp.exists() or stamp.read_text(encoding="utf-8") != names:
+        print(f"уровни: список изменился ({len(sources)}) — пересобираю все")
+        for old in list(out_dir.glob("*.lvl")):
+            old.unlink()
+        stamp.write_text(names, encoding="utf-8")
+    for src in sources:
         msh = out_dir / (src.stem + ".msh")
         lvl = out_dir / (src.stem + ".lvl")
         if msh.exists() and lvl.exists() and min(msh.stat().st_mtime, lvl.stat().st_mtime) >= max(src.stat().st_mtime, tool_mtime):
             print(f"{src.stem}: актуален")
+            continue
+        if not src.exists():
+            print(f"{src.name}: файл исчез между обходом и сборкой — пропускаю")
             continue
         subprocess.run([sys.executable, str(levelc), str(src), str(out_dir)], check=True)
     subprocess.run([sys.executable, str(levelc), "--headers", str(out_dir)], check=True)
@@ -81,6 +94,20 @@ def build_quests(out_dir):
     subprocess.run([sys.executable, str(gen), str(out_dir)], check=True)
 
 
+def build_audio(out_dir):
+    gen = ROOT / "tools" / "soundgen.py"
+    cfg = ROOT / "assets" / "audio" / "ambient.toml"
+    if not gen.exists() or not cfg.exists():
+        print("soundgen.py или assets/audio/ambient.toml отсутствуют — эмбиент не пересобирается")
+        return
+    newest = max(gen.stat().st_mtime, cfg.stat().st_mtime)
+    done = list(out_dir.glob("amb_*.pcm"))
+    if done and min(f.stat().st_mtime for f in done) >= newest:
+        print(f"эмбиент: актуален ({len(done)} петель)")
+        return
+    subprocess.run([sys.executable, str(gen), str(out_dir), "--quiet"], check=True)
+
+
 def build_xmb(out_dir):
     subprocess.run([sys.executable, str(ROOT / "tools" / "mkxmb.py"), str(out_dir / "xmb")], check=True)
 
@@ -94,6 +121,7 @@ def main():
     build_font(out_dir)
     build_strings(out_dir)
     build_quests(out_dir)
+    build_audio(out_dir)
     build_xmb(out_dir)
 
 

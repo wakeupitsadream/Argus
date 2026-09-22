@@ -12,5 +12,8 @@ int main(void) {
     tests_save();
     tests_particles();
     tests_quest();
+    tests_entity();
+    tests_beam();
+    tests_mech();
     return MT_SUMMARY();
 }
