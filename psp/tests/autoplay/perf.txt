@@ -1,0 +1,29 @@
+# Бюджеты кадра на каждом острове: треугольники и вызовы отрисовки (CLAUDE.md п.17).
+# Если остров перестанет укладываться — прогон покажет, какой именно.
+@20 press cross
+@21 release cross
+@60 level hub 0
+@130 assert tris<=8000
+@131 assert draws<=100
+@140 level mirrors_3 0
+@210 assert tris<=8000
+@211 assert draws<=100
+@220 level terraces_1 0
+@290 assert tris<=8000
+@291 assert draws<=100
+@300 level terraces_3 0
+@370 assert tris<=8000
+@371 assert draws<=100
+@380 level water_1 0
+@450 assert tris<=8000
+@451 assert draws<=100
+@460 level water_2 0
+@530 assert tris<=8000
+@531 assert draws<=100
+@540 level library_2 0
+@610 assert tris<=8000
+@611 assert draws<=100
+@620 level bonus 0
+@690 assert tris<=8000
+@691 assert draws<=100
+@700 quit
