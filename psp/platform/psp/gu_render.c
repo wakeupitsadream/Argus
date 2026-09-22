@@ -243,9 +243,12 @@ static void draw_backdrop(const frame_env_t *env, float yaw_deg) {
         float cy = b->y * H;
         unsigned sky = sky_grad_at(env, b->y);
         /* Чем дальше остров, тем ближе он по цвету к небу: дымка, а не туман по Z. */
-        unsigned c_top = mix_rgb(sky, tint_white(env->sky_bottom, 0.66f, 255u), 0.34f * b->near_k, 255u);
-        unsigned c_body = mix_rgb(sky, env->sky_top, 0.26f * b->near_k + 0.05f, 255u);
-        unsigned c_keel = mix_rgb(sky, env->sky_top, 0.40f * b->near_k + 0.06f, 255u);
+        /* Воздушная перспектива: дальний остров не «красится в цвет верха неба»
+         * (на тёмном небе он превращался бы в чёрную наклейку), а просто темнеет
+         * и светлеет относительно неба, на котором висит, сохраняя его тон. */
+        unsigned c_top = mix_rgb(sky, tint_white(env->sky_bottom, 0.70f, 255u), 0.30f * b->near_k, 255u);
+        unsigned c_body = mix_rgb(sky, 0xFF000000u, 0.20f * b->near_k + 0.04f, 255u);
+        unsigned c_keel = mix_rgb(sky, 0xFF000000u, 0.32f * b->near_k + 0.05f, 255u);
         n = sky_island(v, n, x, cy, b->size, c_top, c_body, c_keel);
         if (b->tier) {
             float w2 = b->size * 0.42f;
