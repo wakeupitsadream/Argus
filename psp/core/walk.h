@@ -20,6 +20,12 @@ int walk_is_walkable(const level_t *l, int cx, int cz);
  * Возвращает 1, если позиция изменилась. */
 int walk_move(const level_t *l, walk_pos_t *pos, float dx, float dz, float radius, float step_max);
 
+/* Может ли круг радиуса radius стоять в точке (x, z): под всеми пробами есть пол и он
+ * не выше шага от пола под центром. Высота стояния — в out_y. Нужна, чтобы поймать
+ * ситуацию, когда мир изменился под ногами: поднявшаяся вода или повернувшийся
+ * сегмент делают законную точку незаконной, и игрок перестаёт двигаться вообще. */
+int walk_stand_ok(const level_t *l, float x, float z, float radius, float step_max, float *out_y);
+
 /* Ставит персонажа в точку спавна уровня. */
 void walk_spawn(const level_t *l, walk_pos_t *pos);
 

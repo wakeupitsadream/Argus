@@ -464,12 +464,21 @@ static float metric_value(const game_t *g, const char *name) {
         int id = atoi(name + 4);
         if (id > 0 && id < WORLD_FLAG_COUNT) return (float)world_flag(&g->world, id);
     }
+    /* Уровень воды в шагах: его меняет шлюз, от него зависит пол плотов. */
+    if (strcmp(name, "water") == 0) return (float)g->entities.water_steps;
     /* "segN" — состояние вращающегося сегмента N (0..3). */
     if (strncmp(name, "seg", 3) == 0 && name[3] >= '0' && name[3] <= '9') {
         int id = atoi(name + 3);
         if (g->level_ok && id > 0 && id < LEVEL_MAX_SEGMENTS) {
             return (float)(g->level.seg_states[id] & 3);
         }
+    }
+    /* "exN" / "ezN" — мировые координаты сущности N. Без них координаты блоков
+     * в скриптах приходится угадывать по числу толчков, а ошибка выглядит как
+     * «почему-то нет подсказки». */
+    if (name[0] == 'e' && (name[1] == 'x' || name[1] == 'z') && name[2] >= '0' && name[2] <= '9') {
+        const entity_t *e = entities_by_id_const(&g->entities, atoi(name + 2));
+        if (e) return name[1] == 'x' ? e->x : e->z;
     }
     /* "entN" — состояние сущности N (рычаг включён, дверь открыта, глаз открыт). */
     if (strncmp(name, "ent", 3) == 0 && name[3] >= '0' && name[3] <= '9') {
@@ -793,6 +802,14 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         if (pressed & BTN_SQUARE) set_lang(g, (g->lang + 1) % LANG_COUNT);
         if (pressed & BTN_START) screens_goto(&g->screens, SCR_PAUSE);
         if (g->level_ok) player_tick(&g->player, &g->level, &in, g->cam.yaw.value);
+        /* Мир меняется под ногами: шлюз поднимает плот, сегмент увозит камень.
+         * Если точка под Око стала незаконной, оно замирает намертво — поэтому
+         * каждый кадр проверяем и при нужде сдвигаем в центр клетки. */
+        if (g->level_ok && player_unstick(&g->player, &g->level)) {
+            particles_emit_burst(&g->particles, (float[3]){ g->player.pos.x, g->player.pos.y + 0.1f,
+                                                            g->player.pos.z },
+                                 4, g->pal->slots[SLOT_TOP_ALT], 0.06f);
+        }
         else g->player.look_active = (in.buttons & BTN_CIRCLE) ? 1 : 0;
         if ((pressed & BTN_CROSS) && g->entities.busy_frames <= 0) do_interact(g);
 

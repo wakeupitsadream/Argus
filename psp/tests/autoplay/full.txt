@@ -1,0 +1,143 @@
+# Сквозной прогон: четыре больших глаза подряд и финал.
+# Собран из прогонов островов-финалов (mirrors_3, terraces_3, water_2, library_2):
+# каждый доказан отдельно, здесь проверяется, что четыре глаза подряд дают
+# финальный выбор, а выбор — экран финала и титры. Скрипт длинный: ему нужно
+# больше времени эмулятора, чем остальным (make run-emu SECONDS=150).
+@20 press cross
+@21 release cross
+@100 level mirrors_3 70
+@160 assert level=6
+@161 assert eyes=0
+@162 assert ent78=0
+@170 stick 0.707 0.707
+@240 stick 0.0 0.0
+@255 assert prompt=72
+@260 press cross
+@261 release cross
+@290 assert ent72=1
+@291 assert receiver=74
+@292 assert ent78=1
+@300 stick 0.707 0.707
+@380 stick 0.0 0.0
+@390 stick 0.707 -0.707
+@450 stick 0.0 0.0
+@460 press circle
+@510 assert look=1
+@540 assert eyes>=1
+@541 assert flag76=1
+@550 release circle
+@590 assert eyes>=1
+@690 level terraces_3 0
+@760 assert level_ok=1
+@761 assert seg1=0
+@770 stick 0.707 0.707
+@835 stick 0.0 0.0
+@845 assert prompt=101
+@850 press cross
+@851 release cross
+@915 assert seg1=1
+@925 stick 0.707 0.707
+@1050 stick 0.0 0.0
+@1065 stick 1.0 0.0
+@1085 stick 0.0 0.0
+@1095 assert prompt=104
+@1100 press cross
+@1101 release cross
+@1165 assert seg3=1
+@1170 stick -1.0 0.0
+@1190 stick 0.0 0.0
+@1200 assert prompt=102
+@1205 press cross
+@1206 release cross
+@1280 press cross
+@1281 release cross
+@1350 assert seg2=2
+@1360 stick 0.707 0.707
+@1466 stick 0.0 0.0
+@1472 stick -0.707 0.707
+@1492 stick 0.0 0.0
+@1510 assert eyes>=1
+@1550 assert eyes>=2
+@1650 level water_2 0
+@1720 assert level_ok=1
+@1721 assert ent129=0
+@1730 stick 0.707 0.707
+@1785 stick 0.0 0.0
+@1795 stick 0.707 -0.707
+@1815 stick 0.0 0.0
+@1830 assert prompt=127
+@1835 press cross
+@1836 release cross
+@1890 stick 0.707 -0.707
+@1915 stick 0.0 0.0
+@1930 assert prompt=127
+@1935 press cross
+@1936 release cross
+@1990 assert ent128=1
+@1991 assert ent129=1
+@2000 stick -0.707 0.707
+@2042 stick 0.0 0.0
+@2060 stick 0.707 0.707
+@2190 stick 0.0 0.0
+@2200 stick -0.707 0.707
+@2258 stick 0.0 0.0
+@2270 assert prompt=126
+@2275 press cross
+@2276 release cross
+@2330 press cross
+@2331 release cross
+@2390 assert water=3
+@2400 stick 0.707 -0.707
+@2462 stick 0.0 0.0
+@2470 stick 0.707 0.707
+@2530 press cross
+@2531 release cross
+@2590 press cross
+@2591 release cross
+@2650 press cross
+@2651 release cross
+@2710 press cross
+@2711 release cross
+@2770 stick 0.0 0.0
+@2780 assert ex130>7.0
+@2785 assert ent131=1
+@2786 assert eyes>=1
+@2826 assert eyes>=3
+@2926 level library_2 0
+@2996 assert level_ok=1
+@3006 stick 0.707 0.707
+@3166 assert px<-5.0
+@3366 stick 0.0 0.0
+@3371 assert px>0.0
+@3386 stick 0.707 -0.707
+@3436 stick 0.0 0.0
+@3446 assert prompt=153
+@3451 press cross
+@3452 release cross
+@3481 stick 0.707 0.707
+@3551 stick 0.0 0.0
+@3561 stick -0.707 0.707
+@3621 stick 0.0 0.0
+@3631 assert prompt=154
+@3636 press cross
+@3637 release cross
+@3666 stick -0.707 -0.707
+@3741 stick 0.0 0.0
+@3751 stick -0.707 0.707
+@3811 stick 0.0 0.0
+@3821 assert prompt=155
+@3826 press cross
+@3827 release cross
+@3866 assert eyes>=1
+@3906 assert eyes>=4
+@3946 assert screen=5
+@3951 shot full_choice
+@3966 press cross
+@3967 release cross
+@4036 assert screen=3
+@4041 shot full_ending
+@4126 press cross
+@4127 release cross
+@4196 assert screen=4
+@4201 shot full_credits
+@4216 quit

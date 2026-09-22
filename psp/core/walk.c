@@ -82,6 +82,13 @@ static int circle_ok(const level_t *l, float x, float z, float radius, float fro
     return 1;
 }
 
+int walk_stand_ok(const level_t *l, float x, float z, float radius, float step_max, float *out_y) {
+    if (!l) return 0;
+    float floor_y = walk_floor_at(l, x, z);
+    if (floor_y <= WALK_NO_FLOOR * 0.5f) return 0;
+    return circle_ok(l, x, z, radius, floor_y, step_max, out_y);
+}
+
 int walk_move(const level_t *l, walk_pos_t *pos, float dx, float dz, float radius, float step_max) {
     if (!l || !pos) return 0;
     float start_x = pos->x, start_z = pos->z;

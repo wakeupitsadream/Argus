@@ -8,6 +8,7 @@
 #include "frame.h"
 #include "level.h"
 #include "platform.h"
+#include "player.h"
 #include "puzzles.h"
 #include "walk.h"
 #include "world.h"
@@ -548,6 +549,24 @@ TEST(test_mech_water_walk) {
     water_set_level(&es, 0);
     walk_pos_t q = { cell_c(5, M_W), fz, 2 * M_STEP };
     CHECK_EQ(walk_move(&l, &q, -M_CELL, 0.0f, 0.3f, 0.55f), 0);
+
+    /* Западня шлюза: Око стоит у самой кромки, вода поднимает плот на две ступени —
+     * и проба круга с его стороны упирается в стену при любом направлении движения.
+     * player_unstick обязан вернуть Око в центр клетки, иначе игра встаёт намертво. */
+    water_set_level(&es, 1);
+    player_t pl;
+    memset(&pl, 0, sizeof pl);
+    pl.pos.x = cell_c(5, M_W) - M_CELL * 0.3f;   /* вплотную к плоту: проба круга уже на нём */
+    pl.pos.z = fz;
+    pl.pos.y = 2 * M_STEP;
+    CHECK(walk_stand_ok(&l, pl.pos.x, pl.pos.z, 0.3f, 0.55f, NULL));
+    water_set_level(&es, 4);   /* плот на ступень выше шага персонажа */
+    CHECK_EQ(walk_stand_ok(&l, pl.pos.x, pl.pos.z, 0.3f, 0.55f, NULL), 0);
+    CHECK_EQ(player_unstick(&pl, &l), 1);
+    CHECK(walk_stand_ok(&l, pl.pos.x, pl.pos.z, 0.3f, 0.55f, NULL));
+    /* и после сдвига Око снова может уйти от воды */
+    walk_pos_t r = pl.pos;
+    CHECK_EQ(walk_move(&l, &r, M_CELL * 0.2f, 0.0f, 0.3f, 0.55f), 1);
 
     level_free(&l);
 }

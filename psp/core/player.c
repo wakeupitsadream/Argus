@@ -28,6 +28,32 @@ void player_init(player_t *p, const level_t *l) {
     p->yaw_deg = l ? l->spawn_yaw : 0.0f;
 }
 
+/* Стоять рядом с плотом законно, пока плот не выше шага. Шлюз поднимает плот на
+ * целую ступень — и проба круга с той стороны упирается в стену, причём при любом
+ * направлении движения: Око замирает навсегда в метре от берега. Лечится сдвигом
+ * в центр своей клетки, а если и он занят — в центр ближайшей соседней. */
+int player_unstick(player_t *p, const level_t *l) {
+    if (!p || !l) return 0;
+    float y = 0.0f;
+    if (walk_stand_ok(l, p->pos.x, p->pos.z, PLAYER_RADIUS, PLAYER_STEP_MAX, &y)) {
+        p->pos.y = y;
+        return 0;
+    }
+    int cx = 0, cz = 0;
+    if (!level_cell_at(l, p->pos.x, p->pos.z, &cx, &cz)) return 0;
+    static const int around[5][2] = { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+    for (int i = 0; i < 5; i++) {
+        float nx = 0.0f, nz = 0.0f;
+        level_cell_center(l, cx + around[i][0], cz + around[i][1], &nx, &nz);
+        if (!walk_stand_ok(l, nx, nz, PLAYER_RADIUS, PLAYER_STEP_MAX, &y)) continue;
+        p->pos.x = nx;
+        p->pos.z = nz;
+        p->pos.y = y;
+        return 1;
+    }
+    return 0;
+}
+
 void player_tick(player_t *p, const level_t *l, const input_t *in, float cam_yaw_deg) {
     if (!p || !l || !in) return;
 
