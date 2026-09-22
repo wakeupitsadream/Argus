@@ -34,6 +34,13 @@ enum {
 
 #define GAME_MAX_ENT_STATE 128
 
+/* Плиты сегментов: отдельные меши <уровень>_seg<номер>_<состояние>.msh. Каждая
+ * поднята, когда её состояние — текущее для сегмента, и утоплена в пол, когда нет.
+ * Так поворот рычага виден глазами: камень встаёт мостом или уходит вниз.
+ * Предел совпадает с SEG_MESH_MAX в tools/levelc.py. */
+#define GAME_SEG_MAX 16
+#define GAME_SEG_DROP 0.30f   /* насколько утопает неактивная плита, мировые единицы */
+
 typedef struct {
     palette_set_t pals;
     const palette_t *pal;
@@ -50,6 +57,12 @@ typedef struct {
     int level_index;
     mesh_t island;
     int island_ok;
+    mesh_t seg[GAME_SEG_MAX];          /* плиты сегментов текущего острова */
+    unsigned char seg_ok[GAME_SEG_MAX];
+    unsigned char seg_id[GAME_SEG_MAX];    /* номер сегмента */
+    unsigned char seg_want[GAME_SEG_MAX];  /* состояние, в котором плита поднята */
+    tween_t seg_lift[GAME_SEG_MAX];        /* текущая высота плиты: 0 — наверху */
+    int seg_count;
     mesh_t objects[MESH_COUNT];
     int object_ok[MESH_COUNT];
     mesh_t ghost[3];            /* тело, голова, радужка Око плоским цветом */

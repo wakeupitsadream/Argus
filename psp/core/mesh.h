@@ -23,6 +23,7 @@ typedef struct {
     vtx_static_t *verts;             /* 16-выровнены, для GPU */
     const mesh_src_vertex_t *src;    /* исходные вершины внутри blob */
     float bbox_min[3], bbox_max[3];
+    float pivot[3];   /* точка вращения из заголовка: используют сегменты карты */
     void *blob;
 } mesh_t;
 

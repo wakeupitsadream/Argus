@@ -6,6 +6,7 @@
 #include "level_ids.h"
 #include "quests_data.h"
 #include <math.h>
+#include <stdio.h>   /* snprintf: пути плит сегментов собираются из имени уровня */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -196,12 +197,74 @@ static void audio_set_region_ambient(game_t *g, const char *region) {
  * а не в ассете, поэтому смена региона — это только повторный резолв (TECH.md §2.4). */
 static void recolor_objects(game_t *g) {
     light_from_palette(&g->light, g->pal);
+    for (int i = 0; i < g->seg_count; i++) {
+        if (g->seg_ok[i]) mesh_recolor(&g->seg[i], g->pal, &g->light);
+    }
     for (int i = 0; i < MESH_COUNT; i++) {
         if (g->object_ok[i]) mesh_recolor(&g->objects[i], g->pal, &g->light);
     }
     unsigned color = (0xD0u << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu);
     for (int i = 0; i < 3; i++) {
         if (g->ghost_ok[i]) mesh_recolor_flat(&g->ghost[i], color);
+    }
+}
+
+/* Освобождает плиты сегментов прошлого острова. */
+static void segs_free(game_t *g) {
+    for (int i = 0; i < g->seg_count; i++) {
+        if (g->seg_ok[i]) mesh_free(&g->seg[i]);
+        g->seg_ok[i] = 0;
+    }
+    g->seg_count = 0;
+}
+
+/* Грузит плиты <уровень>_seg<номер>_<состояние>.msh. Файлов может не быть вовсе —
+ * это нормально: сегменты есть не на каждом острове. Отсутствие файла не ошибка,
+ * поэтому plat_read_file здесь молчит. */
+static void segs_load(game_t *g, int index) {
+    segs_free(g);
+    const char *name = level_name((unsigned)index);
+    if (!name) return;
+    for (int sid = 1; sid <= 9 && g->seg_count < GAME_SEG_MAX; sid++) {
+        for (int st = 0; st < 4 && g->seg_count < GAME_SEG_MAX; st++) {
+            char path[64];
+            snprintf(path, sizeof path, "data/%s_seg%d_%d.msh", name, sid, st);
+            size_t len = 0;
+            void *blob = plat_read_file(path, &len);
+            if (!blob) continue;
+            int i = g->seg_count;
+            if (mesh_load(&g->seg[i], blob, len) != 0) {
+                plat_free(blob);
+                plat_log("game: битая плита %s", path);
+                continue;
+            }
+            mesh_recolor(&g->seg[i], g->pal, &g->light);
+            g->seg_ok[i] = 1;
+            g->seg_id[i] = (unsigned char)sid;
+            g->seg_want[i] = (unsigned char)st;
+            /* На входе плита уже в своём положении: анимация только на поворот. */
+            int up = (g->level.seg_states[sid] & 3) == st;
+            tween_set(&g->seg_lift[i], up ? 0.0f : -GAME_SEG_DROP);
+            g->seg_count++;
+        }
+    }
+}
+
+/* Догоняет положение плит за состоянием сегментов: состояние меняет puzzle_mech,
+ * а камень едет сюда, за MECH_SEG_FRAMES кадров — те же, на которые закрыт ввод. */
+static void segs_tick(game_t *g) {
+    for (int i = 0; i < g->seg_count; i++) {
+        if (!g->seg_ok[i]) continue;
+        int up = (g->level.seg_states[g->seg_id[i]] & 3) == g->seg_want[i];
+        float target = up ? 0.0f : -GAME_SEG_DROP;
+        if (g->seg_lift[i].to != target) {
+            tween_start(&g->seg_lift[i], target, MECH_SEG_FRAMES);
+            /* Плита встаёт на место — из-под неё бьёт пыль. Точка привязки лежит
+             * в заголовке меша (AMSH v2), считать центр в игре не нужно. */
+            if (up) particles_emit_burst(&g->particles, g->seg[i].pivot, 6,
+                                         g->pal->slots[SLOT_TOP_ALT], 0.07f);
+        }
+        tween_update(&g->seg_lift[i], ease_in_out_cubic);
     }
 }
 
@@ -241,6 +304,7 @@ static int load_level(game_t *g, int index, int entry_id) {
     const palette_t *pal = palette_find(&g->pals, g->level.palette);
     if (pal && pal != g->pal) { g->pal = pal; recolor_objects(g); }
     mesh_recolor(&g->island, g->pal, &g->light);   /* свет уже обновлён под палитру */
+    segs_load(g, index);
 
     player_init(&g->player, &g->level);
     const level_entity_t *entry = entry_id > 0 ? level_entity_by_id(&g->level, entry_id) : NULL;
@@ -398,6 +462,13 @@ static float metric_value(const game_t *g, const char *name) {
     if (strncmp(name, "flag", 4) == 0 && name[4]) {
         int id = atoi(name + 4);
         if (id > 0 && id < WORLD_FLAG_COUNT) return (float)world_flag(&g->world, id);
+    }
+    /* "segN" — состояние вращающегося сегмента N (0..3). */
+    if (strncmp(name, "seg", 3) == 0 && name[3] >= '0' && name[3] <= '9') {
+        int id = atoi(name + 3);
+        if (g->level_ok && id > 0 && id < LEVEL_MAX_SEGMENTS) {
+            return (float)(g->level.seg_states[id] & 3);
+        }
     }
     /* "entN" — состояние сущности N (рычаг включён, дверь открыта, глаз открыт). */
     if (strncmp(name, "ent", 3) == 0 && name[3] >= '0' && name[3] <= '9') {
@@ -824,6 +895,7 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     }
     travel_tick(g);
     if (g->msg_frames > 0) g->msg_frames--;
+    segs_tick(g);
     g->level_frames++;
 
     /* Шаги: тон через каждые 0,95 единицы пути — ровно, без привязки к частоте кадров. */
@@ -1096,6 +1168,10 @@ static void build_water_glints(game_t *g, frame_t *f) {
 
 static void build_world(game_t *g, frame_t *f) {
     if (g->island_ok) frame_push_mesh(f, &g->island, 0.0f, 0.0f, 0.0f, 0.0f);
+    /* Плиты сегментов: та же геометрия острова, но со своей высотой. */
+    for (int i = 0; i < g->seg_count; i++) {
+        if (g->seg_ok[i]) frame_push_mesh(f, &g->seg[i], 0.0f, g->seg_lift[i].value, 0.0f, 0.0f);
+    }
     if (g->level_ok) {
         build_entities(g, f);
         build_portal_marks(g, f);
@@ -1263,6 +1339,7 @@ void game_shutdown(game_t *g) {
     for (int i = 0; i < MESH_COUNT; i++) if (g->object_ok[i]) mesh_free(&g->objects[i]);
     for (int i = 0; i < 3; i++) if (g->ghost_ok[i]) mesh_free(&g->ghost[i]);
     if (g->island_ok) mesh_free(&g->island);
+    segs_free(g);
     if (g->level_ok) level_free(&g->level);
     palette_set_free(&g->pals);
 }

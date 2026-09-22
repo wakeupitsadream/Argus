@@ -6,7 +6,7 @@
 #include <string.h>
 
 #define MSH_MAGIC "AMSH"
-#define MSH_VERSION 1u
+#define MSH_VERSION 2u
 #define MSH_FMT_STATIC 1u
 #define MSH_HEADER 64u
 
@@ -21,6 +21,7 @@ int mesh_load(mesh_t *m, void *blob, size_t len) {
     const float *bb = (const float *)(hdr + 4);
     memcpy(m->bbox_min, bb, sizeof m->bbox_min);
     memcpy(m->bbox_max, bb + 3, sizeof m->bbox_max);
+    memcpy(m->pivot, bb + 6, sizeof m->pivot);
     m->count = (int)count;
     m->src = (const mesh_src_vertex_t *)((const char *)blob + MSH_HEADER);
     m->verts = (vtx_static_t *)plat_alloc16((size_t)count * sizeof(vtx_static_t));

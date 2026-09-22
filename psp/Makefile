@@ -13,7 +13,7 @@ TEST_SRC        := $(wildcard tests/unit/*.c)
 HOST_CFLAGS     := -std=c11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Icore -Itests -Ibuild/assets
 PSP_ENV         := PSPDEV=$(PSPDEV) PATH=$(PSPDEV)/bin:$$PATH
 
-.PHONY: all assets psp test run-emu golden-check golden-update clean check-toolchain
+.PHONY: all assets psp test reach run-emu golden-check golden-update clean check-toolchain
 
 all: test assets psp
 
@@ -33,7 +33,12 @@ psp: check-toolchain assets
 	-cp $(BUILD)/assets/amb_*.pcm $(BUILD)/ARGUS/data/ 2>/dev/null || true
 	@echo "EBOOT: $(BUILD)/ARGUS/EBOOT.PBP ($$(du -h $(BUILD)/ARGUS/EBOOT.PBP | cut -f1))"
 
-test: assets
+# Достижимость островов: до каждого рычага и глаза должна быть дорога.
+# Уступ в полшага, на который нельзя забраться, в TOML выглядит обычной клеткой.
+reach:
+	python3 tools/reach.py
+
+test: assets reach
 	mkdir -p $(BUILD)/host
 	$(HOST_CC) $(HOST_CFLAGS) $(CORE_SRC) tests/platform_stub.c $(TEST_SRC) -o $(BUILD)/host/test_core -lm
 	ARGUS_ASSETS=$(abspath $(BUILD)/assets) $(BUILD)/host/test_core

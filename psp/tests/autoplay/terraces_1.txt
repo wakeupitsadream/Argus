@@ -1,0 +1,22 @@
+# Часовые Террасы, остров 1: стрелка поворачивается и это видно.
+# Око идёт от причала к рукояти в середине ступицы, крутит сегмент 1 и проверяет,
+# что состояние сменилось, а плиты поехали. Кадры «до» и «после» — для арт-проверки.
+@20 press cross
+@21 release cross
+@60 level terraces_1 0
+@130 assert level_ok=1
+@131 assert seg1=0
+@135 shot t1_north
+@140 stick 0.707 0.707
+@312 stick 0.0 0.0
+@330 assert px>-0.6
+@340 assert prompt=83
+@350 press cross
+@351 release cross
+@420 assert seg1=1
+@430 shot t1_east
+@440 press cross
+@441 release cross
+@510 assert seg1=2
+@520 shot t1_south
+@530 quit

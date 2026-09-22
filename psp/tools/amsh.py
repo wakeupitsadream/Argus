@@ -14,7 +14,7 @@ import struct
 from pathlib import Path
 
 MAGIC = b"AMSH"
-VERSION = 1
+VERSION = 2
 FMT_STATIC = 1
 HEADER_SIZE = 64
 VERTEX_FMT = "<3f3fBBBB"  # позиция, нормаль, слот, AO, видимость солнца, резерв
@@ -227,10 +227,13 @@ class MeshBuilder:
     def __len__(self):
         return len(self.verts)
 
-    def write(self, path):
+    def write(self, path, pivot=(0.0, 0.0, 0.0)):
+        """pivot — точка вращения в мировых координатах (версия 2 заголовка).
+        Нужна вращающимся сегментам карты: остальные меши пишут нули."""
         lo, hi = self.bbox()
-        header = struct.pack("<4sIII6f", MAGIC, VERSION, FMT_STATIC, len(self.verts),
-                             lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])
+        header = struct.pack("<4sIII6f3f", MAGIC, VERSION, FMT_STATIC, len(self.verts),
+                             lo[0], lo[1], lo[2], hi[0], hi[1], hi[2],
+                             float(pivot[0]), float(pivot[1]), float(pivot[2]))
         header += b"\0" * (HEADER_SIZE - len(header))
         body = b"".join(struct.pack(VERTEX_FMT, *v[:6], v[6], v[7], v[8], 0) for v in self.verts)
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -243,6 +246,7 @@ def read_mesh(path):
     data = Path(path).read_bytes()
     magic, version, fmt, count = struct.unpack_from("<4sIII", data, 0)
     bbox = struct.unpack_from("<6f", data, 16)
+    pivot = struct.unpack_from("<3f", data, 40)
     assert magic == MAGIC and version == VERSION and fmt == FMT_STATIC, (magic, version, fmt)
     assert len(data) == HEADER_SIZE + count * VERTEX_SIZE, (len(data), count)
     verts = [struct.unpack_from(VERTEX_FMT, data, HEADER_SIZE + i * VERTEX_SIZE) for i in range(count)]

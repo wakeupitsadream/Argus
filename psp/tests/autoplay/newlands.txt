@@ -1,0 +1,17 @@
+# Осмотр новых островов: террасы 1–2 и вода 1–2. Прогон арт-проверочный —
+# доказывает, что уровни грузятся, и даёт кадры для оценки силуэта и палитры.
+@20 press cross
+@21 release cross
+@60 level terraces_1 0
+@130 assert level_ok=1
+@140 shot new_terraces_1
+@180 level terraces_2 0
+@250 assert level_ok=1
+@260 shot new_terraces_2
+@300 level water_1 0
+@370 assert level_ok=1
+@380 shot new_water_1
+@420 level water_2 0
+@490 assert level_ok=1
+@500 shot new_water_2
+@520 quit

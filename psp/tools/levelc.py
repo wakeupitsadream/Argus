@@ -230,6 +230,8 @@ class Grid:
         if self.cell <= 0.0 or self.step <= 0.0:
             fail(f"{where}: cell и step должны быть положительными")
         self._shadow = None
+        # Высота декора над клеткой: колонны и башни кладут тень наравне с рельефом.
+        self.occluder = [[0.0] * self.w for _ in range(self.h)]
         self.ox = -self.w * self.cell / 2.0
         self.oz = -self.h * self.cell / 2.0
 
@@ -385,6 +387,14 @@ class Grid:
             return (y0, y0, y1, y1)
         return (base, base, base, base)
 
+    def add_occluder(self, fx, fz, height):
+        """Регистрирует декор как преграду для солнца: колонна должна класть тень."""
+        x, z = int(fx // 1), int(fz // 1)
+        if not self.exists(x, z) or height <= 0.0:
+            return
+        if self.occluder[z][x] < height:
+            self.occluder[z][x] = height
+
     def shadow_map(self):
         """Доля света на верхней грани каждой клетки: 1 — открыто солнцу, меньше — тень.
 
@@ -417,7 +427,8 @@ class Grid:
                     n = self.height[nz][nx]
                     if n is None:
                         continue
-                    if self.top(nx, nz) > y + rise * i + EPS:
+                    occ = self.top(nx, nz) + self.occluder[nz][nx]
+                    if occ > y + rise * i + EPS:
                         blocked = SHADOW_CORE if i > 1 else SHADOW_EDGE
                         # чем ближе преграда, тем плотнее тень
                         if i > 2:
@@ -520,8 +531,16 @@ def _ledge(mb, x0, x1, z0, z1, y_top, side, slot, sun):
 
 
 def build_mesh(g):
-    """Геометрия острова: верхние грани клеток (включая рампы и воду) и стены вниз."""
+    """Геометрия острова: верхние грани клеток (включая рампы и воду) и стены вниз.
+
+    Клетки сегментов уходят в отдельные построители — по одному на пару
+    (номер сегмента, состояние, в котором клетка проходима). В игре такая плита
+    поднимается, когда её состояние стало текущим, и уходит вниз, когда нет.
+    Иначе рычаг менял бы только проходимость, а камень стоял бы на месте: механика
+    Часовых Террас и все ворота существовали бы только в коде.
+    Возвращает (построитель острова, {(номер, состояние): построитель})."""
     mb = MeshBuilder()
+    segs = {}
     base_y = -g.base_depth
     heights = [g.height[z][x] for z in range(g.h) for x in range(g.w) if g.height[z][x] is not None]
     if not heights:
@@ -534,6 +553,8 @@ def build_mesh(g):
             hc = g.height[z][x]
             if hc is None:
                 continue
+            seg_id = g.segment[z][x]
+            out = segs.setdefault((seg_id, g.seg_state[z][x]), MeshBuilder()) if seg_id else mb
             x0, x1 = g.ox + x * g.cell, g.ox + (x + 1) * g.cell
             z0, z1 = g.oz + z * g.cell, g.oz + (z + 1) * g.cell
             y00, y10, y11, y01 = g.corners(x, z)
@@ -576,8 +597,8 @@ def build_mesh(g):
                 normal_top = (0.0, 1.0, -(ry1 - ry0) / g.cell)
             else:
                 normal_top = (0.0, 1.0, 0.0)
-            mb.quad((x0, y00, z0), (x1, y10, z0), (x1, y11, z1), (x0, y01, z1),
-                    slot_top, ao_top, normal_top, sun_top)
+            out.quad((x0, y00, z0), (x1, y10, z0), (x1, y11, z1), (x0, y01, z1),
+                     slot_top, ao_top, normal_top, sun_top)
 
             # стены: к соседям ниже и в пустоту; низ ребра — поверхность соседа
             for dx, dz, opp, normal, pa, pb in (
@@ -596,10 +617,10 @@ def build_mesh(g):
                     # Край острова: под верхней гранью полка-вынос, а сама стена
                     # заваливается внутрь — снизу остров сходится клином.
                     side = {"w": "e", "e": "w", "n": "s", "s": "n"}[opp]
-                    _ledge(mb, x0, x1, z0, z1, min(pa[1], pb[1]), side, slot_top, sun_top)
+                    _ledge(out, x0, x1, z0, z1, min(pa[1], pb[1]), side, slot_top, sun_top)
                     inset = g.base_depth * KEEL_INSET
-                _wall(mb, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top, inset)
-    return mb
+                _wall(out, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top, inset)
+    return mb, segs
 
 
 # ----------------------------------------------------------------- данные ALVL
@@ -723,6 +744,32 @@ _PROP_BUILDERS = {
     "obelisk": _prop_obelisk,
     "tower": _prop_tower,
 }
+
+
+# Какая доля высоты декора реально перекрывает солнце. Колонна тонкая, но в
+# изометрии её тень всё равно ложится на клетку целиком — это читается как объём,
+# а не как ошибка; полотнище и арка перекрывают меньше.
+PROP_OCCLUSION = {"column": 0.95, "arch": 0.75, "banner": 0.60, "obelisk": 0.90, "tower": 1.0}
+
+
+def register_prop_shadows(level, g, where):
+    """Заносит декор в карту преград ДО расчёта теней: иначе колонны висят без тени."""
+    items = level.get("prop", [])
+    if not isinstance(items, list):
+        fail(f"{where}: [[prop]] должен быть массивом таблиц")
+    for i, p in enumerate(items):
+        kind = p.get("type")
+        if kind not in _PROP_BUILDERS:
+            continue          # тип проверит build_props — там же и сообщение об ошибке
+        cell = p.get("cell")
+        if not isinstance(cell, (list, tuple)) or len(cell) != 2:
+            continue
+        try:
+            fx, fz = float(cell[0]), float(cell[1])
+        except (TypeError, ValueError):
+            continue
+        h = float(p.get("height", 1.6)) * float(p.get("scale", 1.0))
+        g.add_occluder(fx, fz, h * PROP_OCCLUSION.get(kind, 0.9))
 
 
 def build_props(mb, level, g, where):
@@ -875,6 +922,23 @@ LEVEL_KEYS = {"name", "palette", "cell", "step", "base_depth", "cam_angle", "cam
               "spawn", "spawn_yaw", "caption", "map", "stairs", "water", "floats",
               "segments", "seg_states", "entity", "link", "portal", "prop"}
 
+SEG_MESH_MAX = 16     # столько плит сегментов грузит игра (GAME_SEG_MAX в core/game.c)
+
+
+def segment_anchors(g, segs):
+    """Центр клеток каждой плиты: в игре оттуда бьёт пыль, когда плита встаёт на место.
+    Пишется в заголовок AMSH (версия 2), отдельного места в .lvl не занимает."""
+    out = {}
+    for key in segs:
+        sid, state = key
+        cells = [(x, z) for z in range(g.h) for x in range(g.w)
+                 if g.segment[z][x] == sid and g.seg_state[z][x] == state]
+        fx = sum(x for x, _ in cells) / len(cells) + 0.5
+        fz = sum(z for _, z in cells) / len(cells) + 0.5
+        wx, wz = g.world(fx, fz)
+        out[key] = (wx, g.surface_y(fx, fz) or 0.0, wz)
+    return out
+
 
 def compile_level(src, out_dir):
     where = src.name
@@ -926,11 +990,20 @@ def compile_level(src, out_dir):
     lvl_path = out_dir / (src.stem + ".lvl")
     lvl_path.write_bytes(header + cells + entities + links + portals)
 
-    mb = build_mesh(g)
+    register_prop_shadows(level, g, where)   # до build_mesh: там печётся карта теней
+    mb, segs = build_mesh(g)
     prop_count = build_props(mb, level, g, where)
     msh_path = out_dir / (src.stem + ".msh")
     mb.write(msh_path)
-    tris = len(mb) // 3
+    anchors = segment_anchors(g, segs)
+    seg_tris = 0
+    if len(segs) > SEG_MESH_MAX:
+        fail(f"{where}: {len(segs)} плит сегментов, предел {SEG_MESH_MAX} (см. core/game.c)")
+    for key in sorted(segs):
+        sid, state = key
+        segs[key].write(out_dir / f"{src.stem}_seg{sid}_{state}.msh", anchors[key])
+        seg_tris += len(segs[key]) // 3
+    tris = len(mb) // 3 + seg_tris
     if tris > TRI_BUDGET:
         warn(f"{where}: {tris} треугольников, бюджет острова {TRI_BUDGET} (docs/TECH.md §2.4)")
 
@@ -938,7 +1011,8 @@ def compile_level(src, out_dir):
     print(f"{src.stem}: {g.w}x{g.h} клеток ({walk_cells} проходимых), "
           f"{ent_count} сущностей, {link_count} связей, {portal_count} порталов "
           f"-> {lvl_path.name} ({lvl_path.stat().st_size} Б)")
-    print(f"{src.stem}: {len(mb)} вершин, {tris} треугольников, {prop_count} декора"
+    seg_note = f", сегментов {len(segs)} ({seg_tris} тр.)" if segs else ""
+    print(f"{src.stem}: {len(mb)} вершин, {tris} треугольников, {prop_count} декора{seg_note}"
           f" -> {msh_path.name} "
           f"({msh_path.stat().st_size} Б)"
           + (f", предупреждений: {_warnings}" if _warnings else ""))

@@ -25,9 +25,9 @@ sky_top    = "#101a44"
 sky_bottom = "#d98f7e"
 sun        = "#ffdaa8"
 sky        = "#93b4ee"
-fog_near   = 2.0
-fog_far    = 22.0
-slots = ["#f2dcb4", "#d9bd97", "#7d5590", "#ffb43c", "#1b1740", "#fff0c6", "#4f9fd0", "#d4737f"]
+fog_near   = 3.0
+fog_far    = 16.0
+slots = ["#f2dcb4", "#d2b28c", "#7d5590", "#ffb43c", "#1b1740", "#fff0c6", "#4f9fd0", "#d4737f"]
 
 [mirrors]
 # Сад Зеркал: закат. Небесная заливка сиреневая — час, когда тени становятся лиловыми.
@@ -37,30 +37,30 @@ sky_bottom = "#e08a63"
 sun        = "#ffd9a0"
 sky        = "#b48ce0"
 fog_near   = 2.0
-fog_far    = 24.0
-slots = ["#f6dcbe", "#e0b79a", "#964a78", "#ffcb5c", "#35163f", "#fff3d2", "#6fb2c9", "#ef7f88"]
+fog_far    = 17.0
+slots = ["#f6dcbe", "#d9ab8c", "#964a78", "#ffcb5c", "#35163f", "#fff3d2", "#6fb2c9", "#ef7f88"]
 
 [terraces]
 # Часовые Террасы: холодное утро. Камень серо-зелёный, стены — сталь, акцент — латунь
 # на механизмах. Здесь всё про движение, поэтому цвет спокойный, а свет резкий.
-sky_top    = "#0d2b50"
-sky_bottom = "#9fc8c9"
-sun        = "#ffeccc"
-sky        = "#9fc4ee"
+sky_top    = "#102c55"
+sky_bottom = "#eecfa4"
+sun        = "#fff0d0"
+sky        = "#7fb0f0"
 fog_near   = 2.0
-fog_far    = 26.0
-slots = ["#e8ecdc", "#c2ceba", "#547683", "#f0b444", "#16304a", "#fdf3cf", "#79a8bf", "#c2766b"]
+fog_far    = 18.0
+slots = ["#e9eee0", "#b6c6ae", "#41627a", "#ffb43a", "#16304a", "#fdf3cf", "#79a8bf", "#c2766b"]
 
 [water]
 # Тихая Вода: бирюза и песок. Вода — единственный насыщенный цвет региона,
 # поэтому слот воды яркий, а камень выцветший.
-sky_top    = "#062a44"
-sky_bottom = "#8fd0cf"
-sun        = "#fff0d2"
-sky        = "#8fd3e6"
-fog_near   = 2.0
-fog_far    = 22.0
-slots = ["#eaf2e8", "#c6dcd6", "#45798c", "#ffc85c", "#0f3346", "#f6fbe9", "#35c0d8", "#b98b6a"]
+sky_top    = "#052a48"
+sky_bottom = "#c2ecdc"
+sun        = "#fff2d8"
+sky        = "#74c8e8"
+fog_near   = 3.0
+fog_far    = 16.0
+slots = ["#edf3ea", "#bcd4cd", "#3c7288", "#ffc85c", "#0d3448", "#f6fbe9", "#2fc2dc", "#b98b6a"]
 
 [library]
 # Библиотека Сна: тёплый полумрак. Камень — старая бумага, стены — тёмный орех,
@@ -70,8 +70,8 @@ sky_bottom = "#7e5f6c"
 sun        = "#ffd79a"
 sky        = "#8f7fc0"
 fog_near   = 1.0
-fog_far    = 18.0
-slots = ["#efdcc0", "#cfb9a0", "#6a4757", "#ffb45e", "#251a34", "#f7ecd2", "#6b8ba8", "#a4707f"]
+fog_far    = 13.0
+slots = ["#efdcc0", "#c6ab90", "#6a4757", "#ffb45e", "#251a34", "#f7ecd2", "#6b8ba8", "#a4707f"]
 
 [gray]
 # Серый финал: мир без взгляда. Цвет уходит и из материала, и из света —

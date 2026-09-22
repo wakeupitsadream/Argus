@@ -29,7 +29,6 @@
 #define MECH_LEVER_FRAMES 12 /* 0,2 с — рукоятка рычага, панель памяти */
 #define MECH_PLATE_FRAMES 6  /* 0,1 с — плита */
 #define MECH_WATER_FRAMES 24 /* 0,4 с — вода и плавучие блоки */
-#define MECH_SEG_FRAMES 36   /* 0,6 с — поворот сегмента */
 
 #define MECH_SEG_STEP_DEG 90.0f
 #define MECH_MEM_MAX 4      /* params[0..3] — ожидаемая последовательность */
