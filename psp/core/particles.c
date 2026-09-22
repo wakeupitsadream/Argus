@@ -1,20 +1,35 @@
+/* particles.c — логика частиц. Без malloc, без глобального состояния,
+ * без обращений к времени: всё поведение выводится из particles_t. */
 #include "particles.h"
 #include "ease.h"
+#include <math.h>
 #include <string.h>
 
-#define DUST_LIFE 420.0f    /* кадров: 7 секунд */
-#define SPARK_LIFE_MIN 36.0f
-#define SPARK_LIFE_MAX 72.0f
-#define DUST_RISE 0.0035f
-#define DUST_DRIFT 0.0022f
-#define SPARK_DRAG 0.94f
-#define SPARK_GRAVITY 0.0016f
-#define DUST_SIZE 0.11f
+#define P_PI 3.14159265f
+#define P_TWO_PI 6.28318531f
+
+/* Пылинки: очень медленный подъём и лёгкий боковой дрейф. */
+#define DUST_LIFE_MIN 300      /* 5 с */
+#define DUST_LIFE_SPAN 241     /* до 9 с */
+#define DUST_RISE 0.0060f      /* ≈0.36 единицы в секунду */
+#define DUST_DRIFT 0.0034f
+#define DUST_PHASE_STEP 0.019f
+#define DUST_FADE_EDGE 0.28f   /* доля жизни на вход и на выход яркости */
+#define DUST_SIZE 0.12f
+
+/* Искры: 36..72 кадра — 0.6..1.2 с. */
+#define SPARK_LIFE_MIN 36
+#define SPARK_LIFE_SPAN 37
+#define SPARK_DRAG 0.93f
+#define SPARK_GRAVITY 0.0018f
 #define SPARK_SIZE 0.22f
 
-/* xorshift32: детерминированный и достаточный для частиц. */
-static unsigned rnd(particles_t *p) {
-    unsigned x = p->rng ? p->rng : 0x1234567u;
+/* ---- ГПСЧ ---- */
+
+/* xorshift32: детерминированный, состояние целиком в particles_t. */
+static unsigned p_rand(particles_t *p) {
+    unsigned x = p->rng;
+    if (x == 0u) x = 0x9E3779B9u; /* защита от нулевого состояния */
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
@@ -22,127 +37,205 @@ static unsigned rnd(particles_t *p) {
     return x;
 }
 
-/* Случайное в [-1, 1]. */
-static float rnd_sym(particles_t *p) {
-    return (float)(rnd(p) >> 8) / 8388608.0f - 1.0f;
+/* Случайное в [0, 1). */
+static float p_unit(particles_t *p) {
+    return (float)(p_rand(p) >> 8) * (1.0f / 16777216.0f);
 }
 
-/* Случайное в [0, 1]. */
-static float rnd_unit(particles_t *p) {
-    return (float)(rnd(p) >> 8) / 16777216.0f;
+/* Случайное в [-1, 1). */
+static float p_sym(particles_t *p) {
+    return p_unit(p) * 2.0f - 1.0f;
 }
 
-static particle_t *alloc_particle(particles_t *p) {
-    for (int i = 0; i < PARTICLES_MAX; i++) {
-        if (p->items[i].kind == PT_FREE) {
-            if (i + 1 > p->count) p->count = i + 1;
-            return &p->items[i];
-        }
+/* ---- вспомогательное ---- */
+
+/* Синус без libm: приближение Бхаскары, погрешность < 0.002.
+ * Свой, чтобы результат был побитово одинаков на хосте и на PSP. */
+static float sin_wave(float x) {
+    int neg = 0;
+    while (x >= P_TWO_PI) x -= P_TWO_PI;
+    while (x < 0.0f) x += P_TWO_PI;
+    if (x >= P_PI) { x -= P_PI; neg = 1; }
+    float d = x * (P_PI - x);
+    float s = 16.0f * d / (5.0f * P_PI * P_PI - 4.0f * d);
+    return neg ? -s : s;
+}
+
+/* Меняет только альфу, RGB остаётся как у цвета эмиссии. */
+static void set_alpha(particle_t *it, float k) {
+    unsigned a = (unsigned)((float)it->alpha_max * clamp01(k) + 0.5f);
+    if (a > 255u) a = 255u;
+    it->color = (a << 24) | (it->color & 0x00FFFFFFu);
+}
+
+/* Огибающая яркости пылинки: плавный вход и выход, без резкого мигания. */
+static float dust_envelope(float age) {
+    if (age < DUST_FADE_EDGE) return ease_in_out_cubic(age / DUST_FADE_EDGE);
+    if (age > 1.0f - DUST_FADE_EDGE) return ease_in_out_cubic((1.0f - age) / DUST_FADE_EDGE);
+    return 1.0f;
+}
+
+static float life_age(const particle_t *it) {
+    if (it->life_max <= 0) return 1.0f;
+    return 1.0f - (float)it->life / (float)it->life_max;
+}
+
+/* ---- пылинки ---- */
+
+/* Рождение внутри шара. Радиус берём не больше 0.95·R, направление — случайное:
+ * распределение чуть смещено к центру, зато пылинка гарантированно в объёме. */
+static void spawn_dust(particles_t *p, particle_t *it, int staggered) {
+    float dir[3] = { p_sym(p), p_sym(p), p_sym(p) };
+    float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+    if (len < 1e-4f) {
+        dir[0] = 0.0f; dir[1] = 1.0f; dir[2] = 0.0f;
+    } else {
+        dir[0] /= len; dir[1] /= len; dir[2] /= len;
     }
-    return NULL; /* пул полон — новые частицы просто не появляются */
+    float r = p->ambient_radius * (0.15f + 0.80f * p_unit(p));
+
+    memset(it, 0, sizeof *it);
+    it->kind = PARTICLE_DUST;
+    it->pos[0] = p->ambient_center[0] + dir[0] * r;
+    it->pos[1] = p->ambient_center[1] + dir[1] * r;
+    it->pos[2] = p->ambient_center[2] + dir[2] * r;
+    it->vel[1] = DUST_RISE * (0.55f + 0.90f * p_unit(p));
+    it->phase = p_unit(p) * P_TWO_PI;
+    it->life_max = DUST_LIFE_MIN + (int)((float)DUST_LIFE_SPAN * p_unit(p));
+    /* Первый досев — с разбросом по возрасту, иначе весь объём мигнёт разом. */
+    it->life = staggered ? 1 + (int)((float)(it->life_max - 1) * p_unit(p)) : it->life_max;
+    it->color = p->ambient_color;
+    it->alpha_max = (unsigned char)((p->ambient_color >> 24) & 0xFFu);
+    set_alpha(it, dust_envelope(life_age(it)));
 }
+
+static int dust_outside(const particles_t *p, const particle_t *it) {
+    float dx = it->pos[0] - p->ambient_center[0];
+    float dy = it->pos[1] - p->ambient_center[1];
+    float dz = it->pos[2] - p->ambient_center[2];
+    return dx * dx + dy * dy + dz * dz > p->ambient_radius * p->ambient_radius;
+}
+
+static void dust_step(particles_t *p, particle_t *it) {
+    it->phase += DUST_PHASE_STEP;
+    if (it->phase >= P_TWO_PI) it->phase -= P_TWO_PI;
+    /* боковой дрейф — синус от собственной фазы, по z с другим периодом */
+    it->pos[0] += sin_wave(it->phase) * DUST_DRIFT;
+    it->pos[2] += sin_wave(it->phase * 0.73f + 1.3f) * DUST_DRIFT * 0.8f;
+    it->pos[1] += it->vel[1];
+    it->life--;
+    /* Вышла из объёма или дожила свой срок — рождается заново внутри шара,
+     * поэтому снаружи позиции пылинок никогда не выходят за ambient_radius. */
+    if (it->life <= 0 || dust_outside(p, it)) {
+        spawn_dust(p, it, 0);
+        return;
+    }
+    set_alpha(it, dust_envelope(life_age(it)));
+}
+
+/* Держит число пылинок равным ambient_count: лишние снимает, недостающие досевает. */
+static void refill_dust(particles_t *p, int staggered) {
+    int live = 0;
+    for (int i = 0; i < p->count; i++) {
+        if (p->items[i].kind == PARTICLE_DUST) live++;
+    }
+    for (int i = p->count - 1; i >= 0 && live > p->ambient_count; i--) {
+        if (p->items[i].kind != PARTICLE_DUST) continue;
+        p->items[i] = p->items[--p->count];
+        live--;
+    }
+    while (live < p->ambient_count && p->count < PARTICLES_MAX) {
+        spawn_dust(p, &p->items[p->count++], staggered);
+        live++;
+    }
+}
+
+/* ---- искры ---- */
+
+/* 0 — искра умерла и слот надо освободить. */
+static int spark_step(particle_t *it) {
+    it->vel[0] *= SPARK_DRAG;
+    it->vel[1] = it->vel[1] * SPARK_DRAG - SPARK_GRAVITY;
+    it->vel[2] *= SPARK_DRAG;
+    it->pos[0] += it->vel[0];
+    it->pos[1] += it->vel[1];
+    it->pos[2] += it->vel[2];
+    it->life--;
+    if (it->life <= 0) return 0;
+    set_alpha(it, ease_out_cubic((float)it->life / (float)it->life_max));
+    return 1;
+}
+
+/* ---- публичное API ---- */
 
 void particles_init(particles_t *p, unsigned seed) {
+    if (!p) return;
     memset(p, 0, sizeof *p);
     p->rng = seed ? seed : 0xA5A5A5A5u;
-}
-
-static void spawn_dust(particles_t *p, int seeded) {
-    particle_t *it = alloc_particle(p);
-    if (!it) return;
-    float r = p->ambient_radius * (0.25f + 0.75f * rnd_unit(p));
-    float a = rnd_unit(p) * 6.28318f;
-    it->kind = PT_DUST;
-    it->x = p->ambient_center[0] + r * (a < 3.14159f ? 1.0f : -1.0f) * rnd_sym(p);
-    it->z = p->ambient_center[2] + r * rnd_sym(p);
-    it->y = p->ambient_center[1] + p->ambient_radius * 0.5f * rnd_sym(p);
-    it->vx = 0.0f; it->vy = DUST_RISE * (0.5f + rnd_unit(p)); it->vz = 0.0f;
-    it->phase = rnd_unit(p) * 6.28318f;
-    it->life_max = DUST_LIFE * (0.6f + 0.8f * rnd_unit(p));
-    it->life = seeded ? it->life_max * rnd_unit(p) : it->life_max;
-    it->color = p->ambient_color;
+    p->ambient_radius = 1.0f;
 }
 
 void particles_set_ambient(particles_t *p, const float center[3], float radius, int count, unsigned color) {
-    if (!center) return;
-    memcpy(p->ambient_center, center, sizeof p->ambient_center);
-    p->ambient_radius = radius > 0.1f ? radius : 0.1f;
-    p->ambient_count = count < 0 ? 0 : (count > PARTICLES_MAX / 2 ? PARTICLES_MAX / 2 : count);
+    if (!p || !center) return;
+    p->ambient_center[0] = center[0];
+    p->ambient_center[1] = center[1];
+    p->ambient_center[2] = center[2];
+    p->ambient_radius = radius > 0.05f ? radius : 0.05f;
+    p->ambient_count = count < 0 ? 0 : (count > PARTICLES_DUST_MAX ? PARTICLES_DUST_MAX : count);
     p->ambient_color = color;
-    /* Первый досев — с разбросом по времени жизни, иначе все мигнут разом. */
-    int live = 0;
-    for (int i = 0; i < PARTICLES_MAX; i++) if (p->items[i].kind == PT_DUST) live++;
-    for (int i = live; i < p->ambient_count; i++) spawn_dust(p, 1);
+    refill_dust(p, 1);
 }
 
 void particles_emit_burst(particles_t *p, const float pos[3], int count, unsigned color, float speed) {
-    if (!pos) return;
-    for (int i = 0; i < count; i++) {
-        particle_t *it = alloc_particle(p);
-        if (!it) return;
-        it->kind = PT_SPARK;
-        it->x = pos[0]; it->y = pos[1]; it->z = pos[2];
-        float hx = rnd_sym(p), hz = rnd_sym(p);
-        it->vx = hx * speed;
-        it->vz = hz * speed;
-        it->vy = speed * (0.6f + 0.7f * rnd_unit(p));
-        it->phase = 0.0f;
-        it->life_max = SPARK_LIFE_MIN + (SPARK_LIFE_MAX - SPARK_LIFE_MIN) * rnd_unit(p);
+    if (!p || !pos || count <= 0) return;
+    for (int i = 0; i < count && p->count < PARTICLES_MAX; i++) {
+        particle_t *it = &p->items[p->count++];
+        /* направление: разброс по горизонтали, всегда с составляющей вверх */
+        float dir[3] = { p_sym(p), 0.55f + 0.85f * p_unit(p), p_sym(p) };
+        float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+        if (len < 1e-4f) {
+            dir[0] = 0.0f; dir[1] = 1.0f; dir[2] = 0.0f;
+        } else {
+            dir[0] /= len; dir[1] /= len; dir[2] /= len;
+        }
+        float v = speed * (0.75f + 0.50f * p_unit(p));
+
+        memset(it, 0, sizeof *it);
+        it->kind = PARTICLE_SPARK;
+        it->pos[0] = pos[0]; it->pos[1] = pos[1]; it->pos[2] = pos[2];
+        it->vel[0] = dir[0] * v; it->vel[1] = dir[1] * v; it->vel[2] = dir[2] * v;
+        it->life_max = SPARK_LIFE_MIN + (int)((float)SPARK_LIFE_SPAN * p_unit(p));
         it->life = it->life_max;
         it->color = color;
+        it->alpha_max = (unsigned char)((color >> 24) & 0xFFu);
+        set_alpha(it, 1.0f);
     }
 }
 
 void particles_tick(particles_t *p) {
-    int dust_live = 0;
-    for (int i = 0; i < PARTICLES_MAX; i++) {
+    if (!p) return;
+    int i = 0;
+    while (i < p->count) {
         particle_t *it = &p->items[i];
-        if (it->kind == PT_FREE) continue;
-        it->life -= 1.0f;
-        if (it->life <= 0.0f) {
-            it->kind = PT_FREE;
-            continue;
-        }
-        if (it->kind == PT_DUST) {
-            it->phase += 0.021f;
-            float drift = DUST_DRIFT;
-            /* лёгкий боковой дрейф: синус приближаем через фазу, чтобы не звать sinf на каждую частицу */
-            float s = it->phase;
-            while (s > 6.28318f) s -= 6.28318f;
-            float approx = (s < 3.14159f) ? (s * (3.14159f - s) * 0.4053f) : (-(s - 3.14159f) * (6.28318f - s) * 0.4053f);
-            it->x += approx * drift;
-            it->z += approx * drift * 0.7f;
-            it->y += it->vy;
-            float dy = it->y - p->ambient_center[1];
-            if (dy > p->ambient_radius * 0.6f) it->y = p->ambient_center[1] - p->ambient_radius * 0.6f;
-            dust_live++;
+        if (it->kind == PARTICLE_DUST) {
+            dust_step(p, it);
+            i++;
+        } else if (spark_step(it)) {
+            i++;
         } else {
-            it->vx *= SPARK_DRAG;
-            it->vz *= SPARK_DRAG;
-            it->vy = it->vy * SPARK_DRAG - SPARK_GRAVITY;
-            it->x += it->vx;
-            it->y += it->vy;
-            it->z += it->vz;
+            /* пул плотный: на место мёртвой кладём последнюю живую */
+            p->items[i] = p->items[--p->count];
         }
     }
-    /* Досев пылинок до заданного количества. */
-    for (int i = dust_live; i < p->ambient_count; i++) spawn_dust(p, 0);
+    refill_dust(p, 0);
 }
 
 void particles_build(const particles_t *p, frame_t *f) {
-    for (int i = 0; i < PARTICLES_MAX; i++) {
+    if (!p || !f) return;
+    for (int i = 0; i < p->count; i++) {
         const particle_t *it = &p->items[i];
-        if (it->kind == PT_FREE) continue;
-        float t = it->life_max > 0.0f ? it->life / it->life_max : 0.0f;
-        /* Яркость: плавный вход и выход — пылинки не мигают, искры гаснут. */
-        float k = (it->kind == PT_DUST)
-                      ? (t > 0.75f ? ease_out_cubic((1.0f - t) * 4.0f) : ease_out_cubic(t / 0.75f))
-                      : ease_out_cubic(t);
-        unsigned base_a = (it->color >> 24) & 0xFFu;
-        unsigned a = (unsigned)((float)base_a * k);
-        unsigned color = (a << 24) | (it->color & 0x00FFFFFFu);
-        float pos[3] = { it->x, it->y, it->z };
-        frame_push_sprite(f, it->kind == PT_DUST ? SPRITE_DUST : SPRITE_SPARK, pos,
-                          it->kind == PT_DUST ? DUST_SIZE : SPARK_SIZE, color);
+        int dust = (it->kind == PARTICLE_DUST);
+        frame_push_sprite(f, dust ? SPRITE_DUST : SPRITE_SPARK, it->pos,
+                          dust ? DUST_SIZE : SPARK_SIZE, it->color);
     }
 }

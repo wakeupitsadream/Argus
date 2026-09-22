@@ -65,6 +65,9 @@ int r_init(void) {
 static void draw_sky(const frame_env_t *env) {
     vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * sizeof(vtx2d_t));
     if (!v) return;
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_BLEND);
+    sceGuDisable(GU_LIGHTING);
     const float x0 = 0.0f, x1 = (float)SCR_WIDTH, y0 = 0.0f, y1 = (float)SCR_HEIGHT;
     v[0] = (vtx2d_t){ env->sky_top, x0, y0, 0.0f };
     v[1] = (vtx2d_t){ env->sky_top, x1, y0, 0.0f };
@@ -130,6 +133,9 @@ static void setup_camera(const frame_cam_t *cam) {
 }
 
 static void draw_meshes(const frame_t *f) {
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_BLEND);
+    sceGuDisable(GU_LIGHTING);
     sceGuEnable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_CULL_FACE);
@@ -158,6 +164,46 @@ static void draw_meshes(const frame_t *f) {
     sceGuDisable(GU_FOG);
 }
 
+/* Силуэты: рисуем только там, где пиксель уже закрыт более близкой геометрией.
+ * Глубина у нас перевёрнута (GU_GEQUAL + DepthRange(65535, 0)), поэтому «дальше» — это GU_LESS. */
+static void draw_ghosts(const frame_t *f) {
+    if (f->ghost_count <= 0) return;
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_LIGHTING);
+    sceGuDisable(GU_FOG);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuEnable(GU_DEPTH_TEST);
+    sceGuDepthFunc(GU_LESS);
+    sceGuDepthMask(GU_TRUE); /* в буфер глубины не пишем */
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+
+    for (int i = 0; i < f->ghost_count; i++) {
+        const frame_mesh_t *cmd = &f->ghosts[i];
+        if (!cmd->mesh || !cmd->mesh->verts) continue;
+        ScePspFVector3 pos = { cmd->pos[0], cmd->pos[1], cmd->pos[2] };
+        sceGumMatrixMode(GU_MODEL);
+        sceGumLoadIdentity();
+        sceGumTranslate(&pos);
+        if (cmd->yaw_deg != 0.0f) {
+            ScePspFVector3 rot = { 0.0f, cmd->yaw_deg * DEG2RAD, 0.0f };
+            sceGumRotateXYZ(&rot);
+        }
+        if (cmd->scale != 1.0f && cmd->scale > 0.0f) {
+            ScePspFVector3 sc = { cmd->scale, cmd->scale, cmd->scale };
+            sceGumScale(&sc);
+        }
+        sceGumDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                        cmd->mesh->count, 0, cmd->mesh->verts);
+        s_tris += (unsigned)cmd->mesh->count / 3u;
+        s_draws++;
+    }
+
+    sceGuDisable(GU_BLEND);
+    sceGuDepthFunc(GU_GEQUAL);
+    sceGuDepthMask(GU_FALSE);
+}
+
 void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     SceInt64 t0 = sceKernelGetSystemTimeWide();
     s_tris = 0;
@@ -170,6 +216,7 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_sky(&f->env);
     setup_camera(&f->cam);
     draw_meshes(f);
+    draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
     draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */
     gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
     gu_text_draw(f);            /* последний проход: 2D-наложение поверх всего */
@@ -187,8 +234,10 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     if (stats) {
         stats->cpu_us = (unsigned)(t1 - t0);
         stats->gpu_us = (unsigned)(t2 - t1);
-        stats->tris = s_tris;
-        stats->draws = s_draws + (unsigned)gu_text_last_quads() + (unsigned)gu_sprite_last_count();
+        /* Треугольники и вызовы считаем в своих единицах: у текста и спрайтов
+         * каждый квад — два треугольника, но уходят они одним вызовом на строку. */
+        stats->tris = s_tris + 2u * (unsigned)gu_text_last_quads() + 2u * (unsigned)gu_sprite_last_count();
+        stats->draws = s_draws + (unsigned)gu_text_last_calls() + (unsigned)gu_sprite_last_calls();
     }
 }
 

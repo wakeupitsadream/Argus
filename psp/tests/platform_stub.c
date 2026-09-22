@@ -49,6 +49,10 @@ int plat_write_file(const char *rel_path, const void *data, size_t len) {
     return w == len ? 0 : -1;
 }
 
+void plat_gpu_writeback(const void *p, size_t bytes) {
+    (void)p; (void)bytes; /* на хосте кэша GPU нет */
+}
+
 void plat_log(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);

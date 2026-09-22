@@ -34,6 +34,8 @@ typedef struct {
 /* Принимает буфер файла во владение. 0 при успехе. Цвета не резолвит — вызови mesh_recolor. */
 int mesh_load(mesh_t *m, void *blob, size_t len);
 void mesh_recolor(mesh_t *m, const palette_t *pal, const light_t *light);
+/* Заливает все вершины одним цветом — для силуэтов. */
+void mesh_recolor_flat(mesh_t *m, unsigned color);
 void mesh_free(mesh_t *m);
 
 /* Цвет одной вершины: palette_color · (ao/255) · (ambient + diffuse · max(0, n·l)). */

@@ -1,5 +1,6 @@
 #include <pspkernel.h>
 #include <pspiofilemgr.h>
+#include <psputils.h>
 #include <malloc.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -37,6 +38,11 @@ int fs_mkdir(const char *rel) {
 
 void *plat_alloc16(size_t bytes) { return memalign(16, bytes ? bytes : 16); }
 void plat_free(void *p) { free(p); }
+
+void plat_gpu_writeback(const void *p, size_t bytes) {
+    if (!p || !bytes) return;
+    sceKernelDcacheWritebackRange(p, (unsigned)bytes);
+}
 
 void *plat_read_file(const char *rel_path, size_t *out_len) {
     char path[320];

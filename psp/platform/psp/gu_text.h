@@ -12,4 +12,7 @@ void gu_text_draw(const frame_t *f);
 /* Число квадов, отправленных на прошлом кадре (для debug-оверлея). */
 int gu_text_last_quads(void);
 
+/* Число вызовов отрисовки на прошлом кадре (для бюджета draw-call). */
+int gu_text_last_calls(void);
+
 #endif

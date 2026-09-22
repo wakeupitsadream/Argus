@@ -87,8 +87,16 @@ static void load_text_resources(game_t *g) {
     for (int i = 0; i < LANG_COUNT; i++) {
         blob = load_optional(files[i], &len, "строки");
         if (!blob) continue;
-        if (i18n_load(&g->strings[i], blob, len) == 0) loaded++;
-        else { plat_log("game: битый %s", files[i]); plat_free(blob); }
+        if (i18n_load(&g->strings[i], blob, len) != 0) {
+            plat_log("game: битый %s", files[i]);
+            plat_free(blob);
+        } else if (g->strings[i].count != STR_COUNT) {
+            /* Устаревший файл сдвинул бы все STR_* — лучше вообще без текста. */
+            plat_log("game: %s — %d строк, ожидается %d", files[i], g->strings[i].count, STR_COUNT);
+            i18n_free(&g->strings[i]);
+        } else {
+            loaded++;
+        }
     }
     if (loaded == LANG_COUNT) {
         g->strings_ok = 1;
@@ -106,6 +114,23 @@ static void load_meshes(game_t *g) {
             g->object_ok[i] = 1;
         } else {
             plat_log("game: битый %s", MESH_FILES[i]);
+            plat_free(blob);
+        }
+    }
+}
+
+/* Силуэт Око: те же меши, залитые цветом свечения — видно сквозь геометрию. */
+static void load_ghost_meshes(game_t *g) {
+    static const int src[3] = { MESH_EYE_BODY, MESH_EYE_HEAD, MESH_EYE_IRIS };
+    unsigned color = (0xD0u << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu);
+    for (int i = 0; i < 3; i++) {
+        size_t len = 0;
+        void *blob = plat_read_file(MESH_FILES[src[i]], &len);
+        if (!blob) continue;
+        if (mesh_load(&g->ghost[i], blob, len) == 0) {
+            mesh_recolor_flat(&g->ghost[i], color);
+            g->ghost_ok[i] = 1;
+        } else {
             plat_free(blob);
         }
     }
@@ -150,6 +175,7 @@ int game_init(game_t *g) {
     }
 
     load_meshes(g);
+    load_ghost_meshes(g);
     load_text_resources(g);
 
     if (g->level_ok) {
@@ -334,6 +360,17 @@ static void build_world(game_t *g, frame_t *f) {
     if (g->object_ok[MESH_EYE_BODY] && g->object_ok[MESH_EYE_HEAD] && g->object_ok[MESH_EYE_IRIS]) {
         player_build(&g->player, f, &g->objects[MESH_EYE_BODY], &g->objects[MESH_EYE_HEAD],
                      &g->objects[MESH_EYE_IRIS]);
+        /* Те же позиции — в список силуэтов: Око не теряется за террасами. */
+        int base = f->mesh_count - 3;
+        if (base >= 0) {
+            for (int i = 0; i < 3; i++) {
+                if (!g->ghost_ok[i]) continue;
+                const frame_mesh_t *m = &f->meshes[base + i];
+                frame_mesh_t *gh = frame_push_ghost(f, &g->ghost[i], m->pos[0], m->pos[1], m->pos[2],
+                                                    m->yaw_deg);
+                if (gh) gh->scale = m->scale;
+            }
+        }
     }
     particles_build(&g->particles, f);
 }
@@ -398,6 +435,7 @@ void game_shutdown(game_t *g) {
     if (g->font_ok) font_free(&g->font);
     for (int i = 0; i < LANG_COUNT; i++) i18n_free(&g->strings[i]);
     for (int i = 0; i < MESH_COUNT; i++) if (g->object_ok[i]) mesh_free(&g->objects[i]);
+    for (int i = 0; i < 3; i++) if (g->ghost_ok[i]) mesh_free(&g->ghost[i]);
     if (g->island_ok) mesh_free(&g->island);
     if (g->level_ok) level_free(&g->level);
     palette_set_free(&g->pals);

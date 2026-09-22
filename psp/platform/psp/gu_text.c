@@ -37,6 +37,7 @@ _Static_assert(offsetof(text_vtx_t, x) == 8, "position идёт после color
 
 static const font_t *s_font;
 static int s_quads; /* квадов отправлено на прошлом кадре */
+static int s_calls; /* вызовов sceGuDrawArray на прошлом кадре */
 /* CLUT читает GE напрямую — выравнивание 16 байт обязательно (sceGuClutLoad). */
 static unsigned int __attribute__((aligned(16))) s_clut[CLUT_ENTRIES];
 
@@ -48,8 +49,11 @@ static int tex_dim_ok(int v) {
 int gu_text_init(const font_t *font) {
     s_font = NULL;
     s_quads = 0;
+    s_calls = 0;
     if (!font || !font->pixels) return -1;
     if (!tex_dim_ok(font->tex_w) || !tex_dim_ok(font->tex_h)) return -1;
+    /* sceGuTexImage: «Data must be aligned to 1 quad word (16 bytes)». */
+    if ((((unsigned)(size_t)font->pixels) & 15u) != 0u) return -1;
 
     /* Запись i: альфа = значение T8, RGB белый (0xAABBGGRR). Цвет тексту даёт
      * вершина через GU_TFX_MODULATE: Cv = Ct * Cf, Av = At * Af. */
@@ -163,6 +167,7 @@ static int draw_line(const frame_text_t *t, int limit) {
 
 void gu_text_draw(const frame_t *f) {
     s_quads = 0;
+    s_calls = 0;
     if (!s_font || !f || f->text_count <= 0) return;
 
     int count = f->text_count;
@@ -174,6 +179,7 @@ void gu_text_draw(const frame_t *f) {
         int drawn = draw_line(&f->texts[i], budget);
         budget -= drawn;
         s_quads += drawn;
+        if (drawn > 0) s_calls++;
     }
     state_end();
 }
@@ -181,3 +187,5 @@ void gu_text_draw(const frame_t *f) {
 int gu_text_last_quads(void) {
     return s_quads;
 }
+
+int gu_text_last_calls(void) { return s_calls; }

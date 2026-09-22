@@ -29,6 +29,8 @@ int mesh_load(mesh_t *m, void *blob, size_t len) {
         m->verts[i].z = m->src[i].z;
     }
     m->blob = blob;
+    /* GE читает вершины напрямую из памяти — без сброса кэша увидит мусор (CLAUDE.md п.2). */
+    plat_gpu_writeback(m->verts, (size_t)count * sizeof(vtx_static_t));
     return 0;
 }
 
@@ -50,12 +52,20 @@ unsigned mesh_shade_color(unsigned pal_color, unsigned char ao, const float n[3]
 }
 
 void mesh_recolor(mesh_t *m, const palette_t *pal, const light_t *light) {
+    if (!m->verts || !pal || !light) return;
     for (int i = 0; i < m->count; i++) {
         const mesh_src_vertex_t *s = &m->src[i];
         float n[3] = { s->nx, s->ny, s->nz };
         unsigned slot = s->slot < PAL_SLOTS ? s->slot : 0u;
         m->verts[i].color = mesh_shade_color(pal->slots[slot], s->ao, n, light);
     }
+    plat_gpu_writeback(m->verts, (size_t)m->count * sizeof(vtx_static_t));
+}
+
+void mesh_recolor_flat(mesh_t *m, unsigned color) {
+    if (!m->verts) return;
+    for (int i = 0; i < m->count; i++) m->verts[i].color = color;
+    plat_gpu_writeback(m->verts, (size_t)m->count * sizeof(vtx_static_t));
 }
 
 void mesh_free(mesh_t *m) {

@@ -1,0 +1,14 @@
+# отладочный прогон: оверлей включён, видно позицию Око и бюджеты
+@20 press select
+@21 release select
+@40 shot dbg_start
+@60 stick 0.0 -1.0
+@180 stick 0.0 0.0
+@200 shot dbg_walk
+@210 press circle
+@240 shot dbg_look
+@250 release circle
+@260 press R
+@261 release R
+@320 shot dbg_rotated
+@330 quit

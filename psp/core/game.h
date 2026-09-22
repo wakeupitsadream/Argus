@@ -44,6 +44,8 @@ typedef struct {
     int island_ok;
     mesh_t objects[MESH_COUNT];
     int object_ok[MESH_COUNT];
+    mesh_t ghost[3];            /* тело, голова, радужка Око плоским цветом */
+    int ghost_ok[3];
 
     player_t player;
     camera_t cam;

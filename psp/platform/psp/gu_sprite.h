@@ -10,4 +10,7 @@ int gu_sprite_init(void);
 void gu_sprite_draw(const frame_t *f);
 int gu_sprite_last_count(void);
 
+/* Число вызовов отрисовки на прошлом кадре (для бюджета draw-call). */
+int gu_sprite_last_calls(void);
+
 #endif

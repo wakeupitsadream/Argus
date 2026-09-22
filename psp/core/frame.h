@@ -6,6 +6,7 @@
 
 #define FRAME_MAX_MESHES 48
 #define FRAME_MAX_SPRITES 128
+#define FRAME_MAX_GHOSTS 8
 #define FRAME_MAX_TEXTS 48
 #define FRAME_TEXT_LEN 96
 #define FRAME_NAME_LEN 32
@@ -61,6 +62,10 @@ typedef struct {
     int mesh_count;
     frame_sprite_t sprites[FRAME_MAX_SPRITES];
     int sprite_count;
+    /* Силуэты: те же меши, но рисуются только там, где объект закрыт геометрией
+     * (обратный тест глубины). Так Око не теряется за террасами. */
+    frame_mesh_t ghosts[FRAME_MAX_GHOSTS];
+    int ghost_count;
     frame_text_t texts[FRAME_MAX_TEXTS];
     int text_count;
     char shot_name[FRAME_NAME_LEN]; /* непустое — сохранить кадр под этим именем */
@@ -70,9 +75,18 @@ typedef struct {
 void frame_reset(frame_t *f);
 /* Возвращает NULL при переполнении пула (тихо пропустить, не падать). */
 frame_mesh_t *frame_push_mesh(frame_t *f, const mesh_t *m, float x, float y, float z, float yaw_deg);
-void frame_push_text(frame_t *f, int font, int align, int x, int y, unsigned color, const char *fmt, ...);
+#if defined(__GNUC__)
+#define ARGUS_PRINTF(fmt_idx, arg_idx) __attribute__((format(printf, fmt_idx, arg_idx)))
+#else
+#define ARGUS_PRINTF(fmt_idx, arg_idx)
+#endif
+
+void frame_push_text(frame_t *f, int font, int align, int x, int y, unsigned color, const char *fmt, ...)
+    ARGUS_PRINTF(7, 8);
 /* То же, но с тёмной подложкой со сдвигом на пиксель: текст читается на любом фоне. */
-void frame_push_text_shadow(frame_t *f, int font, int align, int x, int y, unsigned color, const char *fmt, ...);
+void frame_push_text_shadow(frame_t *f, int font, int align, int x, int y, unsigned color, const char *fmt, ...)
+    ARGUS_PRINTF(7, 8);
 frame_sprite_t *frame_push_sprite(frame_t *f, int kind, const float pos[3], float size, unsigned color);
+frame_mesh_t *frame_push_ghost(frame_t *f, const mesh_t *m, float x, float y, float z, float yaw_deg);
 
 #endif

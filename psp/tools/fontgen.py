@@ -221,9 +221,13 @@ def load_kerning(faces, warns):
             ia, ib = index[ca], index[cb]
             if (ia << 16) | ib in table:
                 warns.append(f"kerning.toml [{key}]: пара {a!r}{b!r} задана дважды, взята последняя")
-            table[(ia << 16) | ib] = (ia, ib,
-                                      clamp(int(dx), I8_MIN, I8_MAX, warns,
-                                            f"kerning [{key}] {a!r}{b!r}"))
+            dxv = clamp(int(dx), I8_MIN, I8_MAX, warns, f"kerning [{key}] {a!r}{b!r}")
+            if dxv == 0:
+                # Нулевая поправка ничего не меняет, но занимает слот двоичного поиска,
+                # и --verify считает такую запись ошибкой. Отбрасываем с предупреждением.
+                warns.append(f"kerning.toml [{key}]: пара {a!r}{b!r} с dx = 0 пропущена")
+                continue
+            table[(ia << 16) | ib] = (ia, ib, dxv)
         face["kerns"] = [table[k] for k in sorted(table)]
 
 

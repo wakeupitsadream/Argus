@@ -10,6 +10,7 @@
 #define FNT_VERSION  1u
 #define FNT_HEADER   32u  /* размер заголовка файла */
 #define FNT_FACE_REC 20u  /* размер записи гарнитуры */
+#define FNT_TEX_MIN  16u  /* меньший атлас отвергает и сам GU (tbw кратен 16) */
 #define FNT_TEX_MAX  512u /* предел размера текстуры на PSP */
 
 /* Структуры повторяют раскладку файла — иначе чтение на месте неверно. */
@@ -49,7 +50,8 @@ static int is_pot(unsigned v) {
 }
 
 /* Разбирает запись гарнитуры r (20 байт) и проверяет её таблицы. 0 при успехе. */
-static int read_face(font_face_t *fa, const unsigned char *base, size_t len, const unsigned char *r) {
+static int read_face(font_face_t *fa, const unsigned char *base, size_t len, const unsigned char *r,
+                     unsigned tex_w, unsigned tex_h) {
     unsigned glyph_count = rd_u16(r + 6);
     unsigned glyph_offset = rd_u32(r + 8);
     unsigned kern_count = rd_u16(r + 12);
@@ -66,6 +68,14 @@ static int read_face(font_face_t *fa, const unsigned char *base, size_t len, con
         if (glyph_offset % _Alignof(font_glyph_t) != 0u) return -1;
         if (!fits(len, glyph_offset, glyph_count * (unsigned)sizeof(font_glyph_t))) return -1;
         fa->glyphs = (const font_glyph_t *)(const void *)(base + glyph_offset);
+        /* Двоичный поиск требует сортировки, а квады — чтобы глиф лежал внутри атласа.
+         * Подделанный файл не должен приводить к выборке за пределами текстуры. */
+        for (unsigned i = 0; i < glyph_count; i++) {
+            const font_glyph_t *g = &fa->glyphs[i];
+            if (i > 0 && g->codepoint <= fa->glyphs[i - 1].codepoint) return -1;
+            if ((unsigned)g->u + (unsigned)g->w > tex_w) return -1;
+            if ((unsigned)g->v + (unsigned)g->h > tex_h) return -1;
+        }
     }
     fa->glyph_count = (int)glyph_count;
 
@@ -73,6 +83,15 @@ static int read_face(font_face_t *fa, const unsigned char *base, size_t len, con
         if (kern_offset % _Alignof(font_kern_t) != 0u) return -1;
         if (!fits(len, kern_offset, kern_count * (unsigned)sizeof(font_kern_t))) return -1;
         fa->kerns = (const font_kern_t *)(const void *)(base + kern_offset);
+        for (unsigned i = 0; i < kern_count; i++) {
+            const font_kern_t *k = &fa->kerns[i];
+            if (k->first >= glyph_count || k->second >= glyph_count) return -1;
+            if (i > 0) {
+                unsigned key = ((unsigned)k->first << 16) | (unsigned)k->second;
+                unsigned prev = ((unsigned)fa->kerns[i - 1].first << 16) | (unsigned)fa->kerns[i - 1].second;
+                if (key <= prev) return -1;
+            }
+        }
     }
     fa->kern_count = (int)kern_count;
     return 0;
@@ -95,16 +114,17 @@ int font_load(font_t *f, void *blob, size_t len) {
 
     if (face_count == 0u || face_count > (unsigned)FONT_MAX_FACES) return -1;
     if (!is_pot(tex_w) || !is_pot(tex_h) || tex_w > FNT_TEX_MAX || tex_h > FNT_TEX_MAX) return -1;
+    if (tex_w < FNT_TEX_MIN || tex_h < FNT_TEX_MIN) return -1; /* иначе gu_text_init молча откажет */
     if ((pixels_offset & 15u) != 0u) return -1;
     if (!fits(len, pixels_offset, pixels_size)) return -1;
-    if (pixels_size < (size_t)tex_w * (size_t)tex_h) return -1;
+    if (pixels_size != (size_t)tex_w * (size_t)tex_h) return -1; /* формат задаёт равенство */
     if (!fits(len, FNT_HEADER, face_count * FNT_FACE_REC)) return -1;
 
     /* Заполняем копию: при отказе *f остаётся нулевым, blob — за вызывающим. */
     font_t tmp;
     memset(&tmp, 0, sizeof tmp);
     for (unsigned i = 0; i < face_count; i++) {
-        if (read_face(&tmp.faces[i], b, len, b + FNT_HEADER + i * FNT_FACE_REC) != 0) return -1;
+        if (read_face(&tmp.faces[i], b, len, b + FNT_HEADER + i * FNT_FACE_REC, tex_w, tex_h) != 0) return -1;
     }
     tmp.tex_w = (int)tex_w;
     tmp.tex_h = (int)tex_h;
