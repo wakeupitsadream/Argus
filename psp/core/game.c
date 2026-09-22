@@ -23,6 +23,7 @@
 #define CAPTION_HOLD 200    /* кадров: карточка с названием острова держится ~3,3 с */
 #define HINT_HOLD 900       /* кадров: подсказки по управлению живут 15 с на острове */
 #define HUD_FADE 60         /* кадр затухания — 1 с */
+#define WATER_GLINTS_MAX 10 /* бликов на воде: пул спрайтов делится с лучом и пылью */
 #define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
 #define MSG_FRAMES 210      /* 3,5 с на реплику */
 #define BEAM_STEP 0.20f      /* шаг спрайтов вдоль луча: реже — и луч рассыпается в пунктир */
@@ -1067,11 +1068,35 @@ static void build_portal_marks(game_t *g, frame_t *f) {
     }
 }
 
+/* Блики на воде: аддитивные искры, медленно ползущие по глади. Отражений на PSP
+ * не сделать дёшево, а без движения вода выглядит стеклом. */
+static void build_water_glints(game_t *g, frame_t *f) {
+    if (g->water_count <= 0) return;
+    unsigned rgb = g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu;
+    int budget = WATER_GLINTS_MAX;
+    for (int i = 0; i < g->water_count && budget > 0; i++) {
+        const frame_water_t *w = &g->water[i];
+        for (int k = 0; k < 2 && budget > 0; k++) {
+            float t = (float)g->frame * 0.012f + (float)(i * 7 + k * 13) * 0.37f;
+            float u = 0.5f + 0.42f * sinf(t * 0.7f);
+            float v = 0.5f + 0.42f * sinf(t * 0.43f + 2.1f);
+            float pulse = 0.45f + 0.55f * sinf(t * 1.9f);
+            if (pulse <= 0.05f) { budget--; continue; }
+            float pos[3] = { w->x0 + (w->x1 - w->x0) * u, f->water_y + 0.03f,
+                             w->z0 + (w->z1 - w->z0) * v };
+            unsigned a = (unsigned)(95.0f * pulse);
+            frame_push_sprite(f, SPRITE_SPARK, pos, 0.20f + 0.10f * pulse, (a << 24) | rgb);
+            budget--;
+        }
+    }
+}
+
 static void build_world(game_t *g, frame_t *f) {
     if (g->island_ok) frame_push_mesh(f, &g->island, 0.0f, 0.0f, 0.0f, 0.0f);
     if (g->level_ok) {
         build_entities(g, f);
         build_portal_marks(g, f);
+        build_water_glints(g, f);
         build_beam(g, f);
     }
 
