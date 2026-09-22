@@ -169,6 +169,22 @@ void entities_propagate(entities_t *es) {
     }
 }
 
+/* Пересчитывает карту занятых клеток: где сейчас стоят блоки. Вызывается каждый кадр —
+ * дешевле, чем следить за каждым сдвигом, и не рассинхронизируется. */
+static void ent_refresh_blockers(entities_t *es) {
+    if (!es->level) return;
+    level_t *mut = (level_t *)(void *)es->level;
+    level_clear_blocked(mut);
+    for (int i = 0; i < es->count; i++) {
+        const entity_t *e = &es->items[i];
+        if (!e->active) continue;
+        int type = ent_type(e);
+        if (type != ENT_BLOCK && type != ENT_FLOAT_BLOCK) continue;
+        int cx = 0, cz = 0;
+        if (level_cell_at(es->level, e->x, e->z, &cx, &cz)) level_set_blocked(mut, cx, cz, 1);
+    }
+}
+
 /* ——— инициализация ——— */
 
 void entities_init(entities_t *es, const level_t *l, world_t *w) {
@@ -235,6 +251,8 @@ void entities_init(entities_t *es, const level_t *l, world_t *w) {
         es->water_steps = min_steps > 0 ? min_steps : 0;
         break;
     }
+    ent_refresh_blockers(es);
+
     /* Уровень воды нужен и walk.c (пол плавучих клеток), поэтому через water_set_level:
      * заодно поднимет плавучие блоки на стартовый уровень. Загрузка — не игровое
      * событие, поэтому анимацию всплытия сразу гасим: плоты уже на месте. */
@@ -254,6 +272,7 @@ void entities_init(entities_t *es, const level_t *l, world_t *w) {
 
 void entities_tick(entities_t *es, const frame_cam_t *cam, int look_active) {
     if (es->busy_frames > 0) es->busy_frames--;
+    ent_refresh_blockers(es);
 
     for (int i = 0; i < es->count; i++) {
         entity_t *e = &es->items[i];

@@ -149,6 +149,26 @@ int level_cell_at(const level_t *l, float x, float z, int *cx, int *cz) {
     return (ix >= 0 && iz >= 0 && ix < l->cells_x && iz < l->cells_z) ? 1 : 0;
 }
 
+int level_cell_blocked(const level_t *l, int cx, int cz) {
+    if (!l || cx < 0 || cz < 0 || cx >= l->cells_x || cz >= l->cells_z) return 0;
+    size_t bit = (size_t)cz * (size_t)l->cells_x + (size_t)cx;
+    if (bit >= (size_t)LEVEL_BLOCKED_BYTES * 8u) return 0;
+    return (l->blocked[bit >> 3] >> (bit & 7u)) & 1u;
+}
+
+void level_set_blocked(level_t *l, int cx, int cz, int value) {
+    if (!l || cx < 0 || cz < 0 || cx >= l->cells_x || cz >= l->cells_z) return;
+    size_t bit = (size_t)cz * (size_t)l->cells_x + (size_t)cx;
+    if (bit >= (size_t)LEVEL_BLOCKED_BYTES * 8u) return;
+    unsigned char mask = (unsigned char)(1u << (bit & 7u));
+    if (value) l->blocked[bit >> 3] |= mask;
+    else l->blocked[bit >> 3] &= (unsigned char)~mask;
+}
+
+void level_clear_blocked(level_t *l) {
+    if (l) memset(l->blocked, 0, sizeof l->blocked);
+}
+
 const level_entity_t *level_entity_by_id(const level_t *l, int id) {
     if (!l->entities || id <= 0) return NULL;
     for (int i = 0; i < l->entity_count; i++) {

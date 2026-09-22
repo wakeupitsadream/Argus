@@ -15,6 +15,7 @@ static float cell_floor(const level_t *l, int cx, int cz, float local_x, float l
     const level_cell_t *c = level_cell(l, cx, cz);
     if (!c || !(c->flags & CELL_EXISTS) || !(c->flags & CELL_WALK)) return WALK_NO_FLOOR;
     if (!seg_open(l, c)) return WALK_NO_FLOOR;
+    if (level_cell_blocked(l, cx, cz)) return WALK_NO_FLOOR; /* там стоит блок */
     /* Плавучая клетка — плот: он всплывает и опускается вместе с водой, поэтому пол
      * у неё не из карты, а из уровня воды. Подняться на плот или сойти с него можно,
      * только пока перепад укладывается в шаг — в этом и состоит головоломка. */
@@ -51,7 +52,8 @@ float walk_floor_at(const level_t *l, float x, float z) {
 
 int walk_is_walkable(const level_t *l, int cx, int cz) {
     const level_cell_t *c = level_cell(l, cx, cz);
-    return (c && (c->flags & CELL_EXISTS) && (c->flags & CELL_WALK) && seg_open(l, c)) ? 1 : 0;
+    if (!c || !(c->flags & CELL_EXISTS) || !(c->flags & CELL_WALK)) return 0;
+    return (seg_open(l, c) && !level_cell_blocked(l, cx, cz)) ? 1 : 0;
 }
 
 /* Круг радиуса r вокруг (x, z) стоит на полу, если во всех пробных точках есть пол

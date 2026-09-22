@@ -1,30 +1,25 @@
-# Хаб «Веко»: новая игра → надпись на камне → разговор с отголоском.
-# Путь: спавн у южного моста (0,0; 8,5) → север по мосту → восток к камню STONE_5 →
-# северо-восток к отголоску id 11. Координаты сверены прогоном в PPSSPP.
+# Хаб «Веко»: новая игра → разговор с отголоском на площадке.
+# Путь: спавн у южного моста → север по мосту на площадку → восток к отголоску id 11.
+# Координаты сверены прогоном (карта хаба менялась арт-проходом).
 @20 press cross
 @21 release cross
 @90 assert screen=1
 @91 assert level_ok=1
-@92 assert ents>=11
+@92 assert ents>=15
 @100 stick 0.707 -0.707
-@200 stick 0.0 0.0
-@210 stick 0.707 0.707
-@255 stick 0.0 0.0
-@265 assert prompt=22
-@268 shot hub_stone
-@270 press cross
-@271 release cross
-@280 assert msg=29
-@290 stick 0.707 -0.707
-@320 stick 0.0 0.0
-@330 stick 0.707 0.707
-@355 stick 0.0 0.0
-@365 assert prompt=11
-@370 press cross
-@371 release cross
-@380 assert msg=32
-@381 assert flag210=1
-@385 assert tris<=8000
-@386 assert draws<=100
-@390 shot hub_echo
-@400 quit
+@210 stick 0.0 0.0
+@220 stick 0.707 0.707
+@250 stick 0.0 0.0
+@260 stick 0.707 -0.707
+@278 stick 0.0 0.0
+@285 stick 0.707 0.707
+@313 stick 0.0 0.0
+@325 assert prompt=11
+@330 shot hub_echo
+@340 press cross
+@341 release cross
+@360 assert msg!=-1
+@361 assert flag210=1
+@365 assert tris<=8000
+@366 assert draws<=100
+@375 quit

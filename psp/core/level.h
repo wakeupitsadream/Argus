@@ -20,6 +20,8 @@ enum {
 #define CELL_SEG_ID(seg) ((seg) & 0x3F)
 #define CELL_SEG_STATE(seg) (((seg) >> 6) & 0x03)
 #define LEVEL_MAX_SEGMENTS 64
+/* Битовая карта занятых клеток: хватает на сетку до 64×64 (лимит компилятора уровней). */
+#define LEVEL_BLOCKED_BYTES 512
 
 typedef struct {
     unsigned char height;  /* в шагах step_y */
@@ -77,6 +79,10 @@ typedef struct {
     /* Уровень воды в шагах step_y — тоже состояние игры, а не данные файла.
      * Пишет его water_set_level, читает walk.c: пол плавучей клетки идёт за водой. */
     unsigned char water_steps;
+    /* Занятые подвижными объектами клетки (блоки и плавучие блоки), по биту на клетку.
+     * Тоже состояние игры: сетка в файле не знает, где сейчас стоит блок, а ходьба
+     * обязана об него спотыкаться — иначе игрок проходит сквозь сокобан-блок. */
+    unsigned char blocked[LEVEL_BLOCKED_BYTES];
     void *blob;
 } level_t;
 
@@ -86,6 +92,12 @@ void level_free(level_t *l);
 
 /* NULL вне сетки. */
 const level_cell_t *level_cell(const level_t *l, int cx, int cz);
+/* Занята ли клетка подвижным объектом (блок, плавучий блок). */
+int level_cell_blocked(const level_t *l, int cx, int cz);
+/* Помечает клетку занятой; вызывается только из core/entity.c при пересчёте. */
+void level_set_blocked(level_t *l, int cx, int cz, int value);
+/* Сбрасывает всю карту занятости. */
+void level_clear_blocked(level_t *l);
 /* Мировая высота верха клетки; -1e9f если клетки нет. */
 float level_cell_top(const level_t *l, int cx, int cz);
 /* Центр клетки в мировых координатах (остров центрирован в начале координат). */

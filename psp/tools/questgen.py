@@ -10,7 +10,7 @@
 Проверки (любая — ошибка с номером квеста и код возврата 1): набор полей без лишних ключей,
 уникальность giver, диапазоны флагов (id сущностей 1..199, глобальные 204..255 в обход
 занятых WFLAG_*), непересечение служебных флагов квестов между собой и с условием,
-существование идентификаторов строк в assets/strings.csv.
+существование идентификаторов строк в assets/strings.csv и фрагментах assets/strings/.
 """
 import argparse
 import csv
@@ -46,14 +46,17 @@ def fail(msg):
 
 
 def read_string_ids():
-    """Идентификаторы строк из assets/strings.csv (колонка id) — для проверки реплик."""
+    """Идентификаторы строк: базовый assets/strings.csv плюс фрагменты регионов
+    assets/strings/*.csv (их собирает tools/stringsgen.py в том же порядке)."""
     if not STRINGS.exists():
         fail(f"нет {STRINGS}")
-    with STRINGS.open("r", encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-        if not reader.fieldnames or reader.fieldnames[0] != "id":
-            fail(f"{STRINGS}: первая колонка должна называться id, а не {reader.fieldnames}")
-        ids = {(row.get("id") or "").strip() for row in reader}
+    ids = set()
+    for path in [STRINGS] + sorted((ROOT / "assets" / "strings").glob("*.csv")):
+        with path.open("r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames or reader.fieldnames[0] != "id":
+                fail(f"{path}: первая колонка должна называться id, а не {reader.fieldnames}")
+            ids |= {(row.get("id") or "").strip() for row in reader}
     ids.discard("")
     if not ids:
         fail(f"{STRINGS}: нет ни одного идентификатора строки")

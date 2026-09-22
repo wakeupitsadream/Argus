@@ -6,19 +6,19 @@
 @60 level mirrors_1 50
 @120 assert level=4
 @121 assert beam>=1
-@122 assert ent55=0
+@122 assert ent56=0
 @123 assert receiver=0
 @130 stick 0.707 0.707
 @250 stick 0.0 0.0
 @260 stick -0.707 0.707
 @300 stick 0.0 0.0
-@315 assert prompt=53
+@315 assert prompt=54
 @320 shot m1_before
 @330 press cross
 @331 release cross
-@380 assert ent53=1
-@381 assert receiver=54
-@382 assert ent55=1
+@380 assert ent54=1
+@381 assert receiver=55
+@382 assert ent56=1
 @385 shot m1_solved
 @400 stick 0.707 -0.707
 @422 stick 0.0 0.0

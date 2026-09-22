@@ -1,0 +1,31 @@
+# Сад Зеркал, остров 3: большой глаз региона.
+# Поворот зеркала → призма делит луч → восточная половина открывает световую дверь →
+# северная половина идёт сквозь спящую стену, пока игрок держит взгляд → большой глаз.
+@20 press cross
+@21 release cross
+@60 level mirrors_3 70
+@120 assert level=6
+@121 assert eyes=0
+@122 assert ent78=0
+@130 stick 0.707 0.707
+@200 stick 0.0 0.0
+@215 assert prompt=72
+@220 press cross
+@221 release cross
+@250 assert ent72=1
+@251 assert receiver=74
+@252 assert ent78=1
+@255 shot m3_split
+# к спящей стене: держим взгляд, свет проходит и открывает глаз
+@260 stick 0.707 0.707
+@340 stick 0.0 0.0
+@350 stick 0.707 -0.707
+@410 stick 0.0 0.0
+@420 press circle
+@470 assert look=1
+@480 shot m3_gaze
+@500 assert eyes>=1
+@501 assert flag76=1
+@510 release circle
+@530 shot m3_eye
+@540 quit

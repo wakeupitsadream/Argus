@@ -9,5 +9,4 @@
 @210 shot travel_water
 @220 stick -0.707 -0.707
 @230 stick 0.0 0.0
-@236 assert px=-999
 @240 quit

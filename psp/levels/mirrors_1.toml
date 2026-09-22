@@ -97,7 +97,7 @@ yaw = 90.0
 # Излучатель на северном краю двора, луч идёт на юг (yaw 0 = +Z).
 [[entity]]
 type = "EMITTER"
-id = 52
+id = 53
 cell = [10.5, 5.5]
 yaw = 0.0
 
@@ -105,46 +105,53 @@ yaw = 0.0
 # Один поворот крестом переводит его в состояние 1 — луч уходит на восток.
 [[entity]]
 type = "MIRROR"
-id = 53
+id = 54
 cell = [10.5, 11.5]
 yaw = 0.0
 
 [[entity]]
 type = "RECEIVER"
-id = 54
+id = 55
 cell = [14.5, 11.5]
 yaw = 270.0
 
 [[entity]]
 type = "DOOR"
-id = 55
+id = 56
 cell = [15.5, 10.5]
 yaw = 90.0
 params = [1]          # номер сегмента, который открывает дверь
 
 [[link]]
-from = [54, 0]
-to = [55, 0]
+from = [55, 0]
+to = [56, 0]
+
+# Точка прибытия с mirrors_2: восточный коридор, а не вход с хаба.
+[[entity]]
+type = "SPAWN"
+id = 51
+cell = [17.5, 10.5]
+yaw = 270.0
 
 # --- сюжет и находки ---
 
 [[entity]]
 type = "STONE_TEXT"
-id = 57
+id = 59
 cell = [4.5, 10.5]
 yaw = 90.0
 name = "MIRRORS_STONE_1"
 
 [[entity]]
 type = "ECHO"
-id = 51
+id = 52
 cell = [8.5, 6.5]
 yaw = 135.0
 name = "MIRRORS_ECHO_OFFER"
 
 [[entity]]
 type = "SMALL_EYE"
-id = 56
+id = 57
 cell = [8.5, 16.5]
 
 [[entity]]
@@ -152,12 +159,6 @@ type = "SMALL_EYE"
 id = 58
 cell = [16.5, 10.5]   # в тупике за дверью, но не вплотную к порталу
 
-[[entity]]
-type = "STONE_TEXT"
-id = 59
-cell = [12.5, 13.5]
-yaw = 180.0
-name = "MIRRORS_STONE_2"
 
 # --- декор ---
 
@@ -207,4 +208,4 @@ entry = 41
 cell = [18, 10]
 size = [1, 1]
 to = "mirrors_2"
-entry = 55
+entry = 60

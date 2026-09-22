@@ -901,9 +901,47 @@ TEST(test_mech_float_on_plate) {
     level_free(&l);
 }
 
+TEST(test_mech_block_solid) {
+    /* Блок занимает клетку: сквозь него нельзя пройти, а после толчка освобождённая
+     * клетка снова проходима. Без этого сокобан не работает — игрок проходит насквозь. */
+    enum { B_BLOCK = 1 };
+    static const row_t ROWS[] = { { B_BLOCK, ENT_BLOCK, 4, 4, 0, 0, 0, 0, 0 } };
+    level_entity_t ents[1];
+    fill_ents(ROWS, 1, MAP_FLAT, ents);
+    mech_spec_t spec = {0};
+    spec.map = MAP_FLAT;
+    spec.ents = ents;
+    spec.ent_count = 1;
+
+    size_t len = 0;
+    void *blob = build_mech_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+
+    CHECK_EQ(walk_is_walkable(&l, 4, 4), 0);   /* клетка блока занята */
+    CHECK_EQ(walk_is_walkable(&l, 5, 4), 1);
+
+    /* Игрок упирается в блок и не проходит его насквозь. */
+    walk_pos_t p = { cell_c(3, M_W), cell_c(4, M_H), 2 * M_STEP };
+    for (int i = 0; i < 30; i++) walk_move(&l, &p, 0.1f, 0.0f, 0.3f, 0.55f);
+    CHECK(p.x < cell_c(4, M_W) - 0.2f);
+
+    /* Толкаем блок на восток — клетка (4,4) освобождается. */
+    CHECK_EQ(block_push(&es, B_BLOCK, 1, 0), 1);
+    tick_n(&es, 1);
+    CHECK_EQ(walk_is_walkable(&l, 4, 4), 1);
+    CHECK_EQ(walk_is_walkable(&l, 5, 4), 0);
+    level_free(&l);
+}
+
 void tests_mech(void) {
     puts("mech puzzle tests");
     RUN(test_mech_block_push);
+    RUN(test_mech_block_solid);
     RUN(test_mech_lever);
     RUN(test_mech_plates);
     RUN(test_mech_water);

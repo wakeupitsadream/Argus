@@ -17,20 +17,20 @@
 # Распределение id сущностей по островам. Флаги мира 1..199 — общие для всей игры
 # (core/world.h), поэтому одинаковые id на разных островах делили бы один флаг:
 #   хаб «Веко»        1..49
-#   Сад Зеркал      110..119
-#   Часовые Террасы  120..129
-#   Тихая Вода       130..139
-#   Библиотека Сна   140..149
+#   Сад Зеркал       50..79
+#   Часовые Террасы  80..109
+#   Тихая Вода      110..139
+#   Библиотека Сна  140..169
+#   бонусный остров 170..189
 # Глобальные флаги: 200..203 заняты WFLAG_* (core/world.h), квесты берут по два подряд
 # из 208..219 — для квеста N (1..6): accept = 206 + 2·N, reward = 207 + 2·N.
 #
-# Строки: в assets/strings.csv пока есть только ECHO_1..ECHO_3, поэтому у квестов 2..6
-# реплики временные (см. TODO у каждого) — идентификаторы на замену перечислены в отчёте.
+# Строки регионов лежат во фрагментах assets/strings/<регион>.csv; квесты островов,
+# которые ещё не собраны, ссылаются на будущие id отголосков и молчат, пока такой
+# сущности нет в игре (quest_find просто не находит дарителя).
 
 # --- хаб «Веко»: два отголоска у площадки (levels/hub.toml, id 10 и 11) ---
 
-# «Найти»: отголосок помнит форму глаза, но не помнит, где он лежит.
-# Условие — малый глаз в восточном закоулке хаба (hub.toml, SMALL_EYE id 30).
 [[quest]]
 name = "hub_east_eye"
 giver = 10
@@ -41,70 +41,56 @@ str_offer = "ECHO_1"
 str_progress = "ECHO_2"
 str_done = "ECHO_3"
 
-# «Принести»: просит отдать ему второй найденный глаз, чтобы «снова увидеть имя».
-# Условие — малый глаз в западном закоулке хаба (hub.toml, SMALL_EYE id 31).
 [[quest]]
 name = "hub_west_eye"
 giver = 11
 need_flag = 31
 accept_flag = 210
 reward_flag = 211
-str_offer = "ECHO_1"      # TODO(strings): ECHO_Q2_OFFER
-str_progress = "ECHO_2"   # TODO(strings): ECHO_Q2_WAIT
-str_done = "ECHO_3"       # TODO(strings): ECHO_Q2_DONE
+str_offer = "ECHO_1"
+str_progress = "ECHO_2"
+str_done = "ECHO_3"
 
-# --- Сад Зеркал: «зажечь» ---
+# --- Сад Зеркал: отголосок на первом острове просит найти глаз за световой дверью ---
 
-# Отголосок сада просит довести луч до приёмника у его камня.
-# Условие — приёмник луча (RECEIVER id 119 на острове сада).
 [[quest]]
-name = "mirrors_light_receiver"
-giver = 110
-need_flag = 119
+name = "mirrors_door_eye"
+giver = 52
+need_flag = 58
 accept_flag = 212
 reward_flag = 213
-str_offer = "ECHO_1"      # TODO(strings): ECHO_Q3_OFFER
-str_progress = "ECHO_2"   # TODO(strings): ECHO_Q3_WAIT
-str_done = "ECHO_3"       # TODO(strings): ECHO_Q3_DONE
+str_offer = "MIRRORS_ECHO_OFFER"
+str_progress = "MIRRORS_ECHO_PROGRESS"
+str_done = "MIRRORS_ECHO_DONE"
 
-# --- Часовые Террасы: «найти путь» ---
+# --- регионы, которые ещё собираются: id отголосков зарезервированы ---
 
-# Отголосок террас просит подняться туда, куда лестница ведёт только при одном повороте.
-# Условие — невидимый триггер на верхней площадке (TRIGGER id 129).
 [[quest]]
-name = "terraces_reach_top"
-giver = 120
-need_flag = 129
+name = "terraces_echo"
+giver = 81
+need_flag = 88
 accept_flag = 214
 reward_flag = 215
-str_offer = "ECHO_1"      # TODO(strings): ECHO_Q4_OFFER
-str_progress = "ECHO_2"   # TODO(strings): ECHO_Q4_WAIT
-str_done = "ECHO_3"       # TODO(strings): ECHO_Q4_DONE
+str_offer = "ECHO_1"
+str_progress = "ECHO_2"
+str_done = "ECHO_3"
 
-# --- Тихая Вода: «принести» ---
-
-# Отголосок воды просит привести плавучий блок на плиту у затопленного края.
-# Условие — нажимная плита (PLATE id 139).
 [[quest]]
-name = "water_float_to_plate"
-giver = 130
-need_flag = 139
+name = "water_echo"
+giver = 111
+need_flag = 118
 accept_flag = 216
 reward_flag = 217
-str_offer = "ECHO_1"      # TODO(strings): ECHO_Q5_OFFER
-str_progress = "ECHO_2"   # TODO(strings): ECHO_Q5_WAIT
-str_done = "ECHO_3"       # TODO(strings): ECHO_Q5_DONE
+str_offer = "ECHO_1"
+str_progress = "ECHO_2"
+str_done = "ECHO_3"
 
-# --- Библиотека Сна: «вспомнить» ---
-
-# Отголосок библиотеки просит повторить порядок глаз в зале на панели памяти.
-# Условие — панель памяти (MEMORY_PANEL id 149).
 [[quest]]
-name = "library_memory_panel"
-giver = 140
-need_flag = 149
+name = "library_echo"
+giver = 141
+need_flag = 148
 accept_flag = 218
 reward_flag = 219
-str_offer = "ECHO_1"      # TODO(strings): ECHO_Q6_OFFER
-str_progress = "ECHO_2"   # TODO(strings): ECHO_Q6_WAIT
-str_done = "ECHO_3"       # TODO(strings): ECHO_Q6_DONE
+str_offer = "ECHO_1"
+str_progress = "ECHO_2"
+str_done = "ECHO_3"

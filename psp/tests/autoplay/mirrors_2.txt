@@ -1,0 +1,38 @@
+# Сад Зеркал, остров 2: три действия подряд — убрать блок с пути луча,
+# довернуть два зеркала, довести свет до приёмника, который открывает дверь.
+@20 press cross
+@21 release cross
+@60 level mirrors_2 60
+@120 assert level=5
+@121 assert ent66=0
+# к блоку
+@130 stick 0.707 0.707
+@190 stick 0.0 0.0
+@200 stick 0.707 -0.707
+@232 stick 0.0 0.0
+@245 stick 0.707 0.707
+@255 stick 0.0 0.0
+@265 assert prompt=67
+@270 press cross
+@271 release cross
+@300 shot m2_pushed
+# к первому зеркалу
+@310 stick -0.707 0.707
+@410 stick 0.0 0.0
+@425 assert prompt=63
+@430 press cross
+@431 release cross
+@460 assert ent63=1
+# ко второму зеркалу
+@465 stick 0.707 -0.707
+@483 stick 0.0 0.0
+@490 stick 0.707 0.707
+@590 stick 0.0 0.0
+@605 assert prompt=64
+@610 press cross
+@611 release cross
+@640 assert ent64=0
+@641 assert receiver=65
+@642 assert ent66=1
+@645 shot m2_solved
+@655 quit
