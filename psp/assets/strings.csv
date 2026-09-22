@@ -46,7 +46,7 @@ ENDING_B_TITLE,Око закрылось,The last eye closes
 ENDING_B_LINE,"Никто не смотрит. Значит, можно меняться.",No one is watching. So it may change.
 CREDITS_LINE,"Сделано в Оренбурге, одним человеком и машиной.",Made in Orenburg by one person and a machine.
 CHOICE_TITLE,Последний глаз,The last eye
-CHOICE_LINE,"Аргус спит. Ты можешь разбудить его — или закрыться следом.","Argus sleeps. Wake him, or close after him."
+CHOICE_LINE,"Аргус спит. Разбудить — или закрыться следом?","Argus sleeps. Wake him, or close after him?"
 CHOICE_WAKE,Разбудить Аргуса,Wake Argus
 CHOICE_RELEASE,Отпустить мир,Let the world go
 PROMPT_TALK,Крест — заговорить,Cross — speak
