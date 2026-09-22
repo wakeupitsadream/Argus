@@ -64,6 +64,12 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
             e->kind = AP_ASSERT;
             if (!arg[0]) { plat_log("autoplay: строка %d: assert <выражение>", line_no); return -1; }
             snprintf(e->name, sizeof e->name, "%s", arg);
+        } else if (strcmp(cmd, "level") == 0) {
+            e->kind = AP_LEVEL;
+            if (!arg[0]) { plat_log("autoplay: строка %d: level <имя> [вход]", line_no); return -1; }
+            snprintf(e->name, sizeof e->name, "%s", arg);
+            e->arg = 0;
+            sscanf(s, "@%*d %*s %*s %d", &e->arg);
         } else if (strcmp(cmd, "quit") == 0) {
             e->kind = AP_QUIT;
         } else {
@@ -109,6 +115,11 @@ int autoplay_step(autoplay_t *ap, int frame, input_t *out, char out_shot[AP_NAME
             } else {
                 plat_log("autoplay: больше %d проверок на кадр — '%s' пропущена", AP_PENDING_MAX, e->name);
             }
+            break;
+        case AP_LEVEL:
+            flags |= AP_FLAG_LEVEL;
+            snprintf(ap->level_name, sizeof ap->level_name, "%.*s", AP_NAME_LEN - 1, e->name);
+            ap->level_entry = e->arg;
             break;
         case AP_QUIT:    flags |= AP_FLAG_QUIT; break;
         default: break;

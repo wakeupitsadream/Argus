@@ -542,6 +542,18 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         if (flags & AP_FLAG_ASSERT) {
             for (int i = 0; i < g->ap.assert_count; i++) run_assert(g, g->ap.asserts[i]);
         }
+        if (flags & AP_FLAG_LEVEL) {
+            /* Отладочный переход: тест начинает сразу на нужном острове. */
+            int index = -1;
+            for (int i = 0; i < LVL_COUNT; i++) {
+                const char *n = level_name((unsigned)i);
+                if (n && strcmp(n, g->ap.level_name) == 0) { index = i; break; }
+            }
+            if (index < 0) plat_log("autoplay: нет уровня '%s'", g->ap.level_name);
+            else if (load_level(g, index, g->ap.level_entry) == 0) {
+                if (g->screens.current != SCR_GAME) screens_goto(&g->screens, SCR_GAME);
+            }
+        }
         if (flags & AP_FLAG_QUIT) g->pending_quit = 1;
     }
     unsigned pressed = in.buttons & ~g->prev_buttons;

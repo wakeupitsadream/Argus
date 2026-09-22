@@ -6,6 +6,9 @@
  *   "@<кадр> shot <имя>"              — сохранить кадр в shots/<имя>.bmp
  *   "@<кадр> assert <выражение>"      — проверка состояния, например fps>=58, heap_free>=4000000,
  *                                       tris<=8000, eyes>=1, flag203=1 (вычисляет игра)
+ *   "@<кадр> level <имя> [вход]"      — перейти на остров (имя файла levels/<имя>.toml,
+ *                                       необязательный id сущности-входа); нужен тестам,
+ *                                       чтобы не идти до острова пешком
  *   "@<кадр> quit"                    — выход
  * '#' — комментарий. */
 #ifndef ARGUS_AUTOPLAY_H
@@ -17,13 +20,14 @@
 #define AP_ASSERT_LEN 48
 #define AP_PENDING_MAX 4
 
-enum { AP_PRESS = 1, AP_RELEASE, AP_STICK, AP_SHOT, AP_QUIT, AP_ASSERT };
+enum { AP_PRESS = 1, AP_RELEASE, AP_STICK, AP_SHOT, AP_QUIT, AP_ASSERT, AP_LEVEL };
 
 typedef struct {
     int frame, kind;
     unsigned btn;
     float x, y;
-    char name[AP_ASSERT_LEN]; /* имя кадра для shot или выражение для assert */
+    char name[AP_ASSERT_LEN]; /* имя кадра для shot, выражение для assert, имя уровня для level */
+    int arg;                  /* level: id точки входа (0 — точка спавна уровня) */
 } ap_event_t;
 
 typedef struct {
@@ -33,14 +37,17 @@ typedef struct {
     input_t input; /* текущее синтетическое состояние ввода */
     char asserts[AP_PENDING_MAX][AP_ASSERT_LEN]; /* проверки этого кадра */
     int assert_count;
+    char level_name[AP_NAME_LEN]; /* уровень из события level этого кадра */
+    int level_entry;
 } autoplay_t;
 
 /* Возвращает число событий или -1 при ошибке разбора (номер строки в plat_log). */
 int autoplay_parse(autoplay_t *ap, const char *text);
 
 /* Флаги результата шага. */
-enum { AP_FLAG_SHOT = 1, AP_FLAG_QUIT = 2, AP_FLAG_ASSERT = 4 };
+enum { AP_FLAG_SHOT = 1, AP_FLAG_QUIT = 2, AP_FLAG_ASSERT = 4, AP_FLAG_LEVEL = 8 };
 
+/* Имя уровня и вход последнего события level (действительны в кадре AP_FLAG_LEVEL). */
 /* Применяет события кадра frame, копирует синтетический ввод в *out.
  * При AP_FLAG_SHOT имя кадра — в out_shot. При AP_FLAG_ASSERT выражения лежат в ap->asserts
  * (ap->assert_count штук) и действительны до следующего вызова. */
