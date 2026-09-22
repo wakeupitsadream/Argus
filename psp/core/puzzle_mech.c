@@ -208,6 +208,10 @@ void water_set_level(entities_t *es, int steps) {
 
     const level_t *l = es->level;
     es->water_steps = steps;
+    /* Уровень воды живёт и в level_t: walk.c читает его, когда считает пол плавучей
+     * клетки. Поле — состояние игры внутри данных уровня, ровно как seg_states,
+     * поэтому const снимается только ради него (см. entity.c, ent_seg_reset). */
+    ((level_t *)(void *)l)->water_steps = (unsigned char)steps;
     float water_y = (float)steps * l->step_y;
 
     for (int i = 0; i < es->count; i++) {

@@ -34,6 +34,7 @@ typedef struct {
     const char *const *map;   /* высоты: '.' — пусто, '0'-'9' — шаги */
     const char *const *segs;  /* '1'-'9' — номер вращающегося сегмента */
     const char *const *segst; /* '0'-'3' — состояние сегмента, при котором клетка проходима */
+    const char *const *floats; /* 'x' — плавучая клетка: пол идёт за уровнем воды */
     const level_entity_t *ents;
     int ent_count;
     const level_link_t *links;
@@ -78,6 +79,7 @@ static void *build_mech_level(const mech_spec_t *s, size_t *out_len) {
             if (ch == '.' || ch == ' ') continue;
             c[0] = (unsigned char)(ch - '0');
             c[1] = CELL_EXISTS | CELL_WALK;
+            if (s->floats && s->floats[z][x] == 'x') c[1] |= CELL_FLOAT;
             char seg = s->segs ? s->segs[z][x] : '.';
             if (seg >= '1' && seg <= '9') {
                 char st = s->segst ? s->segst[z][x] : '0';
@@ -442,7 +444,10 @@ TEST(test_mech_water) {
     entity_t *high = entities_by_id(&es, W_HIGH);
     CHECK(low != NULL && high != NULL);
     if (!low || !high) { level_free(&l); return; }
-    CHECK_NEAR(low->y, 0.0, M_EPS);
+    /* entities_init уже применил стартовый уровень воды: плот в яме всплыл на него,
+     * причём без анимации — загрузка уровня не игровое событие. */
+    CHECK_NEAR(low->y, 1 * M_STEP, M_EPS);
+    CHECK(tween_done(&low->anim));
     CHECK_NEAR(high->y, 4 * M_STEP, M_EPS);
 
     /* Подъём воды: блок в яме всплывает, блок на столбе остаётся на своей высоте. */
@@ -450,7 +455,7 @@ TEST(test_mech_water) {
     CHECK_EQ(es.water_steps, 2);
     CHECK_NEAR(low->y, 2 * M_STEP, M_EPS);
     CHECK(!tween_done(&low->anim));
-    CHECK_NEAR(low->anim.value, 0.0, M_EPS);
+    CHECK_NEAR(low->anim.value, 1 * M_STEP, M_EPS);
     CHECK_NEAR(high->y, 4 * M_STEP, M_EPS);
     CHECK(tween_done(&high->anim));
     CHECK_NEAR(high->anim.value, 4 * M_STEP, M_EPS); /* визуал привязан к логике */
@@ -490,6 +495,60 @@ TEST(test_mech_water) {
 
     tick_n(&es, 24);
     CHECK_NEAR(low->anim.value, 2 * M_STEP, M_EPS);
+    level_free(&l);
+}
+
+/* Плот из плавучих клеток: (4,2) и (4,3) поднимаются и опускаются вместе с водой. */
+static const char *const FLOATS_WATER[M_H] = {
+    "........",
+    "........",
+    "....x...",
+    "....x...",
+    "........",
+    "........",
+    "........",
+    "........",
+};
+
+TEST(test_mech_water_walk) {
+    level_entity_t ents[4];
+    fill_ents(WATER_ROWS, 4, MAP_WATER, ents);
+    mech_spec_t spec = {0};
+    spec.map = MAP_WATER;
+    spec.floats = FLOATS_WATER;
+    spec.ents = ents;
+    spec.ent_count = 4;
+
+    size_t len = 0;
+    void *blob = build_mech_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+    CHECK_EQ(es.water_steps, 1); /* минимум шлюза */
+
+    /* Пол плота — уровень воды, а не высота из карты. */
+    float fx = cell_c(4, M_W), fz = cell_c(2, M_H);
+    CHECK_NEAR(walk_floor_at(&l, fx, fz), 1 * M_STEP, M_EPS);
+    CHECK_EQ(walk_is_walkable(&l, 4, 2), 1);
+
+    /* Подняли воду — плот всплыл; соседняя клетка карты осталась на своей высоте. */
+    water_set_level(&es, 3);
+    CHECK_NEAR(walk_floor_at(&l, fx, fz), 3 * M_STEP, M_EPS);
+    CHECK_NEAR(walk_floor_at(&l, cell_c(5, M_W), fz), 2 * M_STEP, M_EPS);
+
+    /* Шаг с берега (высота 2) на плот: при воде 3 перепад 0,5 берётся,
+     * при воде 0 — перепад 1,0 уже нет. Это и есть головоломка со шлюзом. */
+    walk_pos_t p = { cell_c(5, M_W), fz, 2 * M_STEP };
+    CHECK_EQ(walk_move(&l, &p, -M_CELL, 0.0f, 0.3f, 0.55f), 1);
+    CHECK_NEAR(p.y, 3 * M_STEP, M_EPS);
+
+    water_set_level(&es, 0);
+    walk_pos_t q = { cell_c(5, M_W), fz, 2 * M_STEP };
+    CHECK_EQ(walk_move(&l, &q, -M_CELL, 0.0f, 0.3f, 0.55f), 0);
+
     level_free(&l);
 }
 
@@ -772,6 +831,7 @@ void tests_mech(void) {
     RUN(test_mech_lever);
     RUN(test_mech_plates);
     RUN(test_mech_water);
+    RUN(test_mech_water_walk);
     RUN(test_mech_memory);
     RUN(test_mech_segment);
     RUN(test_mech_all_solved);

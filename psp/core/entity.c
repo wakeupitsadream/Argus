@@ -213,6 +213,14 @@ void entities_init(entities_t *es, const level_t *l, world_t *w) {
         es->water_steps = min_steps > 0 ? min_steps : 0;
         break;
     }
+    /* Уровень воды нужен и walk.c (пол плавучих клеток), поэтому через water_set_level:
+     * заодно поднимет плавучие блоки на стартовый уровень. Загрузка — не игровое
+     * событие, поэтому анимацию всплытия сразу гасим: плоты уже на месте. */
+    water_set_level(es, es->water_steps);
+    for (int i = 0; i < es->count; i++) {
+        if (ent_type(&es->items[i]) == ENT_FLOAT_BLOCK) tween_set(&es->items[i].anim, es->items[i].y);
+    }
+    es->busy_frames = 0;
 
     /* Приводим входы в согласие с восстановленными выходами, чтобы дверь под
      * включённым рычагом была открыта сразу. Загрузка — не игровое событие. */

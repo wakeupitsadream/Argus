@@ -15,6 +15,11 @@ static float cell_floor(const level_t *l, int cx, int cz, float local_x, float l
     const level_cell_t *c = level_cell(l, cx, cz);
     if (!c || !(c->flags & CELL_EXISTS) || !(c->flags & CELL_WALK)) return WALK_NO_FLOOR;
     if (!seg_open(l, c)) return WALK_NO_FLOOR;
+    /* Плавучая клетка — плот: он всплывает и опускается вместе с водой, поэтому пол
+     * у неё не из карты, а из уровня воды. Подняться на плот или сойти с него можно,
+     * только пока перепад укладывается в шаг — в этом и состоит головоломка. */
+    if (c->flags & CELL_FLOAT) return (float)l->water_steps * l->step_y;
+
     float base = (float)c->height * l->step_y;
     if (!(c->flags & CELL_STAIR)) return base;
 

@@ -1,0 +1,26 @@
+# Полный граф экранов: заставка → игра → пауза → игра → финальный выбор → финал → титры.
+# Счётчик глаз выставляется отладочной командой set: проходить всю игру ради экрана финала
+# в автотесте незачем.
+@20 press cross
+@21 release cross
+@90 assert screen=1
+@100 press start
+@101 release start
+@160 assert screen=2
+@165 shot end_pause
+@170 press cross
+@171 release cross
+@230 assert screen=1
+@240 set eyes 4
+@300 assert screen=5
+@305 shot end_choice
+@360 press cross
+@361 release cross
+@420 assert screen=3
+@425 shot end_ending
+@520 press cross
+@521 release cross
+@580 assert screen=4
+@585 shot end_credits
+@600 assert flag200=1
+@610 quit
