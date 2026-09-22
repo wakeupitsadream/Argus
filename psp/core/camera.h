@@ -26,6 +26,8 @@ void camera_rotate(camera_t *c, int dir);
 void camera_set_look(camera_t *c, int look_active);
 /* Обзорный масштаб: на заставке и финалах кадр отъезжает, в игре — возвращается. */
 void camera_set_wide(camera_t *c, int wide);
+/* Высадка на остров: кадр начинается широким и сходится к игровому масштабу. */
+void camera_arrive(camera_t *c);
 /* Один шаг логики (1/60 с): сглаживание цели и продвижение твинов. */
 void camera_update(camera_t *c, const float target[3]);
 void camera_fill(const camera_t *c, frame_cam_t *out);

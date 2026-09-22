@@ -19,6 +19,7 @@
 #define TITLE_SHIFT 5.2f    /* на сколько остров уезжает вправо под плашку названия */
 #define EYES_TOTAL 4        /* больших глаз в игре */
 #define BONUS_FEATHERS 3    /* перьев за просьбы отголосков, чтобы открылся бонусный остров */
+#define PORTAL_MARKS_MAX 6  /* столбов света: пул спрайтов кадра делится с лучом и пылью */
 #define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
 #define MSG_FRAMES 210      /* 3,5 с на реплику */
 #define BEAM_STEP 0.20f      /* шаг спрайтов вдоль луча: реже — и луч рассыпается в пунктир */
@@ -283,6 +284,9 @@ static int load_level(game_t *g, int index, int entry_id) {
 
     float target[3] = { g->player.pos.x, g->player.pos.y + PLAYER_EYE_H, g->player.pos.z };
     camera_init(&g->cam, g->level.cam_angle, g->level.cam_lock, target);
+    /* Прибытие: кадр начинается шире и сходится к игровому масштабу — остров
+     * успевает показать себя целиком, прежде чем камера возьмёт Око. */
+    camera_arrive(&g->cam);
     particles_init(&g->particles, 0x51F0A17Du + (unsigned)index * 7919u);
     float dust[3] = { target[0], target[1] + 1.5f, target[2] };
     particles_set_ambient(&g->particles, dust, 8.5f, DUST_COUNT, 0xA0C8E8FFu);
@@ -979,10 +983,35 @@ static void build_beam(game_t *g, frame_t *f) {
     }
 }
 
+/* Столб света над порталом: выход с острова иначе ничем не отмечен, и игрок
+ * ищет его наугад. Три билборда друг над другом с падающей яркостью — дёшево
+ * и читается издалека. */
+static void build_portal_marks(game_t *g, frame_t *f) {
+    const level_t *l = &g->level;
+    unsigned rgb = g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu;
+    int count = l->portal_count < PORTAL_MARKS_MAX ? l->portal_count : PORTAL_MARKS_MAX;
+    for (int i = 0; i < count; i++) {
+        const level_portal_t *p = &l->portals[i];
+        int cx = (int)p->cx + (p->w ? p->w / 2 : 0);
+        int cz = (int)p->cz + (p->h ? p->h / 2 : 0);
+        float x = 0.0f, z = 0.0f;
+        level_cell_center(l, cx, cz, &x, &z);
+        float top = level_cell_top(l, cx, cz);
+        if (top < -1.0e8f) continue;
+        for (int k = 0; k < 3; k++) {
+            float phase = (float)(g->frame * 3 + k * 70 + i * 40) * M3_DEG2RAD;
+            float pos[3] = { x, top + 0.35f + (float)k * 0.42f, z };
+            unsigned alpha = (unsigned)((70.0f - (float)k * 16.0f) * (0.75f + 0.25f * sinf(phase)));
+            frame_push_sprite(f, SPRITE_GLOW, pos, 0.85f - (float)k * 0.14f, (alpha << 24) | rgb);
+        }
+    }
+}
+
 static void build_world(game_t *g, frame_t *f) {
     if (g->island_ok) frame_push_mesh(f, &g->island, 0.0f, 0.0f, 0.0f, 0.0f);
     if (g->level_ok) {
         build_entities(g, f);
+        build_portal_marks(g, f);
         build_beam(g, f);
     }
 

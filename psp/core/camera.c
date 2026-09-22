@@ -9,6 +9,7 @@
 #define CAM_HALF_W 9.4f       /* игровая полуширина ортокадра: Око и механизмы читаются */
 #define CAM_HALF_W_WIDE 15.0f /* обзорная: весь остров с воздухом вокруг (заставка, финалы) */
 #define CAM_LOOK_SCALE 0.85f
+#define CAM_ARRIVE_FRAMES 54   /* 0,9 с: кадр сходится от обзорного к игровому при высадке */
 #define CAM_FOLLOW 0.10f       /* коэффициент экспоненциального сглаживания цели */
 #define CAM_NEAR 1.0f
 #define CAM_FAR_SCALE 2.5f
@@ -37,6 +38,13 @@ void camera_rotate(camera_t *c, int dir) {
 static float cam_target_half_w(const camera_t *c) {
     float base = c->wide ? CAM_HALF_W_WIDE : CAM_HALF_W;
     return c->look_active ? base * CAM_LOOK_SCALE : base;
+}
+
+void camera_arrive(camera_t *c) {
+    if (!c) return;
+    /* Ставим кадр в обзорный масштаб и плавно сводим к текущему целевому. */
+    tween_set(&c->half_w, CAM_HALF_W_WIDE);
+    tween_start(&c->half_w, cam_target_half_w(c), CAM_ARRIVE_FRAMES);
 }
 
 void camera_set_wide(camera_t *c, int wide) {
