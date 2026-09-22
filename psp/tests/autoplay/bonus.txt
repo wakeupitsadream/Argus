@@ -1,0 +1,14 @@
+# Бонусный остров: круглый зиккурат. Прогон доказывает, что остров грузится,
+# кольца проходимы без лестниц и глаз на вершине берётся.
+@20 press cross
+@21 release cross
+@60 level bonus 0
+@130 assert level_ok=1
+@135 shot bonus_ring
+@140 stick 0.707 0.707
+@200 stick 0.0 0.0
+@215 assert px>-6.0
+@220 stick 0.707 -0.707
+@280 stick 0.0 0.0
+@300 shot bonus_top
+@310 quit

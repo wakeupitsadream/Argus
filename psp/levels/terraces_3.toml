@@ -187,6 +187,12 @@ type = "SMALL_EYE"
 id = 108
 cell = [12.5, 12.5]
 
+# Второй глаз острова: южный угол площадки A, мимо которого проходят не глядя.
+[[entity]]
+type = "SMALL_EYE"
+id = 103
+cell = [7.5, 11.5]
+
 [[entity]]
 type = "STONE_TEXT"
 id = 109
