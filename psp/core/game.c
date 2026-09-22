@@ -16,6 +16,7 @@
 #define PLAYER_EYE_H 0.5f   /* камера смотрит чуть выше пола */
 #define SLEEPER_RATE 26.0f  /* градусов в секунду у спящих объектов */
 #define TITLE_ORBIT 6.0f    /* градусов в секунду: медленный облёт на заставке */
+#define TITLE_SHIFT 5.2f    /* на сколько остров уезжает вправо под плашку названия */
 #define EYES_TOTAL 4        /* больших глаз в игре */
 #define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
 #define MSG_FRAMES 210      /* 3,5 с на реплику */
@@ -279,10 +280,16 @@ int game_init(game_t *g) {
         return -1;
     }
 
-    g->light.dir[0] = 0.45f; g->light.dir[1] = 1.0f; g->light.dir[2] = 0.3f;
+    /* Направление НА солнце. По горизонтали совпадает с SHADOW_DIR из tools/levelc.py
+     * (там печётся падающая тень), по высоте выше: тени должны быть длинными, а верхние
+     * грани — светлыми. Ambient меньше, diffuse больше, чем «безопасные» 0,6/0,4:
+     * грани, смотрящие в разные стороны, обязаны отличаться, иначе объём читается как
+     * плоская заливка одного тона — ровно то, от чего кадр выглядит дёшево. */
+    g->light.dir[0] = 0.62f; g->light.dir[1] = 0.80f; g->light.dir[2] = 0.34f;
     normalize3(g->light.dir);
-    g->light.ambient = 0.58f;
-    g->light.diffuse = 0.42f;
+    g->light.ambient = 0.44f;
+    g->light.diffuse = 0.56f;
+    g->light.sky_mix = 0.50f;   /* половина неосвещённого цвета — тон тени палитры */
 
     g->pal = palette_find(&g->pals, "hub");
     if (!g->pal) { plat_log("game: нет палитры hub"); return -1; }
@@ -648,6 +655,9 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         g->player.speed = 0.0f;
     }
 
+    /* Вне игры кадр отъезжает: заставка, финал и титры показывают остров целиком. */
+    camera_set_wide(&g->cam, g->screens.current != SCR_GAME && g->screens.current != SCR_PAUSE);
+
     /* Режим взгляда: наезд камеры и выцветание мира. */
     camera_set_look(&g->cam, g->player.look_active);
     float want_desat = g->player.look_active ? 1.0f : 0.0f;
@@ -659,7 +669,15 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         g->title_yaw += TITLE_ORBIT * DT;
         if (g->title_yaw > 360.0f) g->title_yaw -= 360.0f;
         tween_set(&g->cam.yaw, g->title_yaw);
-        float center[3] = { 0.0f, 2.0f, 0.0f };
+        /* Остров уводится вправо: левую треть кадра занимает плашка с названием.
+         * Смещение считается в экранных осях камеры, поэтому при облёте композиция
+         * не разъезжается. */
+        frame_cam_t fc;
+        camera_fill(&g->cam, &fc);
+        float fx = 0.0f, fz = 0.0f;
+        cam_forward_xz(&fc, &fx, &fz);
+        float rx = -fz, rz = fx;   /* вектор «вправо по экрану» в мировых координатах */
+        float center[3] = { -rx * TITLE_SHIFT, 2.0f, -rz * TITLE_SHIFT };
         camera_update(&g->cam, center);
     } else {
         float target[3] = { g->player.pos.x, g->player.pos.y + PLAYER_EYE_H, g->player.pos.z };
@@ -740,19 +758,43 @@ static float anim_or(const entity_t *e, float logical) {
     return tween_done(&e->anim) ? logical : e->anim.value;
 }
 
+/* Радиус контактной тени под сущностью в мировых единицах; 0 — тени нет
+ * (плита, дверь и прочее, что само лежит на полу). */
+static float entity_shadow_radius(int type) {
+    switch (type) {
+    case ENT_ECHO:
+    case ENT_SLEEPER: return 0.42f;
+    case ENT_BLOCK:
+    case ENT_FLOAT_BLOCK: return 0.52f;
+    case ENT_MIRROR:
+    case ENT_PRISM:
+    case ENT_RECEIVER:
+    case ENT_EMITTER:
+    case ENT_LEVER:
+    case ENT_MEMORY_PANEL:
+    case ENT_WATER_VALVE: return 0.34f;
+    case ENT_STONE_TEXT: return 0.40f;
+    case ENT_PLINTH: return 0.95f;
+    case ENT_BIG_EYE: return 0.70f;
+    case ENT_SMALL_EYE:
+    case ENT_FEATHER: return 0.26f;
+    default: return 0.0f;
+    }
+}
+
 /* Свечение сущности: размер и яркость 0..1. 0 — не светится. */
 static float entity_glow_size(const entity_t *e, float *bright) {
     int type = e->def ? (int)e->def->type : 0;
     switch (type) {
-    case ENT_SMALL_EYE: *bright = 0.85f; return 0.9f;
-    case ENT_FEATHER: *bright = 0.8f; return 0.7f;
-    case ENT_PEACOCK_TAIL: *bright = 0.9f; return 3.0f;
+    case ENT_SMALL_EYE: *bright = 0.70f; return 0.75f;
+    case ENT_FEATHER: *bright = 0.65f; return 0.6f;
+    case ENT_PEACOCK_TAIL: *bright = 0.60f; return 2.2f;
     case ENT_BIG_EYE:
         /* Закрытый глаз только тлеет — открытый горит: это и есть индикатор прогресса. */
-        *bright = e->state ? 1.0f : 0.25f;
-        return e->state ? 2.4f : 1.4f;
-    case ENT_EMITTER: *bright = 0.9f; return 0.8f;
-    case ENT_RECEIVER: *bright = e->inputs ? 1.0f : 0.2f; return 0.8f;
+        *bright = e->state ? 0.95f : 0.22f;
+        return e->state ? 1.9f : 1.2f;
+    case ENT_EMITTER: *bright = 0.85f; return 0.7f;
+    case ENT_RECEIVER: *bright = e->inputs ? 0.95f : 0.18f; return 0.7f;
     case ENT_MEMORY_PANEL: *bright = 0.3f + 0.7f * anim_or(e, 0.0f); return 0.6f;
     case ENT_DOOR: *bright = 0.0f; return 0.0f;
     default: return 0.0f;
@@ -785,7 +827,10 @@ static void build_tail_feathers(game_t *g, frame_t *f, float x, float y, float z
  * иначе блок стоял бы на месте, дверь не открывалась, а собранный глаз не исчезал. */
 static void build_entities(game_t *g, frame_t *f) {
     const entities_t *es = &g->entities;
-    for (int i = 0; i < es->count; i++) {
+    /* Счётчику не доверяем: пул фиксирован, а испорченные данные не должны выводить
+     * индекс за массив (CLAUDE.md, п.12). */
+    int count = es->count < ENT_RUNTIME_MAX ? es->count : ENT_RUNTIME_MAX;
+    for (int i = 0; i < count; i++) {
         const entity_t *e = &es->items[i];
         if (!e->def || !e->active) continue;
         int type = (int)e->def->type;
@@ -838,6 +883,16 @@ static void build_entities(game_t *g, frame_t *f) {
             break;
         }
 
+        /* Тень под объектом: у парящих (отголосок, глаз) она меньше и слабее —
+         * так видно, что предмет висит, а не стоит. */
+        float sh_r = entity_shadow_radius(type);
+        if (sh_r > 0.0f) {
+            int floating = (type == ENT_ECHO || type == ENT_SLEEPER ||
+                            type == ENT_SMALL_EYE || type == ENT_BIG_EYE || type == ENT_FEATHER);
+            frame_push_shadow(f, x, e->y, z, floating ? sh_r * 0.8f : sh_r,
+                              (unsigned char)(floating ? 60 : 96));
+        }
+
         int mi = mesh_for_entity(type);
         if (mi >= 0 && mi < MESH_COUNT && g->object_ok[mi]) {
             frame_mesh_t *m = frame_push_mesh(f, &g->objects[mi], x, y, z, yaw);
@@ -851,11 +906,19 @@ static void build_entities(game_t *g, frame_t *f) {
         float bright = 0.0f;
         float size = entity_glow_size(e, &bright);
         if (size > 0.0f && bright > 0.0f) {
-            float pulse = 0.78f + 0.22f * hover;
-            unsigned alpha = (unsigned)(bright * pulse * 200.0f);
-            if (alpha > 255u) alpha = 255u;
+            /* Свет рисуется двумя билбордами: широкий тёплый ореол цветом акцента
+             * и маленькое яркое ядро. Один большой белый круг на аддитиве просто
+             * выжигает кадр в белое пятно — именно так «дёшево» и выглядит. */
+            float pulse = 0.80f + 0.20f * hover;
             float pos[3] = { x, y + 0.35f, z };
-            frame_push_sprite(f, SPRITE_GLOW, pos, size, (alpha << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu));
+            unsigned halo_a = (unsigned)(bright * pulse * 96.0f);
+            unsigned core_a = (unsigned)(bright * pulse * 168.0f);
+            if (halo_a > 255u) halo_a = 255u;
+            if (core_a > 255u) core_a = 255u;
+            frame_push_sprite(f, SPRITE_GLOW, pos, size,
+                              (halo_a << 24) | (g->pal->slots[SLOT_ACCENT] & 0x00FFFFFFu));
+            frame_push_sprite(f, SPRITE_SPARK, pos, size * 0.42f,
+                              (core_a << 24) | (g->pal->slots[SLOT_GLOW] & 0x00FFFFFFu));
         }
     }
 }
@@ -892,6 +955,13 @@ static void build_world(game_t *g, frame_t *f) {
         build_beam(g, f);
     }
 
+    /* Тень Око: слегка сжимается на бегу — глаз цепляется за неё и видит высоту. */
+    if (g->level_ok) {
+        float squash = 1.0f - 0.12f * (g->player.speed / 3.4f);
+        frame_push_shadow(f, g->player.pos.x, g->player.pos.y, g->player.pos.z,
+                          0.34f * squash, 118u);
+    }
+
     if (g->object_ok[MESH_EYE_BODY] && g->object_ok[MESH_EYE_HEAD] && g->object_ok[MESH_EYE_IRIS]) {
         player_build(&g->player, f, &g->objects[MESH_EYE_BODY], &g->objects[MESH_EYE_HEAD],
                      &g->objects[MESH_EYE_IRIS]);
@@ -914,6 +984,12 @@ static void build_hud(game_t *g, frame_t *f) {
     if (!g->font_ok || !g->strings_ok) return;
     unsigned accent = g->pal->slots[SLOT_ACCENT];
     unsigned dim = g->pal->slots[SLOT_TOP_ALT];
+
+    /* Подложки под текст: сверху и снизу узкие полосы, растворяющиеся в сцену.
+     * Цвет — тон тени палитры, поэтому интерфейс принадлежит миру, а не наклеен. */
+    unsigned shade = g->pal->slots[SLOT_SHADOW] & 0x00FFFFFFu;
+    frame_push_panel(f, 0, 0, SCR_W, 46, (150u << 24) | shade, shade);
+    frame_push_panel(f, 0, SCR_H - 64, SCR_W, 64, shade, (170u << 24) | shade);
 
     /* Подпись локации: строка берётся из данных уровня. Заголовочный кегль оставлен
      * для экранов (веха 5) — в игре он перекрывает сцену. */
@@ -969,6 +1045,7 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.sky_top = g->pal->sky_top;
     f->env.sky_bottom = g->pal->sky_bottom;
     f->env.fog_color = g->pal->sky_bottom;
+    f->env.shadow_color = g->pal->slots[SLOT_SHADOW];
     f->env.fog_near = g->cam.dist + g->pal->fog_near;
     f->env.fog_far = g->cam.dist + g->pal->fog_far;
     f->env.desat = g->desat.value;

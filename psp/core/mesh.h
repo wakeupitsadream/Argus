@@ -14,7 +14,8 @@ typedef struct {
 typedef struct {
     float x, y, z, nx, ny, nz;
     unsigned char slot, ao;
-    unsigned short pad;
+    unsigned char sun;  /* видимость солнца 0..255: запечённая падающая тень */
+    unsigned char pad;
 } mesh_src_vertex_t; /* 28 байт, как в файле */
 
 typedef struct {
@@ -29,6 +30,10 @@ typedef struct {
     float dir[3];      /* направление НА источник света, нормализовано */
     float ambient;     /* 0..1 */
     float diffuse;     /* 0..1 */
+    /* Доля небесного подсвета в неосвещённой части: цвет там уходит к тону тени
+     * палитры, а не просто темнеет. Именно из-за этого тень читается как тень,
+     * а не как выцветший серый — приём стилизованного рендера, дешёвый и заметный. */
+    float sky_mix;
 } light_t;
 
 /* Принимает буфер файла во владение. 0 при успехе. Цвета не резолвит — вызови mesh_recolor. */
@@ -38,7 +43,9 @@ void mesh_recolor(mesh_t *m, const palette_t *pal, const light_t *light);
 void mesh_recolor_flat(mesh_t *m, unsigned color);
 void mesh_free(mesh_t *m);
 
-/* Цвет одной вершины: palette_color · (ao/255) · (ambient + diffuse · max(0, n·l)). */
-unsigned mesh_shade_color(unsigned pal_color, unsigned char ao, const float n[3], const light_t *light);
+/* Цвет одной вершины. Прямой свет гасится запечённой тенью (sun), неосвещённая часть
+ * подмешивает тон тени палитры (light->sky_mix), всё вместе умножается на AO. */
+unsigned mesh_shade_color(const palette_t *pal, unsigned slot, unsigned char ao,
+                          unsigned char sun, const float n[3], const light_t *light);
 
 #endif

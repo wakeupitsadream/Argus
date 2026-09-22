@@ -6,7 +6,8 @@
 #define CAM_LOOK_FRAMES 15     /* 0,25 с на наезд в режиме взгляда */
 #define CAM_PITCH_DEG 30.0f    /* ниже изометрии: видно больше стен и неба, силуэт читается */
 #define CAM_DIST 40.0f
-#define CAM_HALF_W 15.0f      /* полуширина ортокадра: хаб целиком влезает силуэтом, вокруг есть воздух */
+#define CAM_HALF_W 9.4f       /* игровая полуширина ортокадра: Око и механизмы читаются */
+#define CAM_HALF_W_WIDE 15.0f /* обзорная: весь остров с воздухом вокруг (заставка, финалы) */
 #define CAM_LOOK_SCALE 0.85f
 #define CAM_FOLLOW 0.10f       /* коэффициент экспоненциального сглаживания цели */
 #define CAM_NEAR 1.0f
@@ -31,11 +32,25 @@ void camera_rotate(camera_t *c, int dir) {
     tween_start(&c->yaw, c->yaw.value + (dir > 0 ? 90.0f : -90.0f), CAM_TURN_FRAMES);
 }
 
+/* Целевая полуширина кадра: обзорный масштаб на заставке, игровой — в игре,
+ * ещё ближе — в режиме взгляда. Один источник истины, иначе режимы затирают друг друга. */
+static float cam_target_half_w(const camera_t *c) {
+    float base = c->wide ? CAM_HALF_W_WIDE : CAM_HALF_W;
+    return c->look_active ? base * CAM_LOOK_SCALE : base;
+}
+
+void camera_set_wide(camera_t *c, int wide) {
+    wide = wide ? 1 : 0;
+    if (!c || c->wide == wide) return;
+    c->wide = wide;
+    tween_start(&c->half_w, cam_target_half_w(c), CAM_TURN_FRAMES);
+}
+
 void camera_set_look(camera_t *c, int look_active) {
     look_active = look_active ? 1 : 0;
     if (c->look_active == look_active) return;
     c->look_active = look_active;
-    tween_start(&c->half_w, look_active ? CAM_HALF_W * CAM_LOOK_SCALE : CAM_HALF_W, CAM_LOOK_FRAMES);
+    tween_start(&c->half_w, cam_target_half_w(c), CAM_LOOK_FRAMES);
 }
 
 void camera_update(camera_t *c, const float target[3]) {

@@ -152,13 +152,26 @@ TEST(test_palette_file) {
 }
 
 TEST(test_mesh_shading) {
-    light_t light = { { 0.0f, 1.0f, 0.0f }, 0.5f, 0.5f };
+    light_t light = { { 0.0f, 1.0f, 0.0f }, 0.5f, 0.5f, 0.5f };
     float up[3] = { 0.0f, 1.0f, 0.0f }, side[3] = { 1.0f, 0.0f, 0.0f };
     unsigned white = 0xFFFFFFFFu;
-    CHECK_EQ(mesh_shade_color(white, 255, up, &light), 0xFFFFFFFFu);      /* полный свет */
-    CHECK_EQ(mesh_shade_color(white, 255, side, &light), 0xFF808080u);    /* только ambient */
-    CHECK_EQ(mesh_shade_color(0xFF0000FFu, 255, up, &light) & 0xFFFFFFu, 0x0000FFu); /* красный */
-    CHECK_EQ(mesh_shade_color(white, 0, up, &light), 0xFF000000u);        /* ao = 0 */
+    /* Палитра-пустышка: белый верх, чёрная тень — так видно вклад каждого слагаемого. */
+    palette_t pal;
+    memset(&pal, 0, sizeof pal);
+    for (int k = 0; k < PAL_SLOTS; k++) pal.slots[k] = 0xFF000000u;
+    pal.slots[SLOT_TOP] = white;
+    pal.slots[SLOT_SHADOW] = 0xFF000000u;
+
+    /* Полный свет и полное солнце: небесного подсвета нет, цвет — чистый белый. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 255, up, &light), 0xFFFFFFFFu);
+    /* Грань в сторону: только ambient, и половина его уходит в чёрный тон тени. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 255, side, &light), 0xFF404040u);
+    /* Та же грань, но солнце перекрыто тенью — прямого света и так не было. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 0, side, &light), 0xFF404040u);
+    /* Верхняя грань в тени: прямой свет погашен, остаётся приглушённый ambient. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 0, up, &light), 0xFF404040u);
+    /* AO = 0 гасит всё. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 0, 255, up, &light), 0xFF000000u);
 }
 
 TEST(test_mesh_file) {

@@ -12,6 +12,7 @@
 """
 import argparse
 import csv
+import math
 import re
 import struct
 import sys
@@ -62,12 +63,41 @@ NO_STR32 = 0xFFFFFFFF
 TRI_BUDGET = 4000     # docs/TECH.md §2.4: остров 2500–4000 треугольников
 
 # --- запечённое затенение ---
-AO_TOP_STEP = 38       # за каждого соседа выше у угла верхней грани
-AO_TOP_MIN = 110
-AO_WALL_TOP = 255
-AO_WALL_VOID = 140     # низ стены, уходящей в пустоту
-AO_WALL_STEP = 190     # низ стены до соседней клетки
+# Всё освещение острова живёт в цвете вершин: шейдеров на PSP нет, а per-pixel
+# ничего посчитать нельзя. Поэтому здесь печётся три вещи сразу: контактное
+# затенение в углах, падающая тень от солнца и карниз — светлая полоса по верху
+# каждой стены. Именно карниз и падающая тень отличают «дорогую» изометрию от
+# набора кубиков: у объёма появляется кромка, у сцены — направление света.
+AO_TOP_STEP = 34       # за каждого соседа выше у угла верхней грани
+AO_TOP_MIN = 96
+AO_WALL_TOP = 255      # верх стены (под карнизом)
+AO_WALL_VOID = 96      # низ стены, уходящей в пустоту — почти чёрный: остров парит
+AO_WALL_STEP = 168     # низ стены до соседней клетки
 AO_WATER = 235         # водная поверхность затеняется слабее
+
+# Направление НА солнце для запечённой тени. По XZ совпадает с направлением света
+# в core/game.c, но ниже по высоте: высокое солнце даёт короткие тени, а длинная
+# тень — главный признак объёма в изометрии. Тень строго техническая: она только
+# темнит верхние грани, геометрии не добавляет.
+SHADOW_DIR = (0.62, 0.46, 0.34)
+SHADOW_MAX_CELLS = 14  # дальше не маршируем: тень всё равно теряется в тумане
+SHADOW_CORE = 0.64     # во сколько раз темнее верх клетки в полной тени
+SHADOW_EDGE = 0.84     # полутень: клетка, куда тень только дотянулась
+
+# Карниз: узкая светлая полоса по верху стены. Высота в мировых единицах;
+# если стена ниже, карниз занимает её целиком.
+CORNICE_H = 0.09
+CORNICE_AO = 255       # сам карниз — самое светлое место стены
+WALL_BODY_TOP = 196    # тело стены начинается заметно темнее карниза: видна кромка
+
+# Кладка: верхние грани получают разброс яркости по блокам 2×2 клетки. Без него
+# большая плита читается как один кусок пластика; с ним — как набранная плитами.
+SLAB_JITTER = 10       # ± единиц AO
+# Вынос под верхней гранью там, где стена уходит в пустоту: узкая полка снаружи.
+# Она даёт кромке толщину и тёмную линию под собой — самый дешёвый «дорогой» приём.
+LEDGE_OUT = 0.11       # насколько выступает наружу
+LEDGE_H = 0.13         # высота полки
+LEDGE_DROP = 0.02      # на сколько ниже верхней грани начинается полка
 
 EPS = 1.0e-4
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -191,6 +221,7 @@ class Grid:
         self.base_depth = float(level.get("base_depth", 3.0))
         if self.cell <= 0.0 or self.step <= 0.0:
             fail(f"{where}: cell и step должны быть положительными")
+        self._shadow = None
         self.ox = -self.w * self.cell / 2.0
         self.oz = -self.h * self.cell / 2.0
 
@@ -346,6 +377,48 @@ class Grid:
             return (y0, y0, y1, y1)
         return (base, base, base, base)
 
+    def shadow_map(self):
+        """Доля света на верхней грани каждой клетки: 1 — открыто солнцу, меньше — тень.
+
+        Маршируем от клетки в сторону солнца и смотрим, перекрывает ли кто-то луч.
+        Луч поднимается на (L.y / |L.xz|) мировых единиц за клетку, поэтому высокая
+        стена рядом даёт короткую тень, а далёкая башня — длинную. Полутень на
+        последней клетке даёт мягкий край вместо ступеньки.
+        """
+        if self._shadow is not None:
+            return self._shadow
+        lx, ly, lz = SHADOW_DIR
+        flat = math.hypot(lx, lz)
+        if flat < 1e-6:
+            self._shadow = [[1.0] * self.w for _ in range(self.h)]
+            return self._shadow
+        dx, dz = lx / flat, lz / flat
+        rise = (ly / flat) * self.cell          # на сколько луч поднимается за клетку
+        shadow = [[1.0] * self.w for _ in range(self.h)]
+        for z in range(self.h):
+            for x in range(self.w):
+                if self.height[z][x] is None:
+                    continue
+                y = self.top(x, z)
+                blocked = 0.0
+                for i in range(1, SHADOW_MAX_CELLS + 1):
+                    nx = int(math.floor(x + 0.5 + dx * i))
+                    nz = int(math.floor(z + 0.5 + dz * i))
+                    if not (0 <= nx < self.w and 0 <= nz < self.h):
+                        break
+                    n = self.height[nz][nx]
+                    if n is None:
+                        continue
+                    if self.top(nx, nz) > y + rise * i + EPS:
+                        blocked = SHADOW_CORE if i > 1 else SHADOW_EDGE
+                        # чем ближе преграда, тем плотнее тень
+                        if i > 2:
+                            blocked = SHADOW_CORE + (SHADOW_EDGE - SHADOW_CORE) * min(1.0, (i - 2) / 6.0)
+                        break
+                shadow[z][x] = blocked if blocked else 1.0
+        self._shadow = shadow
+        return shadow
+
     def surface_y(self, fx, fz):
         """Высота поверхности в дробных координатах клеток (для посадки сущностей)."""
         x, z = int(fx // 1), int(fz // 1)
@@ -363,25 +436,75 @@ class Grid:
 
 # -------------------------------------------------------------------- геометрия
 
-def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom):
+def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255):
     """Стена между верхним ребром (pa→pb) и нижним — теми же (x, z) на высотах ya_bot/yb_bot.
-    Низ — поверхность соседа, поэтому у рампы боковина выходит треугольником и щелей нет."""
+    Низ — поверхность соседа, поэтому у рампы боковина выходит треугольником и щелей нет.
+
+    Стена режется на карниз (светлая полоса CORNICE_H по верху) и тело с градиентом
+    вниз. Ради этой полосы всё и затевалось: без неё стык верхней грани со стеной —
+    просто смена цвета, а с ней у плиты появляется толщина и кромка, ловящая свет."""
     da, db = pa[1] - ya_bot, pb[1] - yb_bot
     if da <= EPS and db <= EPS:
         return
     pa_b = (pa[0], ya_bot, pa[2])
     pb_b = (pb[0], yb_bot, pb[2])
     if da > EPS and db > EPS:
-        mb.quad(pa, pb, pb_b, pa_b, slot,
-                (AO_WALL_TOP, AO_WALL_TOP, ao_bottom, ao_bottom), normal)
+        cut = min(CORNICE_H, da, db)
+        if cut > EPS * 10.0:
+            pa_c = (pa[0], pa[1] - cut, pa[2])
+            pb_c = (pb[0], pb[1] - cut, pb[2])
+            mb.quad(pa, pb, pb_c, pa_c, slot,
+                    (CORNICE_AO, CORNICE_AO, CORNICE_AO, CORNICE_AO), normal, sun)
+            mb.quad(pa_c, pb_c, pb_b, pa_b, slot,
+                    (WALL_BODY_TOP, WALL_BODY_TOP, ao_bottom, ao_bottom), normal, sun)
+        else:
+            mb.quad(pa, pb, pb_b, pa_b, slot,
+                    (AO_WALL_TOP, AO_WALL_TOP, ao_bottom, ao_bottom), normal, sun)
         return
     # верх и низ пересекаются внутри ребра — делим его в точке совпадения
     t = da / (da - db)
     mid = (pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t, pa[2] + (pb[2] - pa[2]) * t)
     if da > EPS:
-        mb.tri(pa, mid, pa_b, slot, (AO_WALL_TOP, ao_bottom, ao_bottom), normal)
+        mb.tri(pa, mid, pa_b, slot, (AO_WALL_TOP, ao_bottom, ao_bottom), normal, sun)
     else:
-        mb.tri(mid, pb, pb_b, slot, (ao_bottom, AO_WALL_TOP, ao_bottom), normal)
+        mb.tri(mid, pb, pb_b, slot, (ao_bottom, AO_WALL_TOP, ao_bottom), normal, sun)
+
+
+def _slab_delta(x, z):
+    """Разброс яркости плиты по блокам 2×2: детерминированный, без шума по клеткам."""
+    h = ((x >> 1) * 73856093) ^ ((z >> 1) * 19349663)
+    return SLAB_JITTER if (h >> 5) & 1 else -SLAB_JITTER
+
+
+def _ledge(mb, x0, x1, z0, z1, y_top, side, slot, sun):
+    """Полка-вынос снаружи стены, уходящей в пустоту. side — 'e', 'w', 'n', 's'."""
+    top = y_top - LEDGE_DROP
+    bot = top - LEDGE_H
+    if side == "e":
+        a0, a1 = (x1, top, z0), (x1 + LEDGE_OUT, top, z0)
+        b0, b1 = (x1, top, z1), (x1 + LEDGE_OUT, top, z1)
+    elif side == "w":
+        a0, a1 = (x0 - LEDGE_OUT, top, z0), (x0, top, z0)
+        b0, b1 = (x0 - LEDGE_OUT, top, z1), (x0, top, z1)
+    elif side == "s":
+        a0, a1 = (x0, top, z1), (x0, top, z1 + LEDGE_OUT)
+        b0, b1 = (x1, top, z1), (x1, top, z1 + LEDGE_OUT)
+    else:
+        a0, a1 = (x0, top, z0 - LEDGE_OUT), (x0, top, z0)
+        b0, b1 = (x1, top, z0 - LEDGE_OUT), (x1, top, z0)
+
+    # верх полки — светлый, лицевая кромка чуть темнее, низ почти чёрный
+    mb.quad(a0, a1, b1, b0, slot, CORNICE_AO, (0, 1, 0), sun)
+    if side in ("e", "w"):
+        fx = (x1 + LEDGE_OUT) if side == "e" else (x0 - LEDGE_OUT)
+        nx = 1 if side == "e" else -1
+        mb.quad((fx, top, z0), (fx, top, z1), (fx, bot, z1), (fx, bot, z0), slot,
+                (WALL_BODY_TOP, WALL_BODY_TOP, AO_WALL_VOID, AO_WALL_VOID), (nx, 0, 0), sun)
+    else:
+        fz = (z1 + LEDGE_OUT) if side == "s" else (z0 - LEDGE_OUT)
+        nz = 1 if side == "s" else -1
+        mb.quad((x0, top, fz), (x1, top, fz), (x1, bot, fz), (x0, bot, fz), slot,
+                (WALL_BODY_TOP, WALL_BODY_TOP, AO_WALL_VOID, AO_WALL_VOID), (0, 0, nz), sun)
 
 
 def build_mesh(g):
@@ -392,6 +515,7 @@ def build_mesh(g):
     if not heights:
         fail("в карте нет ни одной клетки")
     common = Counter(heights).most_common(1)[0][0]  # «плоскость» острова
+    shadow = g.shadow_map()
 
     for z in range(g.h):
         for x in range(g.w):
@@ -411,6 +535,11 @@ def build_mesh(g):
                         higher += 1
                 return max(AO_TOP_MIN, 255 - AO_TOP_STEP * higher)
 
+            # Падающая тень от солнца едет отдельным байтом вершины: в игре она
+            # гасит только прямой свет, а не весь цвет, поэтому тень остаётся
+            # цветной (небесный подсвет), а не превращается в серое пятно.
+            sun_top = max(0, min(255, int(shadow[z][x] * 255.0 + 0.5)))
+
             if g.water[z][x] and not g.afloat[z][x]:
                 slot_top, ao_top = SLOT_WATER, (AO_WATER,) * 4
             else:
@@ -420,7 +549,9 @@ def build_mesh(g):
                     slot_top = SLOT_TOP_ALT         # уступы выделяются вариантом верха
                 else:
                     slot_top = SLOT_TOP
-                ao_top = (corner_ao(-1, -1), corner_ao(1, -1), corner_ao(1, 1), corner_ao(-1, 1))
+                slab = _slab_delta(x, z)
+                ao_top = tuple(max(24, min(255, corner_ao(dx, dz) + slab))
+                               for dx, dz in ((-1, -1), (1, -1), (1, 1), (-1, 1)))
 
             # нормаль верхней грани: у рампы наклонная, иначе строго вверх
             axis, ry0, ry1 = g.ramp(x, z)
@@ -431,7 +562,7 @@ def build_mesh(g):
             else:
                 normal_top = (0.0, 1.0, 0.0)
             mb.quad((x0, y00, z0), (x1, y10, z0), (x1, y11, z1), (x0, y01, z1),
-                    slot_top, ao_top, normal_top)
+                    slot_top, ao_top, normal_top, sun_top)
 
             # стены: к соседям ниже и в пустоту; низ ребра — поверхность соседа
             for dx, dz, opp, normal, pa, pb in (
@@ -446,7 +577,10 @@ def build_mesh(g):
                 else:
                     ya, yb = base_y, base_y
                     ao_bottom = AO_WALL_VOID
-                _wall(mb, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom)
+                    # Край острова: под верхней грань уходит полка-вынос.
+                    side = {"w": "e", "e": "w", "n": "s", "s": "n"}[opp]
+                    _ledge(mb, x0, x1, z0, z1, min(pa[1], pb[1]), side, slot_top, sun_top)
+                _wall(mb, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top)
     return mb
 
 
@@ -476,6 +610,100 @@ def as_pair(value, field):
             fail(f"{field}: нужны числа, получено {value!r}")
         out.append(float(v))
     return out
+
+
+# ------------------------------------------------------------------- декор
+
+# Декор — чистая геометрия: ни сущностей, ни логики, ни флагов. Именно он отличает
+# «выдавленную карту высот» от построенного места: арка над мостом задаёт вход,
+# колонна держит взгляд, полотнище даёт вертикаль и единственное пятно цвета.
+PROP_TYPES = ("column", "arch", "banner", "obelisk")
+
+
+def _prop_column(mb, height, slot, accent):
+    """Колонна: база, ствол с сужением, капитель."""
+    r = 0.17
+    mb.box((0.0, 0.07, 0.0), (0.52, 0.14, 0.52), slot, ao_top=250, ao_side=215, ao_bottom=150)
+    mb.prism((0.0, 0.14 + height * 0.5, 0.0), r, height, 8, slot,
+             ao_top=245, ao_side=225, ao_bottom=170)
+    mb.box((0.0, 0.14 + height + 0.06, 0.0), (0.46, 0.12, 0.46), slot,
+           ao_top=255, ao_side=230, ao_bottom=160)
+    mb.box((0.0, 0.14 + height + 0.15, 0.0), (0.30, 0.06, 0.30), accent,
+           ao_top=255, ao_side=235, ao_bottom=180)
+
+
+def _prop_arch(mb, height, slot, accent):
+    """Арка: две опоры и перекладина со ступенчатым замком — проём вдоль оси X."""
+    span = 1.05
+    for sx in (-span, span):
+        mb.box((sx, height * 0.5, 0.0), (0.34, height, 0.40), slot,
+               ao_top=248, ao_side=218, ao_bottom=150)
+    mb.box((0.0, height + 0.13, 0.0), (span * 2.0 + 0.34, 0.26, 0.44), slot,
+           ao_top=255, ao_side=226, ao_bottom=168)
+    mb.box((0.0, height + 0.33, 0.0), (0.7, 0.14, 0.34), slot,
+           ao_top=255, ao_side=232, ao_bottom=176)
+    mb.box((0.0, height + 0.44, 0.0), (0.24, 0.08, 0.24), accent,
+           ao_top=255, ao_side=240, ao_bottom=190)
+
+
+def _prop_banner(mb, height, slot, accent):
+    """Полотнище на шесте: вертикаль и единственное пятно цвета."""
+    mb.prism((0.0, height * 0.5, 0.0), 0.06, height, 6, slot, ao_top=240, ao_side=210)
+    mb.box((0.18, height - 0.06, 0.0), (0.40, 0.08, 0.10), slot, ao_top=250, ao_side=220)
+    # полотно сужается книзу: два четырёхугольника, чтобы был виден излом
+    top_y, mid_y, bot_y = height - 0.12, height - 0.62, height - 1.02
+    for nz in (0.05, -0.05):
+        n = (0.0, 0.0, 1.0 if nz > 0 else -1.0)
+        mb.quad((0.06, top_y, nz), (0.40, top_y, nz), (0.36, mid_y, nz), (0.08, mid_y, nz),
+                accent, (255, 245, 215, 220), n)
+        mb.quad((0.08, mid_y, nz), (0.36, mid_y, nz), (0.22, bot_y, nz), (0.14, bot_y, nz),
+                accent, (215, 205, 165, 165), n)
+
+
+def _prop_obelisk(mb, height, slot, accent):
+    """Обелиск: сужающийся столб с золотой верхушкой — вертикальный акцент издалека."""
+    mb.box((0.0, 0.09, 0.0), (0.66, 0.18, 0.66), slot, ao_top=250, ao_side=215, ao_bottom=150)
+    mb.prism((0.0, 0.18 + height * 0.5, 0.0), 0.22, height, 4, slot,
+             ao_top=245, ao_side=222, ao_bottom=165)
+    mb.prism((0.0, 0.18 + height + 0.16, 0.0), 0.16, 0.32, 4, accent,
+             ao_top=255, ao_side=238, ao_bottom=190)
+
+
+_PROP_BUILDERS = {
+    "column": _prop_column,
+    "arch": _prop_arch,
+    "banner": _prop_banner,
+    "obelisk": _prop_obelisk,
+}
+
+
+def build_props(mb, level, g, where):
+    """Ставит декор из [[prop]] на поверхность острова."""
+    items = level.get("prop", [])
+    if not isinstance(items, list):
+        fail(f"{where}: [[prop]] должен быть массивом таблиц")
+    for i, p in enumerate(items):
+        tag = f"{where}: prop #{i + 1}"
+        kind = p.get("type")
+        if kind not in _PROP_BUILDERS:
+            fail(f"{tag}: type = {kind!r}, известны {', '.join(PROP_TYPES)}")
+        fx, fz = as_pair(p.get("cell"), f"{tag}: cell")
+        y = g.surface_y(fx, fz)
+        if y is None:
+            fail(f"{tag}: клетка ({fx}, {fz}) пуста — декору не на чем стоять")
+        yaw = float(p.get("yaw", 0.0))
+        scale = float(p.get("scale", 1.0))
+        if not (0.2 <= scale <= 4.0):
+            fail(f"{tag}: scale = {scale}, допустимо 0,2..4,0")
+        height = float(p.get("height", 1.6))
+        if not (0.3 <= height <= 12.0):
+            fail(f"{tag}: height = {height}, допустимо 0,3..12,0")
+        wx, wz = g.world(fx, fz)
+        slot = SLOT_TOP_ALT if p.get("dark") else SLOT_TOP
+        mb.push((wx, y, wz), yaw_deg=yaw, scale=scale)
+        _PROP_BUILDERS[kind](mb, height, slot, SLOT_ACCENT)
+        mb.pop()
+    return len(items)
 
 
 def build_cells(g):
@@ -641,6 +869,7 @@ def compile_level(src, out_dir):
     lvl_path.write_bytes(header + cells + entities + links + portals)
 
     mb = build_mesh(g)
+    prop_count = build_props(mb, level, g, where)
     msh_path = out_dir / (src.stem + ".msh")
     mb.write(msh_path)
     tris = len(mb) // 3
@@ -651,7 +880,8 @@ def compile_level(src, out_dir):
     print(f"{src.stem}: {g.w}x{g.h} клеток ({walk_cells} проходимых), "
           f"{ent_count} сущностей, {link_count} связей, {portal_count} порталов "
           f"-> {lvl_path.name} ({lvl_path.stat().st_size} Б)")
-    print(f"{src.stem}: {len(mb)} вершин, {tris} треугольников -> {msh_path.name} "
+    print(f"{src.stem}: {len(mb)} вершин, {tris} треугольников, {prop_count} декора"
+          f" -> {msh_path.name} "
           f"({msh_path.stat().st_size} Б)"
           + (f", предупреждений: {_warnings}" if _warnings else ""))
     return lvl_path, msh_path

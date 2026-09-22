@@ -134,27 +134,38 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
     unsigned body_c = pal->slots[SLOT_TOP];
     unsigned dim_c = pal->slots[SLOT_TOP_ALT];
 
+    unsigned shade = pal->slots[SLOT_SHADOW] & 0x00FFFFFFu;
+
     switch (s->current) {
     case SCR_TITLE:
-        frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 44, 86, title_c, "%s", STR(STR_TITLE));
-        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 110, dim_c, "%s", STR(STR_HUB_CAPTION));
-        build_menu(s, f, pal, lang, 158);
+        /* Левая колонка под текст: плашка с градиентом, название плакатным кеглем,
+         * тонкая линейка акцентом и меню под ней. Без подложки текст на изометрии
+         * читается плохо, а экран выглядит как отладочный. */
+        frame_push_panel(f, 0, 0, 268, SCR_H, (176u << 24) | shade, (96u << 24) | shade);
+        frame_push_text_shadow(f, FONT_DISPLAY, TEXT_LEFT, 40, 96, title_c, "%s", STR(STR_TITLE));
+        frame_push_panel(f, 40, 108, 150, 2, (220u << 24) | (pal->slots[SLOT_ACCENT] & 0x00FFFFFFu),
+                         (60u << 24) | (pal->slots[SLOT_ACCENT] & 0x00FFFFFFu));
+        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 40, 132, dim_c, "%s", STR(STR_HUB_CAPTION));
+        build_menu(s, f, pal, lang, 176);
         break;
     case SCR_PAUSE:
+        frame_push_panel(f, 0, 0, 268, SCR_H, (176u << 24) | shade, (96u << 24) | shade);
         frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 44, 86, title_c, "%s", STR(STR_PAUSE_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 112, dim_c,
                                i18n_str(STR_EYE_COUNT_OF), eyes, eyes_total);
         build_menu(s, f, pal, lang, 158);
         break;
     case SCR_CHOICE:
-        frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 44, 92, title_c, "%s", STR(STR_CHOICE_TITLE));
+        frame_push_panel(f, 0, 0, 300, SCR_H, (196u << 24) | shade, (120u << 24) | shade);
+        frame_push_text_shadow(f, FONT_DISPLAY, TEXT_LEFT, 40, 96, title_c, "%s", STR(STR_CHOICE_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 118, dim_c, "%s", STR(STR_CHOICE_LINE));
         if (s->frames > 60) build_menu(s, f, pal, lang, 166);
         break;
     case SCR_ENDING:
-        frame_push_text_shadow(f, FONT_TITLE, TEXT_CENTER, SCR_W / 2, 118, title_c, "%s",
+        frame_push_panel(f, 0, 86, SCR_W, 96, (150u << 24) | shade, (150u << 24) | shade);
+        frame_push_text_shadow(f, FONT_DISPLAY, TEXT_CENTER, SCR_W / 2, 132, title_c, "%s",
                                STR(s->ending_variant ? STR_ENDING_B_TITLE : STR_ENDING_A_TITLE));
-        frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 150, body_c, "%s",
+        frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 164, body_c, "%s",
                                STR(s->ending_variant ? STR_ENDING_B_LINE : STR_ENDING_A_LINE));
         if (s->frames > 90) {
             frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, SCR_H - 28, dim_c,
@@ -162,7 +173,8 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
         }
         break;
     case SCR_CREDITS:
-        frame_push_text_shadow(f, FONT_TITLE, TEXT_CENTER, SCR_W / 2, 110, title_c, "%s", STR(STR_TITLE));
+        frame_push_panel(f, 0, 70, SCR_W, 120, (160u << 24) | shade, (160u << 24) | shade);
+        frame_push_text_shadow(f, FONT_DISPLAY, TEXT_CENTER, SCR_W / 2, 118, title_c, "%s", STR(STR_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 140, body_c, "%s", STR(STR_CREDITS_LINE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_CENTER, SCR_W / 2, 162, dim_c,
                                i18n_str(STR_EYE_COUNT_OF), eyes, eyes_total);

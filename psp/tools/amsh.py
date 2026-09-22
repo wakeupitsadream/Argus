@@ -2,7 +2,8 @@
 """amsh.py — построитель мешей и запись формата AMSH v1 (см. docs/FORMATS.md).
 
 Общий модуль для tools/levelc.py (геометрия островов) и tools/meshgen.py (примитивы объектов).
-Вершины хранят слот палитры и запечённый AO, цвета считаются в игре при загрузке.
+Вершины хранят слот палитры, запечённый AO и видимость солнца (падающая тень),
+цвета считаются в игре при загрузке.
 Обход граней — против часовой стрелки при взгляде снаружи (рендер включает GU_CCW).
 
 Слоты палитры (индексы в palettes.toml):
@@ -16,7 +17,7 @@ MAGIC = b"AMSH"
 VERSION = 1
 FMT_STATIC = 1
 HEADER_SIZE = 64
-VERTEX_FMT = "<3f3fBBH"
+VERTEX_FMT = "<3f3fBBBB"  # позиция, нормаль, слот, AO, видимость солнца, резерв
 VERTEX_SIZE = struct.calcsize(VERTEX_FMT)
 assert VERTEX_SIZE == 28, VERTEX_SIZE
 
@@ -80,26 +81,34 @@ class MeshBuilder:
 
     # --- базовые грани ---
 
-    def tri(self, a, b, c, slot, ao=(255, 255, 255), normal=None):
+    def tri(self, a, b, c, slot, ao=(255, 255, 255), normal=None, sun=255):
         """Треугольник; порядок вершин исправляется так, чтобы нормаль совпала с normal
-        (по умолчанию — геометрическая нормаль обхода a→b→c)."""
+        (по умолчанию — геометрическая нормаль обхода a→b→c).
+
+        sun — видимость солнца 0..255 (падающая тень); у объектов всегда 255,
+        карту теней печёт tools/levelc.py."""
         if isinstance(ao, int):
             ao = (ao, ao, ao)
+        if isinstance(sun, int):
+            sun = (sun, sun, sun)
         wa, wb, wc = self._apply_point(a), self._apply_point(b), self._apply_point(c)
         geo = _cross(_sub(wb, wa), _sub(wc, wa))
         n = self._apply_dir(normal) if normal else _norm(geo)
         if _dot(geo, n) < 0.0:
             wb, wc = wc, wb
             ao = (ao[0], ao[2], ao[1])
-        for p, k in zip((wa, wb, wc), ao):
-            self.verts.append((p[0], p[1], p[2], n[0], n[1], n[2], int(slot), int(k)))
+            sun = (sun[0], sun[2], sun[1])
+        for p, k, sv in zip((wa, wb, wc), ao, sun):
+            self.verts.append((p[0], p[1], p[2], n[0], n[1], n[2], int(slot), int(k), int(sv)))
 
-    def quad(self, p0, p1, p2, p3, slot, ao=(255, 255, 255, 255), normal=None):
+    def quad(self, p0, p1, p2, p3, slot, ao=(255, 255, 255, 255), normal=None, sun=255):
         """Четырёхугольник по контуру p0→p1→p2→p3."""
         if isinstance(ao, int):
             ao = (ao,) * 4
-        self.tri(p0, p1, p2, slot, (ao[0], ao[1], ao[2]), normal)
-        self.tri(p0, p2, p3, slot, (ao[0], ao[2], ao[3]), normal)
+        if isinstance(sun, int):
+            sun = (sun,) * 4
+        self.tri(p0, p1, p2, slot, (ao[0], ao[1], ao[2]), normal, (sun[0], sun[1], sun[2]))
+        self.tri(p0, p2, p3, slot, (ao[0], ao[2], ao[3]), normal, (sun[0], sun[2], sun[3]))
 
     # --- примитивы ---
 
@@ -223,7 +232,7 @@ class MeshBuilder:
         header = struct.pack("<4sIII6f", MAGIC, VERSION, FMT_STATIC, len(self.verts),
                              lo[0], lo[1], lo[2], hi[0], hi[1], hi[2])
         header += b"\0" * (HEADER_SIZE - len(header))
-        body = b"".join(struct.pack(VERTEX_FMT, *v[:6], v[6], v[7], 0) for v in self.verts)
+        body = b"".join(struct.pack(VERTEX_FMT, *v[:6], v[6], v[7], v[8], 0) for v in self.verts)
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         Path(path).write_bytes(header + body)
         return len(self.verts)

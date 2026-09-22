@@ -177,3 +177,72 @@ cell = [0, 10]
 size = [2, 4]
 to = "library_1"
 entry = 140
+
+# --- декор: арки на въездах с мостов, колоннада вокруг площадки, полотнища у монумента ---
+# Декор — только геометрия: ни сущностей, ни флагов, ни коллизий (tools/levelc.py, [[prop]]).
+
+[[prop]]
+type = "arch"
+cell = [12.0, 5.5]
+yaw = 0.0
+height = 1.9
+
+[[prop]]
+type = "arch"
+cell = [12.0, 18.5]
+yaw = 0.0
+height = 1.9
+
+[[prop]]
+type = "arch"
+cell = [5.5, 12.0]
+yaw = 90.0
+height = 1.9
+
+[[prop]]
+type = "arch"
+cell = [18.5, 12.0]
+yaw = 90.0
+height = 1.9
+
+[[prop]]
+type = "column"
+cell = [9.5, 9.5]
+height = 1.7
+
+[[prop]]
+type = "column"
+cell = [14.5, 9.5]
+height = 1.7
+
+[[prop]]
+type = "column"
+cell = [9.5, 14.5]
+height = 1.7
+
+[[prop]]
+type = "column"
+cell = [14.5, 14.5]
+height = 1.7
+
+[[prop]]
+type = "banner"
+cell = [10.5, 11.5]
+yaw = 90.0
+height = 2.4
+
+[[prop]]
+type = "banner"
+cell = [13.5, 12.5]
+yaw = -90.0
+height = 2.4
+
+[[prop]]
+type = "obelisk"
+cell = [7.5, 7.5]
+height = 2.6
+
+[[prop]]
+type = "obelisk"
+cell = [16.5, 16.5]
+height = 2.6

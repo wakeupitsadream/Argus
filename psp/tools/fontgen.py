@@ -34,9 +34,17 @@ ALIGN = 16           # выравнивание пикселей (и табли�
 BODY_SIZE = 15       # корпусный кегль, гарнитура 0
 TITLE_SIZE = 30      # заголовочный кегль, гарнитура 1; уменьшается, если не влез
 TITLE_MIN = 20
+DISPLAY_SIZE = 46    # плакатный кегль, гарнитура 2: только название игры и финалы
+DISPLAY_MIN = 32
+# Плакатной гарнитуре нужен не весь набор: она рисует заголовки капсом. Ограниченный
+# набор экономит больше половины атласа, а именно в атлас всё и упирается.
+DISPLAY_CHARS = ("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                 "0123456789 .,!?:;-—«»'\""
+                 "\ufffd")  # замена для неизвестного символа обязательна в каждой гарнитуре
 
 # Ключи гарнитур в kerning.toml — в порядке индексов гарнитур.
-FACE_KEYS = ("body", "title")
+FACE_KEYS = ("body", "title", "display")
 
 # Кодпоинт-зонд из плоскости 15 (PUA): его нет ни в одном шрифте. Если глиф символа
 # рисуется так же, как зонд, значит шрифт отдал .notdef, то есть символа в шрифте нет.
@@ -455,14 +463,20 @@ def generate(out_path):
     charset = build_charset()
     notes = []  # предупреждения об уменьшении кегля — живут между попытками
 
-    title_size = TITLE_SIZE
+    display_charset = sorted({ord(c) for c in DISPLAY_CHARS} & set(charset))
+    title_size, display_size = TITLE_SIZE, DISPLAY_SIZE
     while True:
         warns = []  # предупреждения по глифам: только от удачной попытки
         faces = [build_face(FONT_TTF, BODY_SIZE, charset, warns, "body"),
-                 build_face(FONT_TTF, title_size, charset, warns, "title")]
+                 build_face(FONT_TTF, title_size, charset, warns, "title"),
+                 build_face(FONT_TTF, display_size, display_charset, warns, "display")]
         atlas, ink = render_atlas(faces)
         if atlas is not None:
             break
+        if display_size > DISPLAY_MIN:
+            display_size -= 2
+            notes.append(f"плакатный кегль уменьшен до {display_size} px: атлас переполнен")
+            continue
         if title_size <= TITLE_MIN:
             raise SystemExit(f"fontgen: атлас {TEX_W}x{TEX_H} мал даже для заголовка {TITLE_MIN} px")
         title_size -= 1

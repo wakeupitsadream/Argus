@@ -52,6 +52,26 @@ static void trim_utf8(char *s) {
     if (need > strlen(s) - (n - 1)) s[n - 1] = 0; /* ведущий байт без хвоста — отбросить */
 }
 
+frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
+                                unsigned color_top, unsigned color_bottom) {
+    if (!f || f->panel_count >= FRAME_MAX_PANELS || w <= 0 || h <= 0) return NULL;
+    frame_panel_t *p = &f->panels[f->panel_count++];
+    p->x = (short)x; p->y = (short)y; p->w = (short)w; p->h = (short)h;
+    p->color_top = color_top;
+    p->color_bottom = color_bottom;
+    return p;
+}
+
+frame_shadow_t *frame_push_shadow(frame_t *f, float x, float y, float z, float radius,
+                                  unsigned char alpha) {
+    if (!f || f->shadow_count >= FRAME_MAX_SHADOWS || radius <= 0.0f || alpha == 0) return NULL;
+    frame_shadow_t *sh = &f->shadows[f->shadow_count++];
+    sh->pos[0] = x; sh->pos[1] = y; sh->pos[2] = z;
+    sh->radius = radius;
+    sh->alpha = alpha;
+    return sh;
+}
+
 frame_mesh_t *frame_push_ghost(frame_t *f, const mesh_t *m, float x, float y, float z, float yaw_deg) {
     if (!m || f->ghost_count >= FRAME_MAX_GHOSTS) return NULL;
     frame_mesh_t *cmd = &f->ghosts[f->ghost_count++];

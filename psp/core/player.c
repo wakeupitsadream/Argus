@@ -93,4 +93,13 @@ void player_build(const player_t *p, frame_t *f, const mesh_t *body, const mesh_
     float dirx = sinf(p->yaw_deg * M3_DEG2RAD), dirz = cosf(p->yaw_deg * M3_DEG2RAD);
     m = frame_push_mesh(f, iris, x + dirx * ahead, head_y, z + dirz * ahead, p->yaw_deg);
     if (m) m->scale = 0.35f + 0.65f * blink;
+
+    /* Око — источник света, а не фигурка: тёплый ореол вокруг головы и яркое ядро
+     * в радужке. Без них персонаж теряется на светлом камне. Ореол гаснет на моргании. */
+    float halo[3] = { x, head_y, z };
+    unsigned halo_a = (unsigned)(70.0f * blink);
+    frame_push_sprite(f, SPRITE_GLOW, halo, 1.15f, (halo_a << 24) | 0x00C8E4FFu);
+    float core[3] = { x + dirx * (ahead + 0.02f), head_y, z + dirz * (ahead + 0.02f) };
+    unsigned core_a = (unsigned)(150.0f * blink);
+    frame_push_sprite(f, SPRITE_SPARK, core, 0.34f, (core_a << 24) | 0x00C8F0FFu);
 }

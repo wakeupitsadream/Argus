@@ -7,12 +7,15 @@
 #define FRAME_MAX_MESHES 48
 #define FRAME_MAX_SPRITES 128
 #define FRAME_MAX_GHOSTS 8
+#define FRAME_MAX_SHADOWS 24
+#define FRAME_MAX_PANELS 8
 #define FRAME_MAX_TEXTS 48
 #define FRAME_TEXT_LEN 96
 #define FRAME_NAME_LEN 32
 
-/* Индексы гарнитур в font.bin: 0 — корпусная, 1 — заголовочная. */
-enum { FONT_BODY = 0, FONT_TITLE = 1 };
+/* Индексы гарнитур в font.bin: 0 — корпусная, 1 — заголовочная, 2 — плакатная
+ * (только капс и цифры: название игры, заголовки финалов). */
+enum { FONT_BODY = 0, FONT_TITLE = 1, FONT_DISPLAY = 2 };
 enum { TEXT_LEFT = 0, TEXT_CENTER = 1, TEXT_RIGHT = 2 };
 /* Виды аддитивных билбордов: свечение глаза, искра, пылинка. */
 enum { SPRITE_GLOW = 0, SPRITE_SPARK = 1, SPRITE_DUST = 2 };
@@ -34,6 +37,13 @@ typedef struct {
     unsigned char kind;
 } frame_sprite_t;
 
+/* Плашка интерфейса: прямоугольник с вертикальным градиентом. Текст поверх плашки
+ * читается на любом фоне, а сам интерфейс перестаёт выглядеть «наклеенным». */
+typedef struct {
+    short x, y, w, h;
+    unsigned color_top, color_bottom; /* 0xAABBGGRR, альфа участвует */
+} frame_panel_t;
+
 typedef struct {
     char utf8[FRAME_TEXT_LEN];
     short x, y;          /* точка пера в пикселях экрана; y — базовая линия */
@@ -41,6 +51,15 @@ typedef struct {
     unsigned char font;  /* FONT_BODY | FONT_TITLE */
     unsigned char align; /* TEXT_LEFT | TEXT_CENTER | TEXT_RIGHT */
 } frame_text_t;
+
+/* Контактная тень: мягкий тёмный диск на полу под объектом. Без неё предметы в
+ * изометрии «висят» — глазу не за что зацепить их высоту. Рисуется полупрозрачной
+ * геометрией с тестом глубины, но без записи в Z. */
+typedef struct {
+    float pos[3];   /* центр диска: точка на полу */
+    float radius;   /* в мировых единицах */
+    unsigned char alpha;
+} frame_shadow_t;
 
 typedef struct {
     float target[3];
@@ -55,6 +74,7 @@ typedef struct {
     float desat;   /* 0..1 — сила обесцвечивания в режиме взгляда (серый квад поверх сцены) */
     float vignette;/* 0..1 — затемнение к краям кадра, цвет берётся от sky_top */
     float curtain; /* 0..1 — чёрный занавес перехода между экранами, поверх всего */
+    unsigned shadow_color; /* цвет контактных теней: тон тени палитры */
 } frame_env_t;
 
 typedef struct {
@@ -68,6 +88,10 @@ typedef struct {
      * (обратный тест глубины). Так Око не теряется за террасами. */
     frame_mesh_t ghosts[FRAME_MAX_GHOSTS];
     int ghost_count;
+    frame_shadow_t shadows[FRAME_MAX_SHADOWS];
+    int shadow_count;
+    frame_panel_t panels[FRAME_MAX_PANELS];
+    int panel_count;
     frame_text_t texts[FRAME_MAX_TEXTS];
     int text_count;
     char shot_name[FRAME_NAME_LEN]; /* непустое — сохранить кадр под этим именем */
@@ -90,5 +114,10 @@ void frame_push_text_shadow(frame_t *f, int font, int align, int x, int y, unsig
     ARGUS_PRINTF(7, 8);
 frame_sprite_t *frame_push_sprite(frame_t *f, int kind, const float pos[3], float size, unsigned color);
 frame_mesh_t *frame_push_ghost(frame_t *f, const mesh_t *m, float x, float y, float z, float yaw_deg);
+/* Плашка под текст; NULL при переполнении пула. */
+frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
+                                unsigned color_top, unsigned color_bottom);
+/* Контактная тень под объектом; NULL при переполнении пула. */
+frame_shadow_t *frame_push_shadow(frame_t *f, float x, float y, float z, float radius, unsigned char alpha);
 
 #endif

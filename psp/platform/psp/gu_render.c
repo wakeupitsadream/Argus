@@ -77,52 +77,129 @@ static unsigned tint_white(unsigned c, float k, unsigned alpha) {
 
 /* Плоские диски-луны на небе: дают кадру композиционный якорь и «нарисованность».
  * Цвет берётся из палитры региона, поэтому небо каждого региона своё. */
-static void draw_sky_discs(const frame_env_t *env) {
-    static const struct { float x, y, r; float tint; unsigned alpha; } DISCS[] = {
-        { 366.0f, 58.0f, 44.0f, 0.55f, 38u },
-        { 128.0f, 36.0f, 13.0f, 0.75f, 30u },
-    };
-    const int segs = 20;
-    for (unsigned d = 0; d < sizeof DISCS / sizeof DISCS[0]; d++) {
-        unsigned color = tint_white(env->sky_bottom, DISCS[d].tint, DISCS[d].alpha);
-        vtx2d_t *v = (vtx2d_t *)sceGuGetMemory((int)(3 * segs * sizeof(vtx2d_t)));
-        if (!v) return;
-        for (int i = 0; i < segs; i++) {
-            float a0 = 6.2831853f * (float)i / (float)segs;
-            float a1 = 6.2831853f * (float)(i + 1) / (float)segs;
-            v[i * 3 + 0] = (vtx2d_t){ color, DISCS[d].x, DISCS[d].y, 0.0f };
-            v[i * 3 + 1] = (vtx2d_t){ color, DISCS[d].x + cosf(a0) * DISCS[d].r,
-                                      DISCS[d].y + sinf(a0) * DISCS[d].r, 0.0f };
-            v[i * 3 + 2] = (vtx2d_t){ color, DISCS[d].x + cosf(a1) * DISCS[d].r,
-                                      DISCS[d].y + sinf(a1) * DISCS[d].r, 0.0f };
-        }
-        sceGuEnable(GU_BLEND);
-        sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
-        sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
-                       3 * segs, 0, v);
-        sceGuDisable(GU_BLEND);
+/* ——— небо ———
+ * Небо занимает половину кадра, поэтому от него зависит, выглядит ли сцена дорогой.
+ * Рисуется целиком гуро-геометрией, без текстур: полосатый градиент с нелинейным
+ * профилем, тёплая дымка у горизонта, солнце с ореолом и несколько мягких облачных
+ * полос. Всё — 2D, глубина выключена, порядок сверху вниз. */
+
+#define SKY_BANDS 6       /* полос градиента: больше — меньше ступенек на 8888 */
+#define SUN_X 0.255f      /* положение солнца в долях экрана: слева, вдали от HUD */
+#define SUN_Y 0.165f
+#define SUN_R 26.0f
+#define SUN_RINGS 6
+
+/* Линейная смесь двух цветов 0xAABBGGRR по k = 0..1 (альфа берётся из a). */
+static unsigned mix_rgb(unsigned c0, unsigned c1, float k, unsigned a) {
+    if (k < 0.0f) k = 0.0f;
+    if (k > 1.0f) k = 1.0f;
+    unsigned out = a << 24;
+    for (int i = 0; i < 3; i++) {
+        float v0 = (float)((c0 >> (8 * i)) & 0xFFu), v1 = (float)((c1 >> (8 * i)) & 0xFFu);
+        unsigned v = (unsigned)(v0 + (v1 - v0) * k + 0.5f);
+        if (v > 255u) v = 255u;
+        out |= v << (8 * i);
     }
+    return out;
+}
+
+/* Полоса-капсула с мягкими краями: по краям альфа нулевая, в середине — full.
+ * Из таких полос собираются облака и дымка у горизонта. */
+static void sky_band(float cx, float cy, float half_w, float half_h, unsigned color, unsigned alpha) {
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(18 * sizeof(vtx2d_t));
+    if (!v) return;
+    unsigned mid = (alpha << 24) | (color & 0x00FFFFFFu);
+    unsigned edge = color & 0x00FFFFFFu;  /* альфа 0 */
+    float x0 = cx - half_w, x1 = cx - half_w * 0.35f, x2 = cx + half_w * 0.35f, x3 = cx + half_w;
+    float y0 = cy - half_h, y1 = cy + half_h;
+    const float xs[4] = { x0, x1, x2, x3 };
+    const unsigned cs[4] = { edge, mid, mid, edge };
+    int n = 0;
+    for (int i = 0; i < 3; i++) {
+        v[n++] = (vtx2d_t){ cs[i], xs[i], y0, 0.0f };
+        v[n++] = (vtx2d_t){ cs[i + 1], xs[i + 1], y0, 0.0f };
+        v[n++] = (vtx2d_t){ cs[i + 1], xs[i + 1], y1, 0.0f };
+        v[n++] = (vtx2d_t){ cs[i], xs[i], y0, 0.0f };
+        v[n++] = (vtx2d_t){ cs[i + 1], xs[i + 1], y1, 0.0f };
+        v[n++] = (vtx2d_t){ cs[i], xs[i], y1, 0.0f };
+    }
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
+}
+
+/* Диск из треугольного веера: солнце и его ореол. */
+static void sky_disc(float cx, float cy, float r, unsigned color, unsigned a_center, unsigned a_edge) {
+    const int segs = 24;
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory((int)(3 * segs * sizeof(vtx2d_t)));
+    if (!v) return;
+    unsigned c_in = (a_center << 24) | (color & 0x00FFFFFFu);
+    unsigned c_out = (a_edge << 24) | (color & 0x00FFFFFFu);
+    for (int i = 0; i < segs; i++) {
+        float a0 = 6.2831853f * (float)i / (float)segs;
+        float a1 = 6.2831853f * (float)(i + 1) / (float)segs;
+        v[i * 3 + 0] = (vtx2d_t){ c_in, cx, cy, 0.0f };
+        v[i * 3 + 1] = (vtx2d_t){ c_out, cx + cosf(a0) * r, cy + sinf(a0) * r, 0.0f };
+        v[i * 3 + 2] = (vtx2d_t){ c_out, cx + cosf(a1) * r, cy + sinf(a1) * r, 0.0f };
+    }
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 3 * segs, 0, v);
 }
 
 static void draw_sky(const frame_env_t *env) {
-    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * sizeof(vtx2d_t));
-    if (!v) return;
     sceGuDisable(GU_TEXTURE_2D);
     sceGuDisable(GU_BLEND);
     sceGuDisable(GU_LIGHTING);
-    const float x0 = 0.0f, x1 = (float)SCR_WIDTH, y0 = 0.0f, y1 = (float)SCR_HEIGHT;
-    v[0] = (vtx2d_t){ env->sky_top, x0, y0, 0.0f };
-    v[1] = (vtx2d_t){ env->sky_top, x1, y0, 0.0f };
-    v[2] = (vtx2d_t){ env->sky_bottom, x1, y1, 0.0f };
-    v[3] = (vtx2d_t){ env->sky_top, x0, y0, 0.0f };
-    v[4] = (vtx2d_t){ env->sky_bottom, x1, y1, 0.0f };
-    v[5] = (vtx2d_t){ env->sky_bottom, x0, y1, 0.0f };
     sceGuDisable(GU_DEPTH_TEST);
     sceGuDepthMask(GU_TRUE);
     sceGuDisable(GU_FOG);
     sceGuDisable(GU_CULL_FACE);
-    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 6, 0, v);
-    draw_sky_discs(env);
+    sceGuShadeModel(GU_SMOOTH);
+
+    /* 1. Градиент полосами с нелинейным профилем: тёмная верхушка держится дольше,
+     *    у горизонта цвет разгоняется — так небо читается глубоким, а не плоским. */
+    const float H = (float)SCR_HEIGHT, W = (float)SCR_WIDTH;
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * SKY_BANDS * sizeof(vtx2d_t));
+    if (!v) return;
+    int n = 0;
+    for (int i = 0; i < SKY_BANDS; i++) {
+        float t0 = (float)i / (float)SKY_BANDS, t1 = (float)(i + 1) / (float)SKY_BANDS;
+        float y0 = t0 * H, y1 = t1 * H;
+        unsigned c0 = mix_rgb(env->sky_top, env->sky_bottom, t0 * t0 * (3.0f - 2.0f * t0), 255u);
+        unsigned c1 = mix_rgb(env->sky_top, env->sky_bottom, t1 * t1 * (3.0f - 2.0f * t1), 255u);
+        v[n++] = (vtx2d_t){ c0, 0.0f, y0, 0.0f };
+        v[n++] = (vtx2d_t){ c0, W, y0, 0.0f };
+        v[n++] = (vtx2d_t){ c1, W, y1, 0.0f };
+        v[n++] = (vtx2d_t){ c0, 0.0f, y0, 0.0f };
+        v[n++] = (vtx2d_t){ c1, W, y1, 0.0f };
+        v[n++] = (vtx2d_t){ c1, 0.0f, y1, 0.0f };
+    }
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
+
+    /* 2. Всё остальное — полупрозрачными наложениями. */
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+
+    unsigned warm = tint_white(env->sky_bottom, 0.45f, 255u);
+    /* Ореол вокруг солнца: три кольца с падающей альфой. */
+    float sx = W * SUN_X, sy = H * SUN_Y;
+    for (int i = SUN_RINGS; i >= 1; i--) {
+        float r = SUN_R * (0.9f + 1.15f * (float)i);
+        unsigned a = (unsigned)(26.0f / (float)i);   /* внешние кольца почти незаметны */
+        sky_disc(sx, sy, r, warm, a, 0u);
+    }
+    /* Само солнце: ядро с мягким спадом до нуля — резкий край читался бы как ошибка. */
+    sky_disc(sx, sy, SUN_R, tint_white(env->sky_bottom, 0.92f, 255u), 150u, 0u);
+    sky_disc(sx, sy, SUN_R * 0.45f, tint_white(env->sky_bottom, 0.98f, 255u), 190u, 20u);
+
+    /* 3. Облака: широкие мягкие полосы двумя слоями. Тонкая полоса читается как
+     *    линия-артефакт, поэтому высота заметная, а альфа маленькая. */
+    sky_band(W * 0.30f, H * 0.29f, W * 0.34f, 13.0f, warm, 18u);
+    sky_band(W * 0.66f, H * 0.38f, W * 0.30f, 16.0f, warm, 22u);
+    sky_band(W * 0.44f, H * 0.36f, W * 0.46f, 9.0f, warm, 14u);
+    sky_band(W * 0.58f, H * 0.49f, W * 0.40f, 18.0f, warm, 26u);
+
+    /* 4. Дымка у горизонта: воздух между камерой и островом, дальний план отходит. */
+    sky_band(W * 0.5f, H * 0.68f, W * 0.80f, 30.0f, warm, 40u);
+
+    sceGuDisable(GU_BLEND);
     sceGuEnable(GU_CULL_FACE);
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_DEPTH_TEST);
@@ -153,6 +230,41 @@ static void draw_desat(float amount) {
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 6, 0, v);
+    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+    sceGuEnable(GU_DEPTH_TEST);
+}
+
+/* Плашки интерфейса: прямоугольники с вертикальным градиентом под текстом.
+ * Рисуются после сцены и виньетки, но до текста. */
+static void draw_panels(const frame_t *f) {
+    int count = f->panel_count;
+    if (count <= 0) return;
+    if (count > FRAME_MAX_PANELS) count = FRAME_MAX_PANELS;
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory((int)(6 * (unsigned)count * sizeof(vtx2d_t)));
+    if (!v) return;
+    int n = 0;
+    for (int i = 0; i < count; i++) {
+        const frame_panel_t *p = &f->panels[i];
+        float x0 = (float)p->x, y0 = (float)p->y;
+        float x1 = x0 + (float)p->w, y1 = y0 + (float)p->h;
+        v[n++] = (vtx2d_t){ p->color_top, x0, y0, 0.0f };
+        v[n++] = (vtx2d_t){ p->color_top, x1, y0, 0.0f };
+        v[n++] = (vtx2d_t){ p->color_bottom, x1, y1, 0.0f };
+        v[n++] = (vtx2d_t){ p->color_top, x0, y0, 0.0f };
+        v[n++] = (vtx2d_t){ p->color_bottom, x1, y1, 0.0f };
+        v[n++] = (vtx2d_t){ p->color_bottom, x0, y1, 0.0f };
+    }
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_CULL_FACE);
+    sceGuShadeModel(GU_SMOOTH);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
     sceGuDisable(GU_BLEND);
     sceGuEnable(GU_CULL_FACE);
     sceGuDepthMask(GU_FALSE);
@@ -289,6 +401,59 @@ static void draw_meshes(const frame_t *f) {
     sceGuDisable(GU_FOG);
 }
 
+/* Контактные тени: мягкие диски на полу под объектами. Геометрия строится на месте
+ * (веер из SHADOW_SEGS треугольников), цвет — тон тени палитры с альфой в центре и
+ * нулём по краю. Тест глубины включён, запись Z выключена: тень ложится на пол,
+ * но не мешает рисовать то, что стоит на ней. */
+#define SHADOW_SEGS 12
+#define SHADOW_LIFT 0.02f   /* приподнимаем над полом, иначе Z-конфликт с верхней гранью */
+
+static void draw_shadows(const frame_t *f) {
+    int count = f->shadow_count;
+    if (count <= 0) return;
+    if (count > FRAME_MAX_SHADOWS) count = FRAME_MAX_SHADOWS;
+
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_LIGHTING);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_CULL_FACE);        /* диск виден с любой стороны */
+    sceGuEnable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);           /* GU_TRUE = запись Z запрещена */
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuShadeModel(GU_SMOOTH);
+
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+
+    unsigned rgb = f->env.shadow_color & 0x00FFFFFFu;
+    for (int i = 0; i < count; i++) {
+        const frame_shadow_t *sh = &f->shadows[i];
+        vtx_static_t *v = (vtx_static_t *)sceGuGetMemory((int)(3 * SHADOW_SEGS * sizeof(vtx_static_t)));
+        if (!v) break;
+        unsigned c_in = ((unsigned)sh->alpha << 24) | rgb;
+        unsigned c_out = rgb;  /* альфа 0 */
+        float y = sh->pos[1] + SHADOW_LIFT;
+        for (int k = 0; k < SHADOW_SEGS; k++) {
+            float a0 = 6.2831853f * (float)k / (float)SHADOW_SEGS;
+            float a1 = 6.2831853f * (float)(k + 1) / (float)SHADOW_SEGS;
+            v[k * 3 + 0] = (vtx_static_t){ c_in, sh->pos[0], y, sh->pos[2] };
+            v[k * 3 + 1] = (vtx_static_t){ c_out, sh->pos[0] + cosf(a0) * sh->radius, y,
+                                           sh->pos[2] + sinf(a0) * sh->radius };
+            v[k * 3 + 2] = (vtx_static_t){ c_out, sh->pos[0] + cosf(a1) * sh->radius, y,
+                                           sh->pos[2] + sinf(a1) * sh->radius };
+        }
+        sceGumDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
+                        3 * SHADOW_SEGS, 0, v);
+        s_tris += SHADOW_SEGS;
+        s_draws++;
+    }
+
+    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+}
+
 /* Силуэты: рисуем только там, где пиксель уже закрыт более близкой геометрией.
  * Глубина у нас перевёрнута (GU_GEQUAL + DepthRange(65535, 0)), поэтому «дальше» — это GU_LESS. */
 static void draw_ghosts(const frame_t *f) {
@@ -341,11 +506,13 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_sky(&f->env);
     setup_camera(&f->cam);
     draw_meshes(f);
+    draw_shadows(f);            /* контактные тени ложатся на пол под объектами */
     draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
     draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */
     gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
     /* Виньетка — по сцене и свечениям, но до текста: подписи должны остаться чистыми. */
     draw_vignette(f->env.vignette, f->env.sky_top);
+    draw_panels(f);             /* плашки под текст: интерфейс лежит на подложке */
     gu_text_draw(f);            /* 2D-наложение поверх сцены */
     draw_curtain(f->env.curtain); /* занавес перехода — поверх всего, включая текст */
     sceGuFinish();

@@ -41,14 +41,31 @@ static unsigned char scale_channel(unsigned c, float k) {
     return (unsigned char)v;
 }
 
-unsigned mesh_shade_color(unsigned pal_color, unsigned char ao, const float n[3], const light_t *light) {
+unsigned mesh_shade_color(const palette_t *pal, unsigned slot, unsigned char ao,
+                          unsigned char sun, const float n[3], const light_t *light) {
+    if (!pal || !light) return 0xFFFFFFFFu;
+    unsigned pal_color = pal->slots[slot < PAL_SLOTS ? slot : 0];
+    unsigned shadow_color = pal->slots[SLOT_SHADOW];
+
     float ndl = n[0] * light->dir[0] + n[1] * light->dir[1] + n[2] * light->dir[2];
     if (ndl < 0.0f) ndl = 0.0f;
-    float k = ((float)ao / 255.0f) * (light->ambient + light->diffuse * ndl);
-    unsigned r = scale_channel(pal_color & 0xFFu, k);
-    unsigned g = scale_channel((pal_color >> 8) & 0xFFu, k);
-    unsigned b = scale_channel((pal_color >> 16) & 0xFFu, k);
-    return 0xFF000000u | (b << 16) | (g << 8) | r;
+    float sun01 = (float)sun / 255.0f;
+    float direct = light->diffuse * ndl * sun01;      /* прямой свет с учётом падающей тени */
+    float amb = light->ambient;
+    /* Чем меньше прямого света, тем сильнее цвет уводится в тон тени палитры. */
+    float cool = light->sky_mix * (1.0f - ndl * sun01);
+    if (cool < 0.0f) cool = 0.0f;
+    if (cool > 1.0f) cool = 1.0f;
+    float ao01 = (float)ao / 255.0f;
+
+    unsigned out[3];
+    for (int i = 0; i < 3; i++) {
+        float pc = (float)((pal_color >> (8 * i)) & 0xFFu);
+        float sc = (float)((shadow_color >> (8 * i)) & 0xFFu);
+        float v = ao01 * ((pc * (amb + direct)) * (1.0f - cool) + (sc * amb) * cool);
+        out[i] = scale_channel((unsigned)(v + 0.5f), 1.0f);
+    }
+    return 0xFF000000u | (out[2] << 16) | (out[1] << 8) | out[0];
 }
 
 void mesh_recolor(mesh_t *m, const palette_t *pal, const light_t *light) {
@@ -56,8 +73,7 @@ void mesh_recolor(mesh_t *m, const palette_t *pal, const light_t *light) {
     for (int i = 0; i < m->count; i++) {
         const mesh_src_vertex_t *s = &m->src[i];
         float n[3] = { s->nx, s->ny, s->nz };
-        unsigned slot = s->slot < PAL_SLOTS ? s->slot : 0u;
-        m->verts[i].color = mesh_shade_color(pal->slots[slot], s->ao, n, light);
+        m->verts[i].color = mesh_shade_color(pal, s->slot, s->ao, s->sun, n, light);
     }
     plat_gpu_writeback(m->verts, (size_t)m->count * sizeof(vtx_static_t));
 }
