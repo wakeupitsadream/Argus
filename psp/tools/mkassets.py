@@ -39,7 +39,12 @@ def build_palettes(out_dir):
 def build_levels(out_dir):
     levelc = ROOT / "tools" / "levelc.py"
     amsh = ROOT / "tools" / "amsh.py"
-    tool_mtime = max(levelc.stat().st_mtime, amsh.stat().st_mtime)
+    # Свежесть .lvl зависит не только от исходника уровня: коды ENT_* задаёт
+    # assets/entities.toml, коды STR_* — строки, а коды LVL_* — сам набор уровней.
+    # Меняется любой из входов — числа в .lvl устаревают молча.
+    inputs = [levelc, amsh, ROOT / "assets" / "entities.toml", ROOT / "assets" / "strings.csv"]
+    inputs += sorted((ROOT / "assets" / "strings").glob("*.csv"))
+    tool_mtime = max(f.stat().st_mtime for f in inputs if f.exists())
     sources = sorted((ROOT / "levels").glob("*.toml"))
     # Коды LVL_* зависят от алфавитного списка уровней, а они лежат в порталах .lvl:
     # появился новый уровень — все остальные .lvl устарели, даже если их TOML не менялся.

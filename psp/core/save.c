@@ -83,6 +83,9 @@ int save_serialize(const save_data_t *d, void *buf, size_t max, size_t *out_len)
     return 0;
 }
 
+/* Число в разумных пределах и не NaN: сравнение ложно и для NaN, и для бесконечности. */
+static int save_finite(float v) { return v > -1.0e6f && v < 1.0e6f; }
+
 int save_deserialize(save_data_t *d, const void *buf, size_t len) {
     if (!d || !buf || len != SAVE_TOTAL_SIZE) return -1;
     const unsigned char *b = (const unsigned char *)buf;
@@ -112,6 +115,22 @@ int save_deserialize(save_data_t *d, const void *buf, size_t len) {
     get(&p, &tmp.world.eyes_opened, 2);
     get(&p, &tmp.world.small_eyes, 2);
     get(&p, &tmp.world.feathers, 2);
+
+    /* Целостность проверена, но не осмысленность: CRC пересчитывается тривиально,
+     * а карта памяти — вещь, в которую лазят руками. Числа, которыми игра потом
+     * считает клетки и углы, обязаны быть числами: NaN в позиции тихо ломает ходьбу,
+     * бесконечность при переводе в int — неопределённое поведение.
+     * Мусор в пределах разумного (язык, ракурс, счётчики) не отвергаем, а зажимаем:
+     * терять прогресс из-за одного странного байта обиднее, чем начать с хаба. */
+    if (!save_finite(tmp.px) || !save_finite(tmp.py) || !save_finite(tmp.pz) ||
+        !save_finite(tmp.pyaw)) {
+        return -1;
+    }
+    if (tmp.lang < 0 || tmp.lang >= SAVE_LANG_COUNT) tmp.lang = 0;
+    if (tmp.level_index < 0 || tmp.level_index >= SAVE_LEVEL_MAX) tmp.level_index = 0;
+    tmp.cam_angle &= 3;
+    world_set_counts(&tmp.world, (int)tmp.world.eyes_opened, (int)tmp.world.small_eyes,
+                     (int)tmp.world.feathers);
 
     *d = tmp;
     return 0;

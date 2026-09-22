@@ -825,6 +825,82 @@ TEST(test_mech_all_solved) {
     level_free(&pl);
 }
 
+TEST(test_mech_segment_trap) {
+    /* Поворот сегмента из-под собственных ног запрещён: иначе клетка под игроком
+     * становится непроходимой и выбраться с неё уже нельзя. */
+    level_entity_t ents[3];
+    fill_ents(SEG_ROWS, 3, MAP_FLAT, ents);
+    mech_spec_t spec = {0};
+    spec.map = MAP_FLAT;
+    spec.segs = SEGS_MAP;
+    spec.segst = SEGS_STATE;
+    spec.ents = ents;
+    spec.ent_count = 3;
+
+    size_t len = 0;
+    void *blob = build_mech_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+
+    float sx = cell_c(4, M_W), sz5 = cell_c(5, M_H), sz4 = cell_c(4, M_H);
+    /* Состояние 0: игрок стоит на (4,5) — после поворота она закроется. */
+    CHECK_EQ(segment_would_trap(&es, 1, 1, sx, sz5), 1);
+    /* На (4,4) он стоять сейчас не может, но после поворота она откроется — не ловушка. */
+    CHECK_EQ(segment_would_trap(&es, 1, 1, sx, sz4), 0);
+    /* Вне сегмента поворот всегда разрешён. */
+    CHECK_EQ(segment_would_trap(&es, 1, 1, cell_c(1, M_W), cell_c(1, M_H)), 0);
+    /* Поворот на четыре шага возвращает то же состояние — ловушки нет. */
+    CHECK_EQ(segment_would_trap(&es, 1, 4, sx, sz5), 0);
+
+    level_free(&l);
+}
+
+TEST(test_mech_float_on_plate) {
+    /* Плот, приведённый на плиту, давит на неё так же, как обычный блок:
+     * на этом построена головоломка «подвести плавучий блок». */
+    enum { P_PLATE = 1, P_FLOAT = 2, P_DOOR = 3 };
+    static const row_t ROWS[] = {
+        { P_PLATE, ENT_PLATE,       4, 2, 0, 0, 0, 0, 0 },
+        { P_FLOAT, ENT_FLOAT_BLOCK, 4, 2, 0, 0, 0, 0, 0 },
+        { P_DOOR,  ENT_DOOR,        6, 6, 0, 0, 0, 0, 0 },
+    };
+    static const level_link_t LINKS[] = { { P_PLATE, 0, 0, P_DOOR, 0, 0 } };
+    level_entity_t ents[3];
+    fill_ents(ROWS, 3, MAP_FLAT, ents);
+    mech_spec_t spec = {0};
+    spec.map = MAP_FLAT;
+    spec.ents = ents;
+    spec.ent_count = 3;
+    spec.links = LINKS;
+    spec.link_count = 1;
+
+    size_t len = 0;
+    void *blob = build_mech_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+
+    /* Игрок далеко: плиту давит только плот. */
+    plates_update(&es, cell_c(0, M_W), cell_c(0, M_H));
+    entities_propagate(&es);
+    const entity_t *plate = entities_by_id_const(&es, P_PLATE);
+    const entity_t *door = entities_by_id_const(&es, P_DOOR);
+    CHECK(plate != NULL && door != NULL);
+    if (plate && door) {
+        CHECK_EQ(plate->state, 1);
+        CHECK_EQ(door->state, 1); /* дверь открыта сигналом плиты */
+    }
+
+    level_free(&l);
+}
+
 void tests_mech(void) {
     puts("mech puzzle tests");
     RUN(test_mech_block_push);
@@ -834,5 +910,7 @@ void tests_mech(void) {
     RUN(test_mech_water_walk);
     RUN(test_mech_memory);
     RUN(test_mech_segment);
+    RUN(test_mech_segment_trap);
+    RUN(test_mech_float_on_plate);
     RUN(test_mech_all_solved);
 }

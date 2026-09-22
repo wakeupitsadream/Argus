@@ -184,7 +184,48 @@ TEST(test_level_load_bad) {
     CHECK_EQ(level_load(&l, blob, len), -1);
     plat_free(blob);
 
+    /* Не-числа из файла: NaN в спавне и в координате сущности. Без проверки они
+     * доезжают до преобразования в int (неопределённое поведение) и до ходьбы. */
+    float nan_v = 0.0f;
+    unsigned nan_bits = 0x7FC00000u;
+    memcpy(&nan_v, &nan_bits, sizeof nan_v);
+
+    blob = build_level(&spec, &len);
+    put_f32((unsigned char *)blob + 52, nan_v); /* spawn_x */
+    CHECK_EQ(level_load(&l, blob, len), -1);
+    plat_free(blob);
+
+    blob = build_level(&spec, &len);
+    put_f32((unsigned char *)blob + 48, nan_v); /* step_y */
+    CHECK_EQ(level_load(&l, blob, len), -1);
+    plat_free(blob);
+
     CHECK_EQ(level_load(&l, NULL, 0), -1);
+}
+
+TEST(test_level_cell_at_edges) {
+    /* Клетка по мировой точке: ровная граница слева от начала координат не должна
+     * уезжать на клетку вниз (усечение к нулю против floor). */
+    lvl_spec_t spec = {0};
+    spec.w = MAP_W; spec.h = MAP_H; spec.map = MAP5;
+    size_t len = 0;
+    void *blob = build_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+
+    float ox = -(float)l.cells_x * l.cell_size * 0.5f;
+    int cx = -100, cz = -100;
+    /* Левый край клетки 1 по x — ровно одна клетка от начала сетки. */
+    CHECK_EQ(level_cell_at(&l, ox + l.cell_size, 0.0f, &cx, &cz), 1);
+    CHECK_EQ(cx, 1);
+    /* Ровно на левом краю сетки — клетка 0, а не −1. */
+    CHECK_EQ(level_cell_at(&l, ox, 0.0f, &cx, &cz), 1);
+    CHECK_EQ(cx, 0);
+    /* Чуть левее сетки — уже вне её. */
+    CHECK_EQ(level_cell_at(&l, ox - 0.001f, 0.0f, &cx, &cz), 0);
+    CHECK_EQ(cx, -1);
+
+    level_free(&l);
 }
 
 TEST(test_level_entities_portals) {
@@ -327,6 +368,7 @@ void tests_level(void) {
     puts("level/walk tests");
     RUN(test_level_load_ok);
     RUN(test_level_load_bad);
+    RUN(test_level_cell_at_edges);
     RUN(test_level_entities_portals);
     RUN(test_walk_floor_and_ramp);
     RUN(test_walk_move);

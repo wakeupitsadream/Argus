@@ -8,6 +8,10 @@
 #define SAVE_VERSION 1
 #define SAVE_FILE "save.bin"
 #define SAVE_BUF_SIZE 512
+/* Пределы для санитизации загруженного: core не знает ни про i18n, ни про таблицу
+ * уровней, поэтому границы заданы здесь с запасом — игра сверяет точнее. */
+#define SAVE_LANG_COUNT 2
+#define SAVE_LEVEL_MAX 64
 
 typedef struct {
     int version;

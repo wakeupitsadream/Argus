@@ -38,6 +38,9 @@ static int fits(size_t len, unsigned off, size_t size) {
     return (size_t)off <= len && size <= len - (size_t)off;
 }
 
+/* Число из файла в разумных пределах и не NaN. Сравнение ложно для NaN — это и нужно. */
+static int lvl_finite_range(float v, float lo, float hi) { return v > lo && v < hi; }
+
 int level_load(level_t *l, void *blob, size_t len) {
     memset(l, 0, sizeof *l);
     if (!blob || len < LVL_HEADER) return -1;
@@ -61,6 +64,15 @@ int level_load(level_t *l, void *blob, size_t len) {
     unsigned port_off = rd_u32(b + 84);
     l->name_str_id = rd_u32(b + 88);
 
+    /* Числа из файла проверяем прежде, чем считать по ним: NaN и бесконечность
+     * при переводе в int дают неопределённое поведение, а NaN в координате
+     * персонажа тихо ломает всю ходьбу. Сравнение вида !(v > lo && v < hi)
+     * ложно для NaN, поэтому одной строкой ловятся оба случая. */
+    if (!lvl_finite_range(l->cell_size, 0.001f, 64.0f)) return -1;
+    if (!lvl_finite_range(l->step_y, 0.001f, 64.0f)) return -1;
+    if (!lvl_finite_range(l->spawn_x, -1.0e6f, 1.0e6f)) return -1;
+    if (!lvl_finite_range(l->spawn_z, -1.0e6f, 1.0e6f)) return -1;
+    if (!lvl_finite_range(l->spawn_yaw, -1.0e5f, 1.0e5f)) return -1;
     if (cx <= 0 || cz <= 0 || cx > LVL_MAX_CELLS_SIDE || cz > LVL_MAX_CELLS_SIDE) return -1;
     if (ecount > LVL_MAX_ENTITIES || lcount > LVL_MAX_LINKS || pcount > LVL_MAX_PORTALS) return -1;
     if (!(l->cell_size > 0.0f) || !(l->step_y > 0.0f)) return -1;
@@ -75,6 +87,21 @@ int level_load(level_t *l, void *blob, size_t len) {
     l->entity_count = ecount;
     l->link_count = lcount;
     l->portal_count = pcount;
+    /* Координаты сущностей тоже приходят из файла: NaN в них превратился бы
+     * в неопределённое поведение при поиске клетки. Сущностей не больше 128 —
+     * проверка при загрузке дешевле, чем защита в каждом потребителе. */
+    if (ecount) {
+        const level_entity_t *es = (const level_entity_t *)(b + ent_off);
+        for (int i = 0; i < ecount; i++) {
+            if (!lvl_finite_range(es[i].x, -1.0e6f, 1.0e6f) ||
+                !lvl_finite_range(es[i].y, -1.0e6f, 1.0e6f) ||
+                !lvl_finite_range(es[i].z, -1.0e6f, 1.0e6f) ||
+                !lvl_finite_range(es[i].yaw_deg, -1.0e5f, 1.0e5f)) {
+                return -1;
+            }
+        }
+    }
+
     l->cells = (const level_cell_t *)(b + cells_off);
     l->entities = ecount ? (const level_entity_t *)(b + ent_off) : NULL;
     l->links = lcount ? (const level_link_t *)(b + link_off) : NULL;
@@ -111,8 +138,12 @@ int level_cell_at(const level_t *l, float x, float z, int *cx, int *cz) {
     float oz = -(float)l->cells_z * l->cell_size * 0.5f;
     float fx = (x - ox) / l->cell_size;
     float fz = (z - oz) / l->cell_size;
-    int ix = (int)((fx >= 0.0f) ? fx : fx - 1.0f); /* floor без math.h */
-    int iz = (int)((fz >= 0.0f) ? fz : fz - 1.0f);
+    /* floor без math.h. Усечение к нулю уводит отрицательные значения вверх,
+     * поэтому единицу вычитаем только когда дробная часть действительно есть:
+     * при ровном −1.0 клетка −1, а не −2. */
+    int ix = (int)fx, iz = (int)fz;
+    if (fx < 0.0f && (float)ix != fx) ix--;
+    if (fz < 0.0f && (float)iz != fz) iz--;
     if (cx) *cx = ix;
     if (cz) *cz = iz;
     return (ix >= 0 && iz >= 0 && ix < l->cells_x && iz < l->cells_z) ? 1 : 0;

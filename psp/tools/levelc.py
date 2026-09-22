@@ -546,9 +546,11 @@ def build_links(level, ids, where):
             if not isinstance(pair, (list, tuple)) or len(pair) != 2:
                 fail(f"{tag}: {what} — массив [id, номер]")
         src_id = as_int(src[0], f"{tag}: from[0]", 1, 0xFFFF)
-        src_out = as_int(src[1], f"{tag}: from[1]", 0, 255)
+        # Рантайм держит по четыре выхода и входа (ENT_OUT_BITS/ENT_IN_BITS в core/entity.h)
+        # и молча отбрасывает связь с большим номером — ловим это здесь, а не в игре.
+        src_out = as_int(src[1], f"{tag}: from[1]", 0, 3)
         dst_id = as_int(dst[0], f"{tag}: to[0]", 1, 0xFFFF)
-        dst_in = as_int(dst[1], f"{tag}: to[1]", 0, 255)
+        dst_in = as_int(dst[1], f"{tag}: to[1]", 0, 3)
         for what, eid in (("from", src_id), ("to", dst_id)):
             if eid not in ids:
                 fail(f"{tag}: {what} ссылается на несуществующий id {eid}")
@@ -577,6 +579,14 @@ def build_portals(level, g, level_names, where):
         ph = as_int(size[1], f"{tag}: size[1]", 1, 255)
         if cx + pw > g.w or cz + ph > g.h:
             fail(f"{tag}: прямоугольник [{cx}, {cz}] {pw}x{ph} выходит за сетку {g.w}x{g.h}")
+        # Портал должен лежать на существующих клетках: иначе он недостижим,
+        # а игрок увидит «мост в никуда».
+        empty = [(x, z) for z in range(cz, cz + ph) for x in range(cx, cx + pw)
+                 if g.height[z][x] is None]
+        if len(empty) == pw * ph:
+            fail(f"{tag}: прямоугольник [{cx}, {cz}] {pw}x{ph} целиком в пустоте")
+        if empty:
+            warn(f"{tag}: {len(empty)} из {pw * ph} клеток портала пусты")
         target = p.get("to")
         if target not in level_names:
             fail(f"{tag}: to = {target!r} — нет файла levels/{target}.toml")

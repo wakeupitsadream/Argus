@@ -31,4 +31,8 @@
 @761 assert py>0.4
 @770 assert tris<=8000
 @771 assert draws<=200
-@780 quit
+# оверлей: позиция Око и бюджеты кадра
+@775 press select
+@776 release select
+@800 shot art_debug
+@810 quit

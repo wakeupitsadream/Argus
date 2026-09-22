@@ -497,6 +497,62 @@ TEST(test_save_file_io) {
     CHECK_EQ(save_deserialize(&dst, NULL, 0), -1);
 }
 
+TEST(test_save_forged_body) {
+    /* Подделка тела с пересчитанной CRC — главный сценарий порчи: контрольная сумма
+     * ничего не доказывает, если файл правили руками. Числа обязаны быть числами,
+     * а мусор в пределах разумного зажимается, а не выбрасывает весь прогресс. */
+    save_data_t src;
+    memset(&src, 0, sizeof src);
+    src.version = SAVE_VERSION;
+    src.lang = 1;
+    src.level_index = 3;
+    src.px = 1.5f; src.py = 2.5f; src.pz = -3.5f; src.pyaw = 90.0f;
+    src.cam_angle = 2;
+    world_set_counts(&src.world, 2, 5, 1);
+
+    unsigned char buf[SAVE_BUF_SIZE];
+    size_t len = 0;
+    CHECK_EQ(save_serialize(&src, buf, sizeof buf, &len), 0);
+    const size_t crc_at = len - 4;
+
+    /* NaN в позиции: отвергаем целиком. */
+    unsigned char bad[SAVE_BUF_SIZE];
+    memcpy(bad, buf, len);
+    unsigned nan_bits = 0x7FC00000u;
+    memcpy(bad + 20, &nan_bits, 4);          /* px */
+    unsigned crc = crc32_buf(bad, crc_at);
+    memcpy(bad + crc_at, &crc, 4);
+    save_data_t got;
+    memset(&got, 0xCD, sizeof got);
+    CHECK_EQ(save_deserialize(&got, bad, len), -1);
+
+    /* Бесконечность в угле — тоже отказ. */
+    memcpy(bad, buf, len);
+    unsigned inf_bits = 0x7F800000u;
+    memcpy(bad + 32, &inf_bits, 4);          /* pyaw */
+    crc = crc32_buf(bad, crc_at);
+    memcpy(bad + crc_at, &crc, 4);
+    CHECK_EQ(save_deserialize(&got, bad, len), -1);
+
+    /* Язык и остров вне таблицы: принимаем и зажимаем — прогресс дороже. */
+    memcpy(bad, buf, len);
+    int wild = 9999;
+    memcpy(bad + 12, &wild, 4);              /* lang */
+    memcpy(bad + 16, &wild, 4);              /* level_index */
+    int angle = 7;
+    memcpy(bad + 36, &angle, 4);             /* cam_angle */
+    unsigned short eyes = 900;
+    memcpy(bad + 72, &eyes, 2);              /* eyes_opened */
+    crc = crc32_buf(bad, crc_at);
+    memcpy(bad + crc_at, &crc, 4);
+    CHECK_EQ(save_deserialize(&got, bad, len), 0);
+    CHECK_EQ(got.lang, 0);
+    CHECK_EQ(got.level_index, 0);
+    CHECK_EQ(got.cam_angle, 3);
+    CHECK(got.world.eyes_opened <= 4);
+    CHECK_NEAR(got.px, 1.5, 1e-6);
+}
+
 void tests_save(void) {
     puts("world/save tests");
     RUN(test_crc32_vectors);
@@ -507,4 +563,5 @@ void tests_save(void) {
     RUN(test_world_flags);
     RUN(test_world_counts);
     RUN(test_save_file_io);
+    RUN(test_save_forged_body);
 }

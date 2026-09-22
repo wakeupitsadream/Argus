@@ -46,6 +46,9 @@ int memory_input(entities_t *es, int entity_id, int value);
 
 /* Вращающийся сегмент: поворот на 90° вокруг своей оси (анимация 0,6 с, ввод блокируется). */
 int segment_rotate(entities_t *es, int segment_id, int dir);
+/* 1, если игрок в точке (px, pz) стоит на клетке этого сегмента, которая после поворота
+ * станет непроходимой: такой поворот запрещаем, иначе игрок запрётся навсегда. */
+int segment_would_trap(const entities_t *es, int segment_id, int dir, float px, float pz);
 
 /* Проверка «головоломка решена»: у всех приёмников уровня входы активны. */
 int puzzles_all_solved(const entities_t *es);

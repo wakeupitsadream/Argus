@@ -191,6 +191,8 @@ void plates_update(entities_t *es, float px, float pz) {
         /* Сравниваем по клетке, а не по расстоянию: блок всегда в центре клетки. */
         int pressed = (player_in && pcx == cx && pcz == cz) ? 1 : 0;
         if (!pressed) pressed = mech_type_in_cell(es, ENT_BLOCK, cx, cz);
+        /* Плот тоже давит на плиту: иначе головоломка «подвести плавучий блок» нерешаема. */
+        if (!pressed) pressed = mech_type_in_cell(es, ENT_FLOAT_BLOCK, cx, cz);
 
         if (!mech_set_out0(e, pressed)) continue; /* без изменений — не дёргаем анимацию */
         e->state = (unsigned char)pressed;
@@ -292,6 +294,24 @@ int memory_input(entities_t *es, int entity_id, int value) {
 }
 
 /* ——— вращающиеся сегменты ——— */
+
+int segment_would_trap(const entities_t *es, int segment_id, int dir, float px, float pz) {
+    if (!es || !es->level || segment_id <= 0 || segment_id >= LEVEL_MAX_SEGMENTS) return 0;
+    int turn = ((dir % 4) + 4) % 4;
+    if (turn == 0) return 0;
+
+    int cx = 0, cz = 0;
+    if (!level_cell_at(es->level, px, pz, &cx, &cz)) return 0;
+    const level_cell_t *c = level_cell(es->level, cx, cz);
+    if (!c || !(c->flags & CELL_SEG)) return 0;
+    if (CELL_SEG_ID(c->segment) != segment_id) return 0;
+
+    /* Клетка под ногами принадлежит этому сегменту: после поворота она проходима,
+     * только если требуемое состояние совпадёт с новым. Иначе игрок повис бы в пустоте
+     * (а в изометрии — просто застрял бы навсегда). */
+    int next = ((es->level->seg_states[segment_id] & 3) + turn) & 3;
+    return CELL_SEG_STATE(c->segment) == next ? 0 : 1;
+}
 
 int segment_rotate(entities_t *es, int segment_id, int dir) {
     if (!mech_ready(es)) return 0;

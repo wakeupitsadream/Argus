@@ -144,7 +144,12 @@ void entities_propagate(entities_t *es) {
                 e->state = 1; /* открытый глаз больше не закрывается — это прогресс */
                 if (!ent_flag_get(es, id)) {
                     ent_flag_set(es, id);
-                    if (es->world) es->world->eyes_opened++;
+                    /* Счётчик через world_set_counts: там же зажимаются пределы,
+                     * иначе испорченные данные уровня раздули бы его за границу. */
+                    if (es->world) {
+                        world_set_counts(es->world, (int)es->world->eyes_opened + 1,
+                                         (int)es->world->small_eyes, (int)es->world->feathers);
+                    }
                 }
                 es->last_event = id; /* игра по событию играет арпеджио и сохраняется */
             }
@@ -303,8 +308,9 @@ int entities_interact(entities_t *es, float px, float pz, float dir_x, float dir
         if (!ent_flag_get(es, id)) {
             ent_flag_set(es, id);
             if (es->world) {
-                if (type == ENT_SMALL_EYE) es->world->small_eyes++;
-                else es->world->feathers++;
+                int se = (int)es->world->small_eyes + (type == ENT_SMALL_EYE ? 1 : 0);
+                int fe = (int)es->world->feathers + (type == ENT_SMALL_EYE ? 0 : 1);
+                world_set_counts(es->world, (int)es->world->eyes_opened, se, fe);
             }
         }
         break;

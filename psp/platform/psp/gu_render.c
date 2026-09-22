@@ -59,6 +59,10 @@ int r_init(void) {
     sceGuDisplay(GU_TRUE);
     s_draw = 0;
     s_shown = 1;
+
+    /* Атлас билбордов строится один раз. Без этого gu_sprite_draw молча ничего не
+     * рисует: пропадают свечение глаз, искры, пылинки и весь луч — проход мёртв. */
+    if (gu_sprite_init() != 0) plat_log("render: билборды отключены (gu_sprite_init)");
     return 0;
 }
 
