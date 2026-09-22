@@ -1,6 +1,7 @@
 #include "game.h"
 #include "platform.h"
 #include "strings_ids.h"
+#include "screens.h"
 #include "entity_types.h"
 #include <math.h>
 #include <stdio.h>
@@ -12,6 +13,8 @@
 #define DESAT_FRAMES 15
 #define PLAYER_EYE_H 0.5f   /* камера смотрит чуть выше пола */
 #define SLEEPER_RATE 26.0f  /* градусов в секунду у спящих объектов */
+#define TITLE_ORBIT 6.0f    /* градусов в секунду: медленный облёт на заставке */
+#define EYES_TOTAL 4        /* больших глаз в игре */
 #define DT (1.0f / 60.0f)
 
 static const char *const MESH_FILES[MESH_COUNT] = {
@@ -189,7 +192,14 @@ int game_init(game_t *g) {
 
     particles_init(&g->particles, 0x51F0A17Du);
     float dust_center[3] = { target[0], target[1] + 1.5f, target[2] };
-    particles_set_ambient(&g->particles, dust_center, 9.0f, 28, 0x60FFF3C9u);
+    particles_set_ambient(&g->particles, dust_center, 7.5f, 34, 0x88FFF0C4u);
+
+    world_reset(&g->world);
+    save_data_t sd;
+    int has_save = (save_read_file(&sd) == 0);
+    if (has_save) g->world = sd.world;
+    screens_init(&g->screens, SCR_TITLE, has_save);
+    g->title_yaw = 45.0f;
 
     char *script = (char *)plat_read_file("autoplay.txt", &len);
     if (script) {
@@ -286,14 +296,48 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     unsigned pressed = in.buttons & ~g->prev_buttons;
     g->prev_buttons = in.buttons;
 
-    if (pressed & BTN_L) camera_rotate(&g->cam, -1);
-    if (pressed & BTN_R) camera_rotate(&g->cam, 1);
     if (pressed & BTN_SELECT) g->show_debug = !g->show_debug;
-    if (pressed & BTN_SQUARE) set_lang(g, (g->lang + 1) % LANG_COUNT);
-    if (pressed & BTN_START) g->pending_quit = 1;
 
-    if (g->level_ok) player_tick(&g->player, &g->level, &in, g->cam.yaw.value);
-    else g->player.look_active = (in.buttons & BTN_CIRCLE) ? 1 : 0;
+    int act = screens_tick(&g->screens, pressed);
+    switch (act) {
+    case ACT_NEW:
+        world_reset(&g->world);
+        if (g->level_ok) player_init(&g->player, &g->level);
+        screens_goto(&g->screens, SCR_GAME);
+        break;
+    case ACT_CONTINUE: {
+        save_data_t sd;
+        if (save_read_file(&sd) == 0) {
+            g->world = sd.world;
+            set_lang(g, sd.lang);
+            g->player.pos.x = sd.px;
+            g->player.pos.y = sd.py;
+            g->player.pos.z = sd.pz;
+            g->player.yaw_deg = sd.pyaw;
+        }
+        screens_goto(&g->screens, SCR_GAME);
+        break;
+    }
+    case ACT_LANG: set_lang(g, (g->lang + 1) % LANG_COUNT); break;
+    case ACT_QUIT: g->pending_quit = 1; break;
+    case ACT_RESUME: screens_goto(&g->screens, SCR_GAME); break;
+    case ACT_TO_TITLE: screens_goto(&g->screens, SCR_TITLE); break;
+    case ACT_ENDING_DONE: screens_goto(&g->screens, SCR_CREDITS); break;
+    default: break;
+    }
+
+    int playing = (g->screens.current == SCR_GAME) && !screens_busy(&g->screens);
+    if (playing) {
+        if (pressed & BTN_L) camera_rotate(&g->cam, -1);
+        if (pressed & BTN_R) camera_rotate(&g->cam, 1);
+        if (pressed & BTN_SQUARE) set_lang(g, (g->lang + 1) % LANG_COUNT);
+        if (pressed & BTN_START) screens_goto(&g->screens, SCR_PAUSE);
+        if (g->level_ok) player_tick(&g->player, &g->level, &in, g->cam.yaw.value);
+        else g->player.look_active = (in.buttons & BTN_CIRCLE) ? 1 : 0;
+    } else {
+        g->player.look_active = 0;
+        g->player.speed = 0.0f;
+    }
 
     /* Режим взгляда: наезд камеры и выцветание мира. */
     camera_set_look(&g->cam, g->player.look_active);
@@ -301,8 +345,17 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     if (g->desat.to != want_desat) tween_start(&g->desat, want_desat, DESAT_FRAMES);
     tween_update(&g->desat, ease_out_cubic);
 
-    float target[3] = { g->player.pos.x, g->player.pos.y + PLAYER_EYE_H, g->player.pos.z };
-    camera_update(&g->cam, target);
+    if (g->screens.current == SCR_TITLE) {
+        /* Заставка: медленный облёт центра острова — кадр живёт сам по себе. */
+        g->title_yaw += TITLE_ORBIT * DT;
+        if (g->title_yaw > 360.0f) g->title_yaw -= 360.0f;
+        tween_set(&g->cam.yaw, g->title_yaw);
+        float center[3] = { 0.0f, 2.0f, 0.0f };
+        camera_update(&g->cam, center);
+    } else {
+        float target[3] = { g->player.pos.x, g->player.pos.y + PLAYER_EYE_H, g->player.pos.z };
+        camera_update(&g->cam, target);
+    }
 
     /* Спящие сущности двигаются только вне наблюдения — фирменная механика (GDD §1.4). */
     if (g->level_ok) {
@@ -420,9 +473,17 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.fog_far = g->cam.dist + g->pal->fog_far;
     f->env.desat = g->desat.value;
 
+    f->env.curtain = screens_curtain(&g->screens);
     camera_fill(&g->cam, &f->cam);
     build_world(g, f);
-    build_hud(g, f);
+    if (g->screens.current == SCR_GAME) build_hud(g, f);
+    else if (g->screens.current == SCR_PAUSE) {
+        build_hud(g, f);
+        f->env.desat = 0.85f; /* сцена уходит на задний план под меню паузы */
+    }
+    if (g->font_ok && g->strings_ok) {
+        screens_build(&g->screens, f, g->pal, g->lang, (int)g->world.eyes_opened, EYES_TOTAL);
+    }
 
     if (g->pending_shot[0]) {
         snprintf(f->shot_name, sizeof f->shot_name, "%s", g->pending_shot);

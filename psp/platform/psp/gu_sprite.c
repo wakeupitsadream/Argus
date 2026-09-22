@@ -9,6 +9,7 @@
 #include <psputils.h>
 #include <math.h>
 #include <stddef.h>
+#include <string.h>
 #include "gu_sprite.h"
 #include "camera.h"
 
@@ -73,6 +74,10 @@ static void build_tile(int k) {
     const spr_kind_t *p = &s_kinds[k];
     const float half = (float)TILE * 0.5f;
     const float core2 = p->core * p->core;
+    /* Нормируем спад так, чтобы на границе ядра он был ровно 1: внутри ядра
+     * значение упирается в потолок без ступеньки, иначе на свечении виден
+     * контур-кольцо (проверено дампом атласа). */
+    const float norm = 1.0f / powf(1.0f - core2, p->power);
     unsigned char *tile = &s_tex[(unsigned)k * TILE * TEX_W];
 
     for (int y = 0; y < TILE; y++) {
@@ -84,10 +89,9 @@ static void build_tile(int k) {
             float a;
             if (r2 >= 1.0f) {
                 a = 0.0f;
-            } else if (r2 <= core2) {
-                a = 1.0f; /* ровное ядро: без него центр выглядит проваленным */
             } else {
-                a = powf(1.0f - r2, p->power);
+                a = powf(1.0f - r2, p->power) * norm; /* ядро: без него центр выглядит проваленным */
+                if (a > 1.0f) a = 1.0f;
             }
             int val = (int)(a * p->peak * 255.0f + 0.5f);
             if (val < 0) val = 0;
@@ -112,7 +116,7 @@ int gu_sprite_init(void) {
     s_count = 0;
     s_calls = 0;
 
-    for (int i = 0; i < TEX_W * TEX_H; i++) s_tex[i] = 0; /* плитка-запас остаётся нулевой */
+    memset(s_tex, 0, sizeof(s_tex)); /* плитка-запас остаётся нулевой */
     for (int k = 0; k < KIND_COUNT; k++) build_tile(k);
 
     /* Запись i: альфа = значение T8, RGB белый (0xAABBGGRR). Цвет спрайту даёт

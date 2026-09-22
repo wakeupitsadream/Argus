@@ -40,3 +40,8 @@ EYE_COUNT_OF,Глаза: %d из %d,Eyes: %d of %d
 GATE_LOCKED,Воротам нужны четыре больших глаза,The gate needs four great eyes
 FEATHER_FOUND,Перо раскрылось,A feather unfolds
 LOADING,Сон расходится…,The dream parts…
+ENDING_A_TITLE,Аргус открыл глаза,Argus opens his eyes
+ENDING_A_LINE,Мир снова под присмотром — и снова неподвижен.,The world is watched again. And still again.
+ENDING_B_TITLE,Око закрылось,The last eye closes
+ENDING_B_LINE,"Никто не смотрит. Значит, можно меняться.",No one is watching. So it may change.
+CREDITS_LINE,"Сделано в Оренбурге, одним человеком и машиной.",Made in Orenburg by one person and a machine.

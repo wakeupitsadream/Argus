@@ -8,8 +8,8 @@ SCRIPT          ?= tests/autoplay/smoke.txt
 SECONDS         ?= 20
 HOST_CC         ?= cc
 # Модули, ещё не подключённые к игре (в работе) — исключаем и из хост-сборки.
-CORE_SRC        := $(filter-out core/entity.c core/puzzle_beam.c core/puzzle_mech.c core/quest.c,$(wildcard core/*.c))
-TEST_SRC        := $(filter-out tests/unit/test_entity.c tests/unit/test_beam.c tests/unit/test_mech.c tests/unit/test_quest.c,$(wildcard tests/unit/*.c))
+CORE_SRC        := $(filter-out core/entity.c core/puzzle_beam.c core/puzzle_mech.c,$(wildcard core/*.c))
+TEST_SRC        := $(filter-out tests/unit/test_entity.c tests/unit/test_beam.c tests/unit/test_mech.c,$(wildcard tests/unit/*.c))
 HOST_CFLAGS     := -std=c11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Icore -Itests -Ibuild/assets
 PSP_ENV         := PSPDEV=$(PSPDEV) PATH=$(PSPDEV)/bin:$$PATH
 

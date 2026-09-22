@@ -183,32 +183,98 @@ TEST(test_mesh_file) {
     CHECK_EQ(mesh_load(&bad, junk, sizeof junk), -1);
 }
 
+/* Один шаг игры с нажатием кнопок в этом кадре. */
+static void tick_btn(game_t *g, unsigned buttons) {
+    input_t in;
+    memset(&in, 0, sizeof in);
+    in.buttons = buttons;
+    game_tick(g, &in, NULL);
+    /* Отпускаем, иначе следующий кадр не увидит новое нажатие. */
+    memset(&in, 0, sizeof in);
+    game_tick(g, &in, NULL);
+}
+
+static void tick_idle(game_t *g, int frames) {
+    input_t in;
+    memset(&in, 0, sizeof in);
+    for (int i = 0; i < frames; i++) game_tick(g, &in, NULL);
+}
+
 TEST(test_game_loop) {
     game_t *g = calloc(1, sizeof *g);
     CHECK_EQ(game_init(g), 0);
     frame_t f;
-    input_t in = {0};
-    plat_stats_t st = {0};
-    game_tick(g, &in, &st);
+
+    /* Игра начинается с заставки: мир рисуется фоном, игровой HUD — нет. */
+    CHECK_EQ(g->screens.current, SCR_TITLE);
     game_build_frame(g, &f);
-    CHECK(f.mesh_count >= 1);                       /* остров, сущности уровня и Око */
+    CHECK(f.mesh_count >= 1);
+    CHECK(f.meshes[0].mesh == &g->island);
     CHECK(f.mesh_count <= FRAME_MAX_MESHES);
-    CHECK(f.meshes[0].mesh == &g->island);          /* остров всегда первый */
-    CHECK(f.text_count >= 0);
-    CHECK_NEAR(f.cam.yaw_deg, 45.0, 1e-4);
-    CHECK(!f.quit);
-    /* поворот камеры кнопкой R: через 36 кадров ровно +90 */
-    in.buttons = BTN_R;
-    game_tick(g, &in, NULL);
-    in.buttons = 0;
-    for (int i = 0; i < 40; i++) game_tick(g, &in, NULL);
+
+    /* Выбираем «Новая игра» и ждём, пока закроется и откроется занавес. */
+    int guard = 0;
+    while (g->screens.items[g->screens.index] != ACT_NEW && guard++ < 8) tick_btn(g, BTN_DOWN);
+    CHECK_EQ(g->screens.items[g->screens.index], ACT_NEW);
+    tick_btn(g, BTN_CROSS);
+    tick_idle(g, 80);
+    CHECK_EQ(g->screens.current, SCR_GAME);
+    CHECK_EQ(screens_busy(&g->screens), 0);
+
+    /* В игре работает поворот камеры. */
+    int angle_before = g->cam.angle;
+    tick_btn(g, BTN_R);
+    tick_idle(g, 60);
+    CHECK_EQ(g->cam.angle, (angle_before + 1) % 4);
+
+    /* Режим взгляда выцвечивает сцену. */
+    input_t look;
+    memset(&look, 0, sizeof look);
+    look.buttons = BTN_CIRCLE;
+    for (int i = 0; i < 30; i++) game_tick(g, &look, NULL);
     game_build_frame(g, &f);
-    CHECK_NEAR(f.cam.yaw_deg, 135.0, 1e-3);
-    CHECK_EQ(g->cam.angle, 1);
-    in.buttons = BTN_START;
-    game_tick(g, &in, NULL);
+    CHECK(f.env.desat > 0.5f);
+    CHECK_EQ(g->player.look_active, 1);
+    tick_idle(g, 30);
+    game_build_frame(g, &f);
+    CHECK(f.env.desat < 0.5f);
+
+    /* Start открывает паузу, а не выходит из игры. */
+    tick_btn(g, BTN_START);
+    tick_idle(g, 80);
+    CHECK_EQ(g->screens.current, SCR_PAUSE);
+    CHECK(!f.quit);
+
+    /* В паузе движение выключено. */
+    input_t walk;
+    memset(&walk, 0, sizeof walk);
+    walk.ly = -1.0f;
+    float px = g->player.pos.x, pz = g->player.pos.z;
+    for (int i = 0; i < 30; i++) game_tick(g, &walk, NULL);
+    CHECK_NEAR(g->player.pos.x, px, 1e-5);
+    CHECK_NEAR(g->player.pos.z, pz, 1e-5);
+
+    /* Возврат в игру из паузы. */
+    guard = 0;
+    while (g->screens.items[g->screens.index] != ACT_RESUME && guard++ < 8) tick_btn(g, BTN_DOWN);
+    tick_btn(g, BTN_CROSS);
+    tick_idle(g, 80);
+    CHECK_EQ(g->screens.current, SCR_GAME);
+
+    /* Выход: пауза → в меню → «Выход». */
+    tick_btn(g, BTN_START);
+    tick_idle(g, 80);
+    guard = 0;
+    while (g->screens.items[g->screens.index] != ACT_TO_TITLE && guard++ < 8) tick_btn(g, BTN_DOWN);
+    tick_btn(g, BTN_CROSS);
+    tick_idle(g, 80);
+    CHECK_EQ(g->screens.current, SCR_TITLE);
+    guard = 0;
+    while (g->screens.items[g->screens.index] != ACT_QUIT && guard++ < 8) tick_btn(g, BTN_DOWN);
+    tick_btn(g, BTN_CROSS);
     game_build_frame(g, &f);
     CHECK(f.quit);
+
     game_shutdown(g);
     free(g);
 }

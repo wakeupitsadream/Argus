@@ -1,0 +1,13 @@
+# экраны: заставка → новая игра → пауза → возврат
+@30 shot scr_title
+@40 press cross
+@41 release cross
+@110 shot scr_game
+@130 press start
+@131 release start
+@200 shot scr_pause
+@201 assert level_ok=1
+@210 press cross
+@211 release cross
+@280 shot scr_resumed
+@290 quit

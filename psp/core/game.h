@@ -16,6 +16,9 @@
 #include "observe.h"
 #include "player.h"
 #include "particles.h"
+#include "screens.h"
+#include "world.h"
+#include "save.h"
 
 /* Меши объектов (файлы data/mesh_<имя>.msh, порядок — как в MESH_FILES в game.c). */
 enum {
@@ -49,6 +52,9 @@ typedef struct {
 
     player_t player;
     camera_t cam;
+    screens_t screens;
+    world_t world;
+    float title_yaw;   /* медленный облёт острова на заставке */
     particles_t particles;
     tween_t desat;                        /* выцветание сцены в режиме взгляда */
     float ent_phase[GAME_MAX_ENT_STATE];  /* фаза анимации сущности */

@@ -8,4 +8,8 @@ void tests_camera(void);
 void tests_level(void);
 void tests_save(void);
 void tests_particles(void);
+void tests_quest(void);
+void tests_entity(void);
+void tests_beam(void);
+void tests_mech(void);
 #endif

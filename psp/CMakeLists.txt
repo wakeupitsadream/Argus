@@ -13,7 +13,7 @@ set(ARGUS_ASSETS "${CMAKE_SOURCE_DIR}/build/assets" CACHE PATH "каталог �
 file(GLOB CORE_SRC CONFIGURE_DEPENDS core/*.c)
 # Модули, которые ещё не подключены к игре (в работе): исключаем из сборки,
 # чтобы EBOOT собирался. Список сокращается по мере интеграции.
-set(ARGUS_PENDING "core/(entity|puzzle_beam|puzzle_mech|quest)\\.c$" CACHE STRING "не собираемые пока модули")
+set(ARGUS_PENDING "core/(entity|puzzle_beam|puzzle_mech)\\.c$" CACHE STRING "не собираемые пока модули")
 if(ARGUS_PENDING)
     list(FILTER CORE_SRC EXCLUDE REGEX "${ARGUS_PENDING}")
 endif()

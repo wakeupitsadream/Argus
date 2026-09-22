@@ -62,6 +62,44 @@ int r_init(void) {
     return 0;
 }
 
+/* Смешивает цвет с белым: k = 0 — как есть, 1 — белый. Формат 0xAABBGGRR. */
+static unsigned tint_white(unsigned c, float k, unsigned alpha) {
+    unsigned r = c & 0xFFu, g = (c >> 8) & 0xFFu, b = (c >> 16) & 0xFFu;
+    r = (unsigned)((float)r + (255.0f - (float)r) * k);
+    g = (unsigned)((float)g + (255.0f - (float)g) * k);
+    b = (unsigned)((float)b + (255.0f - (float)b) * k);
+    return (alpha << 24) | (b << 16) | (g << 8) | r;
+}
+
+/* Плоские диски-луны на небе: дают кадру композиционный якорь и «нарисованность».
+ * Цвет берётся из палитры региона, поэтому небо каждого региона своё. */
+static void draw_sky_discs(const frame_env_t *env) {
+    static const struct { float x, y, r; float tint; unsigned alpha; } DISCS[] = {
+        { 366.0f, 58.0f, 44.0f, 0.55f, 38u },
+        { 128.0f, 36.0f, 13.0f, 0.75f, 30u },
+    };
+    const int segs = 20;
+    for (unsigned d = 0; d < sizeof DISCS / sizeof DISCS[0]; d++) {
+        unsigned color = tint_white(env->sky_bottom, DISCS[d].tint, DISCS[d].alpha);
+        vtx2d_t *v = (vtx2d_t *)sceGuGetMemory((int)(3 * segs * sizeof(vtx2d_t)));
+        if (!v) return;
+        for (int i = 0; i < segs; i++) {
+            float a0 = 6.2831853f * (float)i / (float)segs;
+            float a1 = 6.2831853f * (float)(i + 1) / (float)segs;
+            v[i * 3 + 0] = (vtx2d_t){ color, DISCS[d].x, DISCS[d].y, 0.0f };
+            v[i * 3 + 1] = (vtx2d_t){ color, DISCS[d].x + cosf(a0) * DISCS[d].r,
+                                      DISCS[d].y + sinf(a0) * DISCS[d].r, 0.0f };
+            v[i * 3 + 2] = (vtx2d_t){ color, DISCS[d].x + cosf(a1) * DISCS[d].r,
+                                      DISCS[d].y + sinf(a1) * DISCS[d].r, 0.0f };
+        }
+        sceGuEnable(GU_BLEND);
+        sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+        sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
+                       3 * segs, 0, v);
+        sceGuDisable(GU_BLEND);
+    }
+}
+
 static void draw_sky(const frame_env_t *env) {
     vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * sizeof(vtx2d_t));
     if (!v) return;
@@ -80,6 +118,7 @@ static void draw_sky(const frame_env_t *env) {
     sceGuDisable(GU_FOG);
     sceGuDisable(GU_CULL_FACE);
     sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 6, 0, v);
+    draw_sky_discs(env);
     sceGuEnable(GU_CULL_FACE);
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_DEPTH_TEST);
@@ -107,6 +146,35 @@ static void draw_desat(float amount) {
     sceGuDisable(GU_FOG);
     sceGuDisable(GU_CULL_FACE);
     sceGuDisable(GU_TEXTURE_2D);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 6, 0, v);
+    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+    sceGuEnable(GU_DEPTH_TEST);
+}
+
+/* Чёрный занавес перехода — поверх всего, включая текст. */
+static void draw_curtain(float amount) {
+    if (amount <= 0.002f) return;
+    if (amount > 1.0f) amount = 1.0f;
+    unsigned alpha = (unsigned)(amount * 255.0f);
+    unsigned color = (alpha << 24);
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * sizeof(vtx2d_t));
+    if (!v) return;
+    const float x1 = (float)SCR_WIDTH, y1 = (float)SCR_HEIGHT;
+    v[0] = (vtx2d_t){ color, 0.0f, 0.0f, 0.0f };
+    v[1] = (vtx2d_t){ color, x1, 0.0f, 0.0f };
+    v[2] = (vtx2d_t){ color, x1, y1, 0.0f };
+    v[3] = (vtx2d_t){ color, 0.0f, 0.0f, 0.0f };
+    v[4] = (vtx2d_t){ color, x1, y1, 0.0f };
+    v[5] = (vtx2d_t){ color, 0.0f, y1, 0.0f };
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_CULL_FACE);
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 6, 0, v);
@@ -219,7 +287,8 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
     draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */
     gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
-    gu_text_draw(f);            /* последний проход: 2D-наложение поверх всего */
+    gu_text_draw(f);            /* 2D-наложение поверх сцены */
+    draw_curtain(f->env.curtain); /* занавес перехода — поверх всего, включая текст */
     sceGuFinish();
 
     SceInt64 t1 = sceKernelGetSystemTimeWide();

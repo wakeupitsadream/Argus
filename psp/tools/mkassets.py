@@ -73,6 +73,14 @@ def build_strings(out_dir):
     subprocess.run([sys.executable, str(ROOT / "tools" / "stringsgen.py"), str(out_dir)], check=True)
 
 
+def build_quests(out_dir):
+    gen = ROOT / "tools" / "questgen.py"
+    if not gen.exists():
+        print("questgen.py отсутствует — таблица квестов не пересобирается")
+        return
+    subprocess.run([sys.executable, str(gen), str(out_dir)], check=True)
+
+
 def build_xmb(out_dir):
     subprocess.run([sys.executable, str(ROOT / "tools" / "mkxmb.py"), str(out_dir / "xmb")], check=True)
 
@@ -85,6 +93,7 @@ def main():
     build_meshes(out_dir)
     build_font(out_dir)
     build_strings(out_dir)
+    build_quests(out_dir)
     build_xmb(out_dir)
 
 

@@ -10,5 +10,7 @@ int main(void) {
     tests_camera();
     tests_level();
     tests_save();
+    tests_particles();
+    tests_quest();
     return MT_SUMMARY();
 }
