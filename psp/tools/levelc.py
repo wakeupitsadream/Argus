@@ -71,7 +71,7 @@ TRI_BUDGET = 4000     # docs/TECH.md §2.4: остров 2500–4000 треуг�
 AO_TOP_STEP = 34       # за каждого соседа выше у угла верхней грани
 AO_TOP_MIN = 96
 AO_WALL_TOP = 255      # верх стены (под карнизом)
-AO_WALL_VOID = 96      # низ стены, уходящей в пустоту — почти чёрный: остров парит
+AO_WALL_VOID = 118     # низ стены в пустоту: тёмный, но не чёрный — иначе киль выглядит дырой
 AO_WALL_STEP = 168     # низ стены до соседней клетки
 AO_WATER = 235         # водная поверхность затеняется слабее
 
@@ -98,6 +98,10 @@ SLAB_JITTER = 10       # ± единиц AO
 LEDGE_OUT = 0.11       # насколько выступает наружу
 LEDGE_H = 0.13         # высота полки
 LEDGE_DROP = 0.02      # на сколько ниже верхней грани начинается полка
+
+# Киль: стена, уходящая в пустоту, заваливается внутрь. Отвесная стена читается как
+# срез коробки, а заваленная — как днище парящей скалы. Доля от глубины подошвы.
+KEEL_INSET = 0.26
 
 EPS = 1.0e-4
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -436,7 +440,7 @@ class Grid:
 
 # -------------------------------------------------------------------- геометрия
 
-def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255):
+def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255, inset=0.0):
     """Стена между верхним ребром (pa→pb) и нижним — теми же (x, z) на высотах ya_bot/yb_bot.
     Низ — поверхность соседа, поэтому у рампы боковина выходит треугольником и щелей нет.
 
@@ -446,13 +450,17 @@ def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255):
     da, db = pa[1] - ya_bot, pb[1] - yb_bot
     if da <= EPS and db <= EPS:
         return
-    pa_b = (pa[0], ya_bot, pa[2])
-    pb_b = (pb[0], yb_bot, pb[2])
+    # Нижнее ребро уводится внутрь вдоль нормали: получается завал стены (киль).
+    pa_b = (pa[0] - normal[0] * inset, ya_bot, pa[2] - normal[2] * inset)
+    pb_b = (pb[0] - normal[0] * inset, yb_bot, pb[2] - normal[2] * inset)
     if da > EPS and db > EPS:
         cut = min(CORNICE_H, da, db)
         if cut > EPS * 10.0:
-            pa_c = (pa[0], pa[1] - cut, pa[2])
-            pb_c = (pb[0], pb[1] - cut, pb[2])
+            # карниз не заваливаем, завал начинается под ним
+            k = (cut / da) if da > EPS else 0.0
+            pa_c = (pa[0] - normal[0] * inset * k, pa[1] - cut, pa[2] - normal[2] * inset * k)
+            k = (cut / db) if db > EPS else 0.0
+            pb_c = (pb[0] - normal[0] * inset * k, pb[1] - cut, pb[2] - normal[2] * inset * k)
             mb.quad(pa, pb, pb_c, pa_c, slot,
                     (CORNICE_AO, CORNICE_AO, CORNICE_AO, CORNICE_AO), normal, sun)
             mb.quad(pa_c, pb_c, pb_b, pa_b, slot,
@@ -574,13 +582,16 @@ def build_mesh(g):
                 if g.exists(x + dx, z + dz):
                     ya, yb = g.edge(x + dx, z + dz, opp)
                     ao_bottom = AO_WALL_STEP
+                    inset = 0.0
                 else:
                     ya, yb = base_y, base_y
                     ao_bottom = AO_WALL_VOID
-                    # Край острова: под верхней грань уходит полка-вынос.
+                    # Край острова: под верхней гранью полка-вынос, а сама стена
+                    # заваливается внутрь — снизу остров сходится клином.
                     side = {"w": "e", "e": "w", "n": "s", "s": "n"}[opp]
                     _ledge(mb, x0, x1, z0, z1, min(pa[1], pb[1]), side, slot_top, sun_top)
-                _wall(mb, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top)
+                    inset = g.base_depth * KEEL_INSET
+                _wall(mb, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top, inset)
     return mb
 
 

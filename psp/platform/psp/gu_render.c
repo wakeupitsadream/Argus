@@ -143,6 +143,16 @@ static void sky_disc(float cx, float cy, float r, unsigned color, unsigned a_cen
     sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 3 * segs, 0, v);
 }
 
+/* Медленный дрейф облака: возвращает x, уезжающий вправо и заходящий слева.
+ * Полоса шире экрана, поэтому подмены никто не видит. */
+static float drift(float base, float time, float speed, float width) {
+    float span = width * 2.0f;
+    float x = base + time * speed;
+    x = fmodf(x, span);
+    if (x < 0.0f) x += span;
+    return x - width * 0.5f;
+}
+
 static void draw_sky(const frame_env_t *env) {
     sceGuDisable(GU_TEXTURE_2D);
     sceGuDisable(GU_BLEND);
@@ -189,12 +199,14 @@ static void draw_sky(const frame_env_t *env) {
     sky_disc(sx, sy, SUN_R, tint_white(env->sky_bottom, 0.92f, 255u), 150u, 0u);
     sky_disc(sx, sy, SUN_R * 0.45f, tint_white(env->sky_bottom, 0.98f, 255u), 190u, 20u);
 
-    /* 3. Облака: широкие мягкие полосы двумя слоями. Тонкая полоса читается как
-     *    линия-артефакт, поэтому высота заметная, а альфа маленькая. */
-    sky_band(W * 0.30f, H * 0.29f, W * 0.34f, 13.0f, warm, 18u);
-    sky_band(W * 0.66f, H * 0.38f, W * 0.30f, 16.0f, warm, 22u);
-    sky_band(W * 0.44f, H * 0.36f, W * 0.46f, 9.0f, warm, 14u);
-    sky_band(W * 0.58f, H * 0.49f, W * 0.40f, 18.0f, warm, 26u);
+    /* 3. Облака: широкие мягкие полосы двумя слоями, медленно плывущие поперёк кадра.
+     *    Тонкая полоса читалась бы как линия-артефакт, поэтому высота заметная,
+     *    а альфа маленькая. Разные скорости дают слабый параллакс. */
+    float t = env->time;
+    sky_band(drift(W * 0.30f, t, 2.6f, W), H * 0.29f, W * 0.34f, 13.0f, warm, 18u);
+    sky_band(drift(W * 0.66f, t, 1.7f, W), H * 0.38f, W * 0.30f, 16.0f, warm, 22u);
+    sky_band(drift(W * 0.44f, t, 3.4f, W), H * 0.36f, W * 0.46f, 9.0f, warm, 14u);
+    sky_band(drift(W * 0.58f, t, 1.1f, W), H * 0.49f, W * 0.40f, 18.0f, warm, 26u);
 
     /* 4. Дымка у горизонта: воздух между камерой и островом, дальний план отходит. */
     sky_band(W * 0.5f, H * 0.68f, W * 0.80f, 30.0f, warm, 40u);

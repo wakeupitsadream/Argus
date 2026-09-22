@@ -76,6 +76,13 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
                 plat_log("autoplay: строка %d: set <счётчик> <число>", line_no);
                 return -1;
             }
+        } else if (strcmp(cmd, "ui") == 0) {
+            e->kind = AP_UI;
+            e->arg = 1;
+            if (sscanf(s, "@%*d %*s %d", &e->arg) != 1) {
+                plat_log("autoplay: строка %d: ui <0|1>", line_no);
+                return -1;
+            }
         } else if (strcmp(cmd, "quit") == 0) {
             e->kind = AP_QUIT;
         } else {
@@ -131,6 +138,10 @@ int autoplay_step(autoplay_t *ap, int frame, input_t *out, char out_shot[AP_NAME
             flags |= AP_FLAG_SET;
             snprintf(ap->set_name, sizeof ap->set_name, "%.*s", AP_NAME_LEN - 1, e->name);
             ap->set_value = e->arg;
+            break;
+        case AP_UI:
+            flags |= AP_FLAG_UI;
+            ap->ui_visible = e->arg ? 1 : 0;
             break;
         case AP_QUIT:    flags |= AP_FLAG_QUIT; break;
         default: break;

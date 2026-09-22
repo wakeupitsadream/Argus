@@ -260,7 +260,7 @@ static int load_level(game_t *g, int index, int entry_id) {
     camera_init(&g->cam, g->level.cam_angle, g->level.cam_lock, target);
     particles_init(&g->particles, 0x51F0A17Du + (unsigned)index * 7919u);
     float dust[3] = { target[0], target[1] + 1.5f, target[2] };
-    particles_set_ambient(&g->particles, dust, 7.5f, DUST_COUNT, 0x88FFF0C4u);
+    particles_set_ambient(&g->particles, dust, 8.5f, DUST_COUNT, 0xA0C8E8FFu);
 
     audio_set_region(g, g->pal->name);
     audio_set_region_ambient(g, g->pal->name);
@@ -573,6 +573,7 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
             else if (strcmp(g->ap.set_name, "feathers") == 0) g->world.feathers = (unsigned short)value;
             else plat_log("autoplay: неизвестный счётчик '%s'", g->ap.set_name);
         }
+        if (flags & AP_FLAG_UI) g->hide_ui = g->ap.ui_visible ? 0 : 1;
         if (flags & AP_FLAG_QUIT) g->pending_quit = 1;
     }
     unsigned pressed = in.buttons & ~g->prev_buttons;
@@ -1051,17 +1052,19 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.desat = g->desat.value;
     /* Виньетка — постоянная часть кадра; в режиме взгляда мир сужается ещё немного. */
     f->env.vignette = VIGNETTE_BASE + 0.18f * g->desat.value;
+    f->env.time = (float)g->frame * DT;
 
     float curtain = screens_curtain(&g->screens);
     if (g->travel.value > curtain) curtain = g->travel.value;
     f->env.curtain = curtain;
     camera_fill(&g->cam, &f->cam);
     build_world(g, f);
-    if (g->screens.current == SCR_GAME) build_hud(g, f);
+    if (g->hide_ui) { /* чистый кадр: ни HUD, ни экранов */ }
+    else if (g->screens.current == SCR_GAME) build_hud(g, f);
     else if (g->screens.current == SCR_PAUSE || g->screens.current == SCR_CHOICE) {
         f->env.desat = 0.85f; /* сцена уходит на задний план под меню */
     }
-    if (g->font_ok && g->strings_ok) {
+    if (g->font_ok && g->strings_ok && !g->hide_ui) {
         screens_build(&g->screens, f, g->pal, g->lang, (int)g->world.eyes_opened, EYES_TOTAL);
     }
 

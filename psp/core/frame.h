@@ -75,6 +75,7 @@ typedef struct {
     float vignette;/* 0..1 — затемнение к краям кадра, цвет берётся от sky_top */
     float curtain; /* 0..1 — чёрный занавес перехода между экранами, поверх всего */
     unsigned shadow_color; /* цвет контактных теней: тон тени палитры */
+    float time;    /* секунды с начала игры: небо и блики двигаются, сцена живёт */
 } frame_env_t;
 
 typedef struct {

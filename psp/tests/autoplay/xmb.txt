@@ -1,0 +1,11 @@
+# Чистые кадры для XMB-картинок приставки и золотых эталонов: интерфейс скрыт.
+# Снимается вручную: make run-emu SCRIPT=tests/autoplay/xmb.txt,
+# затем кадры копируются в assets/xmb/ и пересобирается make assets.
+@10 ui 0
+@60 shot xmb_title
+@90 press cross
+@91 release cross
+@170 set eyes 2
+@171 set small_eyes 9
+@240 shot xmb_island
+@260 quit

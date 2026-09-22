@@ -85,6 +85,7 @@ typedef struct {
 
     int frame;
     int show_debug;
+    int hide_ui;        /* autoplay «ui 0»: кадр без интерфейса — для XMB и эталонов */
     unsigned prev_buttons;
 
     autoplay_t ap;
