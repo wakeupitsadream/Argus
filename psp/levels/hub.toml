@@ -16,7 +16,7 @@ cam_angle = 0
 cam_lock = false
 spawn = [12.0, 20.5]   # на южном мосту, лицом к центру
 spawn_yaw = 180.0
-caption = "HUB_CAPTION"
+caption = "HUB_NAME"   # карточка на входе показывает имя острова, не строку-эпиграф
 
 map = """
 ..........2222..........

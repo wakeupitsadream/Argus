@@ -89,6 +89,7 @@ typedef struct {
     float ent_vis[GAME_MAX_ENT_STATE];    /* визуальное состояние 0..1 (дверь, панель) */
 
     int frame;
+    int level_frames;   /* кадров на текущем острове: по нему гаснут подпись и подсказки */
     int show_debug;
     int hide_ui;        /* autoplay «ui 0»: кадр без интерфейса — для XMB и эталонов */
     unsigned prev_buttons;

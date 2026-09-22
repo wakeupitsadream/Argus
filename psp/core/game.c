@@ -20,6 +20,9 @@
 #define EYES_TOTAL 4        /* больших глаз в игре */
 #define BONUS_FEATHERS 3    /* перьев за просьбы отголосков, чтобы открылся бонусный остров */
 #define PORTAL_MARKS_MAX 6  /* столбов света: пул спрайтов кадра делится с лучом и пылью */
+#define CAPTION_HOLD 200    /* кадров: карточка с названием острова держится ~3,3 с */
+#define HINT_HOLD 900       /* кадров: подсказки по управлению живут 15 с на острове */
+#define HUD_FADE 60         /* кадр затухания — 1 с */
 #define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
 #define MSG_FRAMES 210      /* 3,5 с на реплику */
 #define BEAM_STEP 0.20f      /* шаг спрайтов вдоль луча: реже — и луч рассыпается в пунктир */
@@ -287,6 +290,7 @@ static int load_level(game_t *g, int index, int entry_id) {
     /* Прибытие: кадр начинается шире и сходится к игровому масштабу — остров
      * успевает показать себя целиком, прежде чем камера возьмёт Око. */
     camera_arrive(&g->cam);
+    g->level_frames = 0;
     particles_init(&g->particles, 0x51F0A17Du + (unsigned)index * 7919u);
     float dust[3] = { target[0], target[1] + 1.5f, target[2] };
     particles_set_ambient(&g->particles, dust, 8.5f, DUST_COUNT, 0xA0C8E8FFu);
@@ -788,6 +792,7 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     }
     travel_tick(g);
     if (g->msg_frames > 0) g->msg_frames--;
+    g->level_frames++;
 
     /* Шаги: тон через каждые 0,95 единицы пути — ровно, без привязки к частоте кадров. */
     if (playing && g->player.speed > 0.05f) {
@@ -1060,6 +1065,14 @@ static void build_world(game_t *g, frame_t *f) {
     particles_build(&g->particles, f);
 }
 
+/* Затухание по кадрам: 1 до hold, дальше плавно к нулю за fade кадров. */
+static float fade_out(int frames, int hold, int fade) {
+    if (frames <= hold) return 1.0f;
+    if (frames >= hold + fade) return 0.0f;
+    float t = (float)(frames - hold) / (float)fade;
+    return 1.0f - ease_in_out_cubic(t);
+}
+
 static void build_hud(game_t *g, frame_t *f) {
     if (!g->font_ok || !g->strings_ok) return;
     unsigned accent = g->pal->slots[SLOT_ACCENT];
@@ -1071,21 +1084,32 @@ static void build_hud(game_t *g, frame_t *f) {
     frame_push_panel(f, 0, 0, SCR_W, 46, (150u << 24) | shade, shade);
     frame_push_panel(f, 0, SCR_H - 64, SCR_W, 64, shade, (170u << 24) | shade);
 
-    /* Подпись локации: строка берётся из данных уровня. Заголовочный кегль оставлен
-     * для экранов (веха 5) — в игре он перекрывает сцену. */
-    if (g->level_ok && g->level.name_str_id != 0xFFFFFFFFu) {
-        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, 26, accent, "%s",
-                               i18n_str((int)g->level.name_str_id));
+    /* Подпись острова — карточка на входе: держится несколько секунд и гаснет.
+     * Постоянная надпись поверх сцены — первый признак отладочного интерфейса. */
+    float caption_a = fade_out(g->level_frames, CAPTION_HOLD, HUD_FADE);
+    if (caption_a > 0.0f && g->level_ok && g->level.name_str_id != 0xFFFFFFFFu) {
+        unsigned a = (unsigned)(caption_a * 255.0f);
+        frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 20, 40, (a << 24) | (accent & 0x00FFFFFFu),
+                               "%s", i18n_str((int)g->level.name_str_id));
+        frame_push_panel(f, 20, 48, 96, 2, ((unsigned)(caption_a * 200.0f) << 24) | (accent & 0x00FFFFFFu),
+                         ((unsigned)(caption_a * 40.0f) << 24) | (accent & 0x00FFFFFFu));
     }
-    frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 14, dim, "%s", STR(STR_HINT_CAMERA));
-    frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 30, dim, "%s", STR(STR_HINT_OBSERVE));
-    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 26, dim,
-                           "%s", g->lang == LANG_RU ? "RU" : "EN");
 
-    /* Счёт глаз — единственная постоянная цифра на экране: остальное живёт в мире.
-     * Формат берётся из строки (STR_EYE_COUNT_OF = «Глаза: %d из %d»), поэтому число
+    /* Подсказки по управлению живут первую минуту на острове, потом уходят. */
+    float hint_a = fade_out(g->level_frames, HINT_HOLD, HUD_FADE);
+    if (hint_a > 0.0f) {
+        unsigned a = (unsigned)(hint_a * 255.0f);
+        unsigned c = (a << 24) | (dim & 0x00FFFFFFu);
+        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 14, c, "%s", STR(STR_HINT_CAMERA));
+        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 30, c, "%s", STR(STR_HINT_OBSERVE));
+    }
+    /* Язык и счёт глаз — в правом нижнем углу: наверху их перекрывала бы карточка
+     * с названием острова, а внизу справа пусто всегда. */
+    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, SCR_H - 14, dim,
+                           "%s", g->lang == LANG_RU ? "RU" : "EN");
+    /* Формат счёта берётся из строки (STR_EYE_COUNT_OF = «Глаза: %d из %d»): число
      * и порядок спецификаторов задаёт assets/strings.csv, а не код. */
-    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, 44, accent,
+    frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 20, SCR_H - 30, accent,
                            i18n_str(STR_EYE_COUNT_OF), (int)g->world.eyes_opened, EYES_TOTAL);
 
     /* Реплика важнее подсказки: она появляется в ответ на действие игрока. */
