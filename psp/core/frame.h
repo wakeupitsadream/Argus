@@ -4,7 +4,7 @@
 #define ARGUS_FRAME_H
 #include "mesh.h"
 
-#define FRAME_MAX_MESHES 48
+#define FRAME_MAX_MESHES 64   /* остров + сущности + перья хвоста + Око */
 #define FRAME_MAX_SPRITES 160  /* луч 60 + пыль 28 + порталы 18 + свечения ~30 + Око 2 */
 #define FRAME_MAX_GHOSTS 8
 #define FRAME_MAX_SHADOWS 24

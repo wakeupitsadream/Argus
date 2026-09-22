@@ -469,6 +469,30 @@ static void draw_shadows(const frame_t *f) {
     if (count <= 0) return;
     if (count > FRAME_MAX_SHADOWS) count = FRAME_MAX_SHADOWS;
 
+    /* Все диски идут одним вызовом: состояние у них общее, а draw-call на приставке
+     * дороже лишних вершин (бюджет — 100 вызовов на кадр, CLAUDE.md п.17). */
+    int verts = 3 * SHADOW_SEGS * count;
+    vtx_static_t *v = (vtx_static_t *)sceGuGetMemory((int)((unsigned)verts * sizeof(vtx_static_t)));
+    if (!v) return;
+
+    unsigned rgb = f->env.shadow_color & 0x00FFFFFFu;
+    int n = 0;
+    for (int i = 0; i < count; i++) {
+        const frame_shadow_t *sh = &f->shadows[i];
+        unsigned c_in = ((unsigned)sh->alpha << 24) | rgb;
+        unsigned c_out = rgb;  /* альфа 0 */
+        float y = sh->pos[1] + SHADOW_LIFT;
+        for (int k = 0; k < SHADOW_SEGS; k++) {
+            float a0 = 6.2831853f * (float)k / (float)SHADOW_SEGS;
+            float a1 = 6.2831853f * (float)(k + 1) / (float)SHADOW_SEGS;
+            v[n++] = (vtx_static_t){ c_in, sh->pos[0], y, sh->pos[2] };
+            v[n++] = (vtx_static_t){ c_out, sh->pos[0] + cosf(a0) * sh->radius, y,
+                                     sh->pos[2] + sinf(a0) * sh->radius };
+            v[n++] = (vtx_static_t){ c_out, sh->pos[0] + cosf(a1) * sh->radius, y,
+                                     sh->pos[2] + sinf(a1) * sh->radius };
+        }
+    }
+
     sceGuDisable(GU_TEXTURE_2D);
     sceGuDisable(GU_LIGHTING);
     sceGuDisable(GU_FOG);
@@ -478,32 +502,11 @@ static void draw_shadows(const frame_t *f) {
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuShadeModel(GU_SMOOTH);
-
     sceGumMatrixMode(GU_MODEL);
     sceGumLoadIdentity();
-
-    unsigned rgb = f->env.shadow_color & 0x00FFFFFFu;
-    for (int i = 0; i < count; i++) {
-        const frame_shadow_t *sh = &f->shadows[i];
-        vtx_static_t *v = (vtx_static_t *)sceGuGetMemory((int)(3 * SHADOW_SEGS * sizeof(vtx_static_t)));
-        if (!v) break;
-        unsigned c_in = ((unsigned)sh->alpha << 24) | rgb;
-        unsigned c_out = rgb;  /* альфа 0 */
-        float y = sh->pos[1] + SHADOW_LIFT;
-        for (int k = 0; k < SHADOW_SEGS; k++) {
-            float a0 = 6.2831853f * (float)k / (float)SHADOW_SEGS;
-            float a1 = 6.2831853f * (float)(k + 1) / (float)SHADOW_SEGS;
-            v[k * 3 + 0] = (vtx_static_t){ c_in, sh->pos[0], y, sh->pos[2] };
-            v[k * 3 + 1] = (vtx_static_t){ c_out, sh->pos[0] + cosf(a0) * sh->radius, y,
-                                           sh->pos[2] + sinf(a0) * sh->radius };
-            v[k * 3 + 2] = (vtx_static_t){ c_out, sh->pos[0] + cosf(a1) * sh->radius, y,
-                                           sh->pos[2] + sinf(a1) * sh->radius };
-        }
-        sceGumDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
-                        3 * SHADOW_SEGS, 0, v);
-        s_tris += SHADOW_SEGS;
-        s_draws++;
-    }
+    sceGumDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, n, 0, v);
+    s_tris += (unsigned)n / 3u;
+    s_draws++;
 
     sceGuDisable(GU_BLEND);
     sceGuEnable(GU_CULL_FACE);

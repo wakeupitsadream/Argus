@@ -1176,6 +1176,10 @@ static void build_hud(game_t *g, frame_t *f) {
         frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 10, y += step, c,
                         "Око %.1f %.1f %.1f", (double)g->player.pos.x, (double)g->player.pos.y,
                         (double)g->player.pos.z);
+        /* Заполнение пулов кадра: упёрлись в потолок — что-то перестало рисоваться. */
+        frame_push_text_shadow(f, FONT_BODY, TEXT_RIGHT, SCR_W - 10, y += step, c,
+                        "меши %d/%d, спрайты %d/%d", f->mesh_count, FRAME_MAX_MESHES,
+                        f->sprite_count, FRAME_MAX_SPRITES);
     }
 }
 
