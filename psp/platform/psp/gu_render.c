@@ -438,11 +438,11 @@ static void draw_sky(const frame_t *f) {
 
 /* Полноэкранный серый квад: обесцвечивание сцены в режиме взгляда. Шейдеров на PSP нет,
  * поэтому «выцветание» делается наложением с альфой — дешёво и предсказуемо. */
-static void draw_desat(float amount) {
+static void draw_desat(float amount, unsigned tint) {
     if (amount <= 0.002f) return;
     if (amount > 1.0f) amount = 1.0f;
-    unsigned alpha = (unsigned)(amount * 110.0f);
-    unsigned color = (alpha << 24) | 0x00808080u;
+    unsigned alpha = (unsigned)(amount * 132.0f);
+    unsigned color = (alpha << 24) | (tint & 0x00FFFFFFu);
     vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * sizeof(vtx2d_t));
     if (!v) return;
     const float x0 = 0.0f, x1 = (float)SCR_WIDTH, y0 = 0.0f, y1 = (float)SCR_HEIGHT;
@@ -832,7 +832,7 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_water(f);              /* гладь поверх дна: её высота меняется шлюзом */
     draw_shadows(f);            /* контактные тени ложатся на пол под объектами */
     draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
-    draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */
+    draw_desat(f->env.desat, f->env.desat_color); /* мир уходит в тон тени, свечения — поверх */
     gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
     draw_sun_bloom(&f->env);    /* ореол солнца поверх сцены: небо и остров в одном воздухе */
     /* Виньетка — по сцене и свечениям, но до текста: подписи должны остаться чистыми. */

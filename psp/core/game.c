@@ -1329,6 +1329,10 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.desat = g->desat.value;
     /* Виньетка — постоянная часть кадра; в режиме взгляда мир сужается ещё немного. */
     f->env.vignette = VIGNETTE_BASE + 0.18f * g->desat.value;
+    /* Взгляд уводит мир в тон тени региона, а не в серый: серая пелена читается как
+     * выцветший кадр, а холодная — как задержанное дыхание. Свечения рисуются
+     * поверх неё и остаются яркими — именно они и есть «скрытое». */
+    f->env.desat_color = g->pal->slots[SLOT_SHADOW];
     f->env.time = (float)g->frame * DT;
 
     float curtain = screens_curtain(&g->screens);

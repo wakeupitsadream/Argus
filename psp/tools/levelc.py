@@ -99,6 +99,13 @@ LEDGE_OUT = 0.11       # насколько выступает наружу
 LEDGE_H = 0.13         # высота полки
 LEDGE_DROP = 0.02      # на сколько ниже верхней грани начинается полка
 
+# Фаска: у верхней грани срезана кромка там, где под ней обрыв. Срез ловит свет
+# под своим углом, и по каждому уступу проходит светлая линия толщиной в пиксель.
+# Именно она отличает обточенный камень от выдавленной карты высот; без неё верх
+# и стена сходятся математически резким углом, какого в природе не бывает.
+BEVEL_W = 0.07   # ширина среза внутрь клетки
+BEVEL_H = 0.05   # насколько срез опускает наружную кромку
+
 # Киль: стена, уходящая в пустоту, заваливается внутрь. Отвесная стена читается как
 # срез коробки, а заваленная — как днище парящей скалы. Доля от глубины подошвы.
 KEEL_INSET = 0.26
@@ -455,7 +462,7 @@ class Grid:
 
 # -------------------------------------------------------------------- геометрия
 
-def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255, inset=0.0):
+def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255, inset=0.0, cornice=True):
     """Стена между верхним ребром (pa→pb) и нижним — теми же (x, z) на высотах ya_bot/yb_bot.
     Низ — поверхность соседа, поэтому у рампы боковина выходит треугольником и щелей нет.
 
@@ -469,7 +476,7 @@ def _wall(mb, pa, pb, ya_bot, yb_bot, normal, slot, ao_bottom, sun=255, inset=0.
     pa_b = (pa[0] - normal[0] * inset, ya_bot, pa[2] - normal[2] * inset)
     pb_b = (pb[0] - normal[0] * inset, yb_bot, pb[2] - normal[2] * inset)
     if da > EPS and db > EPS:
-        cut = min(CORNICE_H, da, db)
+        cut = min(CORNICE_H, da, db) if cornice else 0.0
         if cut > EPS * 10.0:
             # карниз не заваливаем, завал начинается под ним
             k = (cut / da) if da > EPS else 0.0
@@ -597,16 +604,55 @@ def build_mesh(g):
                 normal_top = (0.0, 1.0, -(ry1 - ry0) / g.cell)
             else:
                 normal_top = (0.0, 1.0, 0.0)
-            out.quad((x0, y00, z0), (x1, y10, z0), (x1, y11, z1), (x0, y01, z1),
+            # Фаска: только у ровных каменных клеток. У рампы срез сломал бы линию
+            # ступеней, у воды кромки нет вовсе.
+            bevel = (axis is None) and not g.water[z][x]
+            drops = {}
+            for dxs, dzs, side in ((1, 0, "e"), (-1, 0, "w"), (0, 1, "s"), (0, -1, "n")):
+                if not bevel:
+                    drops[side] = False
+                    continue
+                if not g.exists(x + dxs, z + dzs):
+                    drops[side] = True
+                else:
+                    drops[side] = g.top(x + dxs, z + dzs) < g.top(x, z) - EPS
+            bw = BEVEL_W if bevel else 0.0
+            ix0 = x0 + (bw if drops["w"] else 0.0)
+            ix1 = x1 - (bw if drops["e"] else 0.0)
+            iz0 = z0 + (bw if drops["n"] else 0.0)
+            iz1 = z1 - (bw if drops["s"] else 0.0)
+            out.quad((ix0, y00, iz0), (ix1, y10, iz0), (ix1, y11, iz1), (ix0, y01, iz1),
                      slot_top, ao_top, normal_top, sun_top)
 
-            # стены: к соседям ниже и в пустоту; низ ребра — поверхность соседа
-            for dx, dz, opp, normal, pa, pb in (
-                (1, 0, "w", (1, 0, 0), (x1, y10, z0), (x1, y11, z1)),     # восток
-                (-1, 0, "e", (-1, 0, 0), (x0, y00, z0), (x0, y01, z1)),   # запад
-                (0, 1, "n", (0, 0, 1), (x0, y01, z1), (x1, y11, z1)),     # юг
-                (0, -1, "s", (0, 0, -1), (x0, y00, z0), (x1, y10, z0)),   # север
+            # Сами срезы: нормаль между «вверх» и наружу, поэтому на свету они
+            # светлее верхней грани, а в тени — темнее. Это и рисует кромку.
+            bao = (CORNICE_AO, CORNICE_AO, ao_top[0], ao_top[1])
+            for side, n, quad in (
+                ("e", (0.7, 0.71, 0.0), ((ix1, y10, iz0), (x1, y10 - BEVEL_H, z0),
+                                         (x1, y11 - BEVEL_H, z1), (ix1, y11, iz1))),
+                ("w", (-0.7, 0.71, 0.0), ((x0, y00 - BEVEL_H, z0), (ix0, y00, iz0),
+                                          (ix0, y01, iz1), (x0, y01 - BEVEL_H, z1))),
+                ("n", (0.0, 0.71, -0.7), ((x0, y00 - BEVEL_H, z0), (x1, y10 - BEVEL_H, z0),
+                                          (ix1, y10, iz0), (ix0, y00, iz0))),
+                ("s", (0.0, 0.71, 0.7), ((ix0, y01, iz1), (ix1, y11, iz1),
+                                         (x1, y11 - BEVEL_H, z1), (x0, y01 - BEVEL_H, z1))),
             ):
+                if drops[side]:
+                    out.quad(quad[0], quad[1], quad[2], quad[3], slot_top, bao, n, sun_top)
+
+            # стены: к соседям ниже и в пустоту; низ ребра — поверхность соседа.
+            # Там, где есть фаска, верх стены опущен на её высоту, а карниз не нужен:
+            # два светлых пояса подряд слились бы в один толстый.
+            bh = BEVEL_H
+            for dx, dz, opp, side_of, normal, pa, pb in (
+                (1, 0, "w", "e", (1, 0, 0), (x1, y10, z0), (x1, y11, z1)),     # восток
+                (-1, 0, "e", "w", (-1, 0, 0), (x0, y00, z0), (x0, y01, z1)),   # запад
+                (0, 1, "n", "s", (0, 0, 1), (x0, y01, z1), (x1, y11, z1)),     # юг
+                (0, -1, "s", "n", (0, 0, -1), (x0, y00, z0), (x1, y10, z0)),   # север
+            ):
+                if drops[side_of]:
+                    pa = (pa[0], pa[1] - bh, pa[2])
+                    pb = (pb[0], pb[1] - bh, pb[2])
                 if g.exists(x + dx, z + dz):
                     ya, yb = g.edge(x + dx, z + dz, opp)
                     ao_bottom = AO_WALL_STEP
@@ -619,7 +665,8 @@ def build_mesh(g):
                     side = {"w": "e", "e": "w", "n": "s", "s": "n"}[opp]
                     _ledge(out, x0, x1, z0, z1, min(pa[1], pb[1]), side, slot_top, sun_top)
                     inset = g.base_depth * KEEL_INSET
-                _wall(out, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top, inset)
+                _wall(out, pa, pb, ya, yb, normal, SLOT_WALL, ao_bottom, sun_top, inset,
+                      cornice=not drops[side_of])
     return mb, segs
 
 
