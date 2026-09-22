@@ -413,6 +413,50 @@ static void draw_meshes(const frame_t *f) {
     sceGuDisable(GU_FOG);
 }
 
+/* Водная гладь: полупрозрачные прямоугольники на высоте уровня воды. Рисуются после
+ * непрозрачной геометрии с тестом глубины, но без записи в Z — под водой видно дно,
+ * а объекты на берегу воду не перекрашивают. Бликов не рисуем: их даёт проход спрайтов. */
+static void draw_water(const frame_t *f) {
+    int count = f->water_count;
+    if (count <= 0) return;
+    if (count > FRAME_MAX_WATER) count = FRAME_MAX_WATER;
+
+    vtx_static_t *v = (vtx_static_t *)sceGuGetMemory((int)(6u * (unsigned)count * sizeof(vtx_static_t)));
+    if (!v) return;
+    unsigned c = f->water_color;
+    float y = f->water_y;
+    int n = 0;
+    for (int i = 0; i < count; i++) {
+        const frame_water_t *w = &f->water[i];
+        v[n++] = (vtx_static_t){ c, w->x0, y, w->z0 };
+        v[n++] = (vtx_static_t){ c, w->x1, y, w->z0 };
+        v[n++] = (vtx_static_t){ c, w->x1, y, w->z1 };
+        v[n++] = (vtx_static_t){ c, w->x0, y, w->z0 };
+        v[n++] = (vtx_static_t){ c, w->x1, y, w->z1 };
+        v[n++] = (vtx_static_t){ c, w->x0, y, w->z1 };
+    }
+
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_LIGHTING);
+    sceGuEnable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);        /* GU_TRUE = запись Z запрещена */
+    sceGuDisable(GU_CULL_FACE);     /* гладь видна и снизу, если камера ушла под берег */
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuFog(f->env.fog_near, f->env.fog_far, f->env.fog_color);
+    sceGuEnable(GU_FOG);
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+    sceGumDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, n, 0, v);
+    s_tris += (unsigned)n / 3u;
+    s_draws++;
+
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+}
+
 /* Контактные тени: мягкие диски на полу под объектами. Геометрия строится на месте
  * (веер из SHADOW_SEGS треугольников), цвет — тон тени палитры с альфой в центре и
  * нулём по краю. Тест глубины включён, запись Z выключена: тень ложится на пол,
@@ -518,6 +562,7 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_sky(&f->env);
     setup_camera(&f->cam);
     draw_meshes(f);
+    draw_water(f);              /* гладь поверх дна: её высота меняется шлюзом */
     draw_shadows(f);            /* контактные тени ложатся на пол под объектами */
     draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
     draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */

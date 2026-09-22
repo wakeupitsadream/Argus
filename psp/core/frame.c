@@ -62,6 +62,13 @@ frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
     return p;
 }
 
+frame_water_t *frame_push_water(frame_t *f, float x0, float z0, float x1, float z1) {
+    if (!f || f->water_count >= FRAME_MAX_WATER) return NULL;
+    frame_water_t *w = &f->water[f->water_count++];
+    w->x0 = x0; w->z0 = z0; w->x1 = x1; w->z1 = z1;
+    return w;
+}
+
 frame_shadow_t *frame_push_shadow(frame_t *f, float x, float y, float z, float radius,
                                   unsigned char alpha) {
     if (!f || f->shadow_count >= FRAME_MAX_SHADOWS || radius <= 0.0f || alpha == 0) return NULL;

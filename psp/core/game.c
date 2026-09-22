@@ -247,6 +247,30 @@ static int load_level(game_t *g, int index, int entry_id) {
         }
     }
 
+    /* Водная гладь: клетки CELL_WATER сливаются в горизонтальные полосы, чтобы
+     * прямоугольников было в разы меньше, чем клеток (пул кадра невелик). */
+    g->water_count = 0;
+    for (int cz = 0; cz < g->level.cells_z && g->water_count < FRAME_MAX_WATER; cz++) {
+        int run_start = -1;
+        for (int cx = 0; cx <= g->level.cells_x; cx++) {
+            const level_cell_t *c = (cx < g->level.cells_x) ? level_cell(&g->level, cx, cz) : NULL;
+            int is_water = (c && (c->flags & CELL_EXISTS) && (c->flags & CELL_WATER)) ? 1 : 0;
+            if (is_water && run_start < 0) run_start = cx;
+            if (!is_water && run_start >= 0) {
+                float x0 = 0.0f, z0 = 0.0f, x1 = 0.0f, z1 = 0.0f;
+                level_cell_center(&g->level, run_start, cz, &x0, &z0);
+                level_cell_center(&g->level, cx - 1, cz, &x1, &z1);
+                float half = g->level.cell_size * 0.5f;
+                if (g->water_count < FRAME_MAX_WATER) {
+                    frame_water_t *w = &g->water[g->water_count++];
+                    w->x0 = x0 - half; w->z0 = z0 - half;
+                    w->x1 = x1 + half; w->z1 = z1 + half;
+                }
+                run_start = -1;
+            }
+        }
+    }
+
     entities_init(&g->entities, &g->level, &g->world);
     entities_propagate(&g->entities);
     memset(&g->beam, 0, sizeof g->beam);
@@ -1047,6 +1071,14 @@ void game_build_frame(game_t *g, frame_t *f) {
     f->env.sky_bottom = g->pal->sky_bottom;
     f->env.fog_color = g->pal->sky_bottom;
     f->env.shadow_color = g->pal->slots[SLOT_SHADOW];
+    /* Гладь стоит на текущем уровне воды и чуть дышит: ровная плоскость выглядит
+     * стеклом, а не водой. Амплитуда меньше миллиметра в масштабе клетки. */
+    f->water_color = (170u << 24) | (g->pal->slots[SLOT_WATER] & 0x00FFFFFFu);
+    f->water_y = (float)g->entities.water_steps * g->level.step_y
+                 + 0.02f * sinf((float)g->frame * 1.4f * M3_DEG2RAD);
+    for (int i = 0; i < g->water_count; i++) {
+        frame_push_water(f, g->water[i].x0, g->water[i].z0, g->water[i].x1, g->water[i].z1);
+    }
     f->env.fog_near = g->cam.dist + g->pal->fog_near;
     f->env.fog_far = g->cam.dist + g->pal->fog_far;
     f->env.desat = g->desat.value;

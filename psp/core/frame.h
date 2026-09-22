@@ -9,6 +9,7 @@
 #define FRAME_MAX_GHOSTS 8
 #define FRAME_MAX_SHADOWS 24
 #define FRAME_MAX_PANELS 8
+#define FRAME_MAX_WATER 48
 #define FRAME_MAX_TEXTS 48
 #define FRAME_TEXT_LEN 96
 #define FRAME_NAME_LEN 32
@@ -52,6 +53,13 @@ typedef struct {
     unsigned char align; /* TEXT_LEFT | TEXT_CENTER | TEXT_RIGHT */
 } frame_text_t;
 
+/* Полоса водной глади: прямоугольник в плоскости XZ на высоте уровня воды.
+ * Вода не запекается в геометрию острова, потому что её уровень меняется шлюзом:
+ * в меше остаётся только дно, а гладь рисуется поверх полупрозрачным проходом. */
+typedef struct {
+    float x0, z0, x1, z1;
+} frame_water_t;
+
 /* Контактная тень: мягкий тёмный диск на полу под объектом. Без неё предметы в
  * изометрии «висят» — глазу не за что зацепить их высоту. Рисуется полупрозрачной
  * геометрией с тестом глубины, но без записи в Z. */
@@ -91,6 +99,10 @@ typedef struct {
     int ghost_count;
     frame_shadow_t shadows[FRAME_MAX_SHADOWS];
     int shadow_count;
+    frame_water_t water[FRAME_MAX_WATER];
+    int water_count;
+    float water_y;          /* высота глади в мировых единицах */
+    unsigned water_color;   /* 0xAABBGGRR: альфа задаёт прозрачность */
     frame_panel_t panels[FRAME_MAX_PANELS];
     int panel_count;
     frame_text_t texts[FRAME_MAX_TEXTS];
@@ -118,6 +130,8 @@ frame_mesh_t *frame_push_ghost(frame_t *f, const mesh_t *m, float x, float y, fl
 /* Плашка под текст; NULL при переполнении пула. */
 frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
                                 unsigned color_top, unsigned color_bottom);
+/* Полоса водной глади; NULL при переполнении пула. */
+frame_water_t *frame_push_water(frame_t *f, float x0, float z0, float x1, float z1);
 /* Контактная тень под объектом; NULL при переполнении пула. */
 frame_shadow_t *frame_push_shadow(frame_t *f, float x, float y, float z, float radius, unsigned char alpha);
 
