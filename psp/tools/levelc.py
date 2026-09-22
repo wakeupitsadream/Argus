@@ -150,27 +150,31 @@ def load_level_names():
 
 
 def load_strings():
-    """assets/strings.csv → {идентификатор: индекс STR_*} или None, если файла нет.
+    """Идентификаторы строк → индексы STR_*; None, если базового файла нет.
 
-    Порядок строк CSV = значения STR_* (tools/stringsgen.py делает то же самое)."""
-    path = ROOT / "assets" / "strings.csv"
-    if not path.exists():
-        warn(f"нет {path} — идентификаторы строк будут пустыми (0xFFFF)")
+    Порядок ровно тот же, что у tools/stringsgen.py: сначала assets/strings.csv,
+    затем фрагменты assets/strings/*.csv по алфавиту. Разойдись порядок — уровни
+    ссылались бы не на те строки."""
+    base = ROOT / "assets" / "strings.csv"
+    if not base.exists():
+        warn(f"нет {base} — идентификаторы строк будут пустыми (0xFFFF)")
         return None
+    sources = [base] + sorted((ROOT / "assets" / "strings").glob("*.csv"))
     ids = {}
-    with path.open(newline="", encoding="utf-8") as f:
-        rows = list(csv.reader(f))
-    if not rows or rows[0][:1] != ["id"]:
-        warn(f"{path}: первая строка не заголовок 'id,...' — идентификаторы строк пропущены")
-        return None
     index = 0
-    for row in rows[1:]:
-        if not row:
+    for path in sources:
+        with path.open(newline="", encoding="utf-8") as f:
+            rows = list(csv.reader(f))
+        if not rows or rows[0][:1] != ["id"]:
+            warn(f"{path}: первая строка не заголовок 'id,...' — файл пропущен")
             continue
-        sid = row[0].strip()
-        if sid and sid not in ids:
-            ids[sid] = index
-        index += 1
+        for row in rows[1:]:
+            if not row:
+                continue
+            sid = row[0].strip()
+            if sid and sid not in ids:
+                ids[sid] = index
+            index += 1
     return ids
 
 
@@ -834,9 +838,19 @@ def build_portals(level, g, level_names, where):
     return bytes(out), len(items)
 
 
+LEVEL_KEYS = {"name", "palette", "cell", "step", "base_depth", "cam_angle", "cam_lock",
+              "spawn", "spawn_yaw", "caption", "map", "stairs", "water", "floats",
+              "segments", "seg_states", "entity", "link", "portal", "prop"}
+
+
 def compile_level(src, out_dir):
     where = src.name
     level = tomllib.loads(src.read_text(encoding="utf-8"))
+    # Опечатка в имени ключа раньше проходила молча: слой seg_state вместо seg_states
+    # просто не применялся, а дверь оставалась заперта навсегда.
+    unknown = sorted(set(level) - LEVEL_KEYS)
+    if unknown:
+        fail(f"{where}: неизвестные ключи: {', '.join(unknown)}")
     types = load_entity_types()
     level_names = load_level_names()
     strings = load_strings()

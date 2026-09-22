@@ -633,6 +633,82 @@ TEST(test_entity_deferred_types) {
     CHECK_EQ(es.water_steps, 0);
 }
 
+TEST(test_entity_mirror_state_from_yaw) {
+    /* Автор уровня ставит зеркало углом в TOML; состояние 0..3 обязано совпасть,
+     * иначе расстановка головоломки в данных расходится с тем, что видно в игре. */
+    level_entity_t ents[4];
+    memset(ents, 0, sizeof ents);
+    static const float YAW[4] = { 0.0f, 90.0f, 270.0f, 180.0f };
+    static const int TYPE[4] = { ENT_MIRROR, ENT_MIRROR, ENT_MIRROR, ENT_PRISM };
+    for (int i = 0; i < 4; i++) {
+        ents[i].type = (unsigned short)TYPE[i];
+        ents[i].id = (unsigned short)(20 + i);
+        ents[i].x = cell_c(1 + i, E_W);
+        ents[i].z = cell_c(1, E_H);
+        ents[i].y = E_Y;
+        ents[i].yaw_deg = YAW[i];
+        ents[i].name_str_id = 0xFFFF;
+    }
+    size_t len = 0;
+    void *blob = build_entity_level(ents, 4, NULL, 0, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+
+    CHECK_EQ(entities_by_id(&es, 20)->state, 0);
+    CHECK_EQ(entities_by_id(&es, 21)->state, 1);
+    CHECK_EQ(entities_by_id(&es, 22)->state, 3);
+    CHECK_EQ(entities_by_id(&es, 23)->state, 2);
+    level_free(&l);
+}
+
+TEST(test_entity_door_blocks_segment) {
+    /* Дверь запирает проход через состояние своего сегмента: ходьба знает только
+     * сетку, поэтому закрытая дверь обязана закрывать клетку, а не только гасить луч. */
+    level_entity_t ents[2];
+    memset(ents, 0, sizeof ents);
+    ents[0].type = ENT_LEVER;
+    ents[0].id = 30;
+    ents[0].x = cell_c(1, E_W);
+    ents[0].z = cell_c(1, E_H);
+    ents[0].y = E_Y;
+    ents[0].name_str_id = 0xFFFF;
+    ents[1].type = ENT_DOOR;
+    ents[1].id = 31;
+    ents[1].x = cell_c(3, E_W);
+    ents[1].z = cell_c(1, E_H);
+    ents[1].y = E_Y;
+    ents[1].name_str_id = 0xFFFF;
+    ents[1].params[0] = 2;   /* номер сегмента двери */
+    static const level_link_t LINKS[] = { { 30, 0, 0, 31, 0, 0 } };
+
+    size_t len = 0;
+    void *blob = build_entity_level(ents, 2, LINKS, 1, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+
+    CHECK_EQ(l.seg_states[2], 0);                 /* закрыта */
+    CHECK_EQ(entities_by_id(&es, 31)->state, 0);
+
+    float lx = cell_c(1, E_W), lz = cell_c(1, E_H);
+    CHECK_EQ(entities_interact(&es, lx, lz, 1.0f, 0.0f, 0.8f), 30);
+    entities_propagate(&es);
+    CHECK_EQ(entities_by_id(&es, 31)->state, 1);
+    CHECK_EQ(l.seg_states[2], 1);                 /* открылась — клетки сегмента пускают */
+
+    CHECK_EQ(entities_interact(&es, lx, lz, 1.0f, 0.0f, 0.8f), 30);
+    entities_propagate(&es);
+    CHECK_EQ(l.seg_states[2], 0);                 /* и снова заперта */
+    level_free(&l);
+}
+
 void tests_entity(void) {
     puts("entity tests");
     RUN(test_entity_init_flags);
@@ -644,4 +720,6 @@ void tests_entity(void) {
     RUN(test_entity_busy_blocks_interact);
     RUN(test_entity_deferred_types);
     RUN(test_entity_pool_overflow);
+    RUN(test_entity_mirror_state_from_yaw);
+    RUN(test_entity_door_blocks_segment);
 }

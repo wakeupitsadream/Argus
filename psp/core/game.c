@@ -20,8 +20,8 @@
 #define EYES_TOTAL 4        /* больших глаз в игре */
 #define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
 #define MSG_FRAMES 210      /* 3,5 с на реплику */
-#define BEAM_STEP 0.38f      /* шаг спрайтов вдоль луча */
-#define BEAM_SPRITES_MAX 40  /* бюджет спрайтов на луч: остальное — пылинки и свечения */
+#define BEAM_STEP 0.20f      /* шаг спрайтов вдоль луча: реже — и луч рассыпается в пунктир */
+#define BEAM_SPRITES_MAX 60  /* бюджет спрайтов на луч: остальное — пылинки и свечения */
 #define TRAVEL_FRAMES 20     /* затемнение при переходе между островами */
 #define DOOR_DROP 1.5f       /* насколько открытая дверь уходит в пол */
 #define ENT_VIS_RATE 0.18f   /* догоняющее сглаживание двери и панели (как у камеры) */
@@ -942,8 +942,8 @@ static void build_beam(game_t *g, frame_t *f) {
             float pos[3] = { seg->x0 + dx * t, seg->y + 0.45f, seg->z0 + dz * t };
             /* Бегущая волна вдоль луча: фаза зависит и от кадра, и от точки. */
             float wave = sinf((float)(g->frame * 7 + k * 52) * M3_DEG2RAD);
-            unsigned alpha = (unsigned)(130.0f + 60.0f * wave);
-            frame_push_sprite(f, SPRITE_SPARK, pos, 0.40f, (alpha << 24) | rgb);
+            unsigned alpha = (unsigned)(120.0f + 45.0f * wave);
+            frame_push_sprite(f, SPRITE_SPARK, pos, 0.34f, (alpha << 24) | rgb);
             budget--;
         }
     }

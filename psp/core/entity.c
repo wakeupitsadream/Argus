@@ -135,9 +135,18 @@ void entities_propagate(entities_t *es) {
     for (int i = 0; i < es->count; i++) {
         entity_t *e = &es->items[i];
         switch (ent_type(e)) {
-        case ENT_DOOR:
+        case ENT_DOOR: {
             e->state = e->inputs ? 1 : 0; /* открыта, пока активен любой вход */
+            /* Ходьба знает только сетку, поэтому дверь физически запирает проход
+             * через состояние сегмента: её клетки помечены CELL_SEG с номером
+             * params[0] и требуемым состоянием 1 (docs/FORMATS.md, «Двери»). */
+            int seg = e->def ? e->def->params[0] : 0;
+            if (seg > 0 && seg < LEVEL_MAX_SEGMENTS && es->level) {
+                level_t *mut = (level_t *)(void *)es->level;
+                mut->seg_states[seg] = e->state;
+            }
             break;
+        }
         case ENT_BIG_EYE:
             if ((e->inputs & 1u) && !e->state) {
                 int id = ent_id(e);
@@ -179,9 +188,17 @@ void entities_init(entities_t *es, const level_t *l, world_t *w) {
         e->y = def->y;
         e->z = def->z;
         e->yaw = def->yaw_deg;
+        /* Зеркало и призма: состояние 0..3 задаёт автор уровня углом в TOML.
+         * Иначе любое зеркало стартовало бы в состоянии 0, и авторская расстановка
+         * («этот уголок уже повёрнут») молча терялась бы. */
         e->phase = 0.0f;
         tween_set(&e->anim, 0.0f);
         e->state = 0;
+        if (def->type == ENT_MIRROR || def->type == ENT_PRISM) {
+            int q = (int)((def->yaw_deg < 0.0f ? def->yaw_deg + 1440.0f : def->yaw_deg)
+                          / 90.0f + 0.5f);
+            e->state = (unsigned char)(q & 3);
+        }
         e->outputs = 0;
         e->inputs = 0;
         e->watched = 0;
