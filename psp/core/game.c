@@ -18,6 +18,7 @@
 #define TITLE_ORBIT 6.0f    /* градусов в секунду: медленный облёт на заставке */
 #define TITLE_SHIFT 5.2f    /* на сколько остров уезжает вправо под плашку названия */
 #define EYES_TOTAL 4        /* больших глаз в игре */
+#define BONUS_FEATHERS 3    /* перьев за просьбы отголосков, чтобы открылся бонусный остров */
 #define INTERACT_REACH 1.1f /* на каком расстоянии Око достаёт до механизма */
 #define MSG_FRAMES 210      /* 3,5 с на реплику */
 #define BEAM_STEP 0.20f      /* шаг спрайтов вдоль луча: реже — и луч рассыпается в пунктир */
@@ -668,10 +669,15 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
         if (g->level_ok) {
             const level_portal_t *p = level_portal_at(&g->level, g->player.pos.x, g->player.pos.z);
             if (p) {
-                if ((int)p->target_level == g->level_index && p->target_entry == 0) {
+                int target = (int)p->target_level;
+                if (target == g->level_index && p->target_entry == 0) {
                     if (g->msg_frames <= 0) { show_msg(g, STR_GATE_LOCKED); audio_play(&g->audio, SFX_DENY); }
+                } else if (target == LVL_BONUS && (int)g->world.feathers < BONUS_FEATHERS) {
+                    /* Бонусный остров — награда за просьбы отголосков, а не просто ещё
+                     * один мост: без перьев ход закрыт, и игра говорит об этом прямо. */
+                    if (g->msg_frames <= 0) { show_msg(g, STR_BONUS_LOCKED); audio_play(&g->audio, SFX_DENY); }
                 } else {
-                    travel_begin(g, (int)p->target_level, (int)p->target_entry);
+                    travel_begin(g, target, (int)p->target_entry);
                 }
             }
         }
