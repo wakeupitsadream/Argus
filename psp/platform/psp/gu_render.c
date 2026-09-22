@@ -7,6 +7,9 @@
 #include <math.h>
 #include <string.h>
 #include "gu_render.h"
+#include "gu_text.h"
+#include "gu_sprite.h"
+#include "camera.h"
 #include "fs_psp.h"
 #include "platform.h"
 
@@ -20,6 +23,7 @@ static void *s_fb[2];   /* смещения в VRAM (как принимает s
 static void *s_zb;
 static int s_draw = 0;  /* индекс буфера, в который рисуется текущий кадр */
 static int s_shown = 1; /* индекс буфера, показанного после последнего swap */
+static unsigned s_tris, s_draws;
 
 typedef struct {
     unsigned color;
@@ -78,14 +82,42 @@ static void draw_sky(const frame_env_t *env) {
     sceGuEnable(GU_DEPTH_TEST);
 }
 
+/* Полноэкранный серый квад: обесцвечивание сцены в режиме взгляда. Шейдеров на PSP нет,
+ * поэтому «выцветание» делается наложением с альфой — дешёво и предсказуемо. */
+static void draw_desat(float amount) {
+    if (amount <= 0.002f) return;
+    if (amount > 1.0f) amount = 1.0f;
+    unsigned alpha = (unsigned)(amount * 110.0f);
+    unsigned color = (alpha << 24) | 0x00808080u;
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * sizeof(vtx2d_t));
+    if (!v) return;
+    const float x0 = 0.0f, x1 = (float)SCR_WIDTH, y0 = 0.0f, y1 = (float)SCR_HEIGHT;
+    v[0] = (vtx2d_t){ color, x0, y0, 0.0f };
+    v[1] = (vtx2d_t){ color, x1, y0, 0.0f };
+    v[2] = (vtx2d_t){ color, x1, y1, 0.0f };
+    v[3] = (vtx2d_t){ color, x0, y0, 0.0f };
+    v[4] = (vtx2d_t){ color, x1, y1, 0.0f };
+    v[5] = (vtx2d_t){ color, x0, y1, 0.0f };
+
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_CULL_FACE);
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 6, 0, v);
+    sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+    sceGuEnable(GU_DEPTH_TEST);
+}
+
 static void setup_camera(const frame_cam_t *cam) {
-    float yaw = cam->yaw_deg * DEG2RAD, pitch = cam->pitch_deg * DEG2RAD;
+    float eye_v[3];
+    cam_eye(cam, eye_v); /* та же функция, что и в cam_project: картинка и проекция не расходятся */
     ScePspFVector3 center = { cam->target[0], cam->target[1], cam->target[2] };
-    ScePspFVector3 eye = {
-        center.x + cam->dist * cosf(pitch) * sinf(yaw),
-        center.y + cam->dist * sinf(pitch),
-        center.z + cam->dist * cosf(pitch) * cosf(yaw),
-    };
+    ScePspFVector3 eye = { eye_v[0], eye_v[1], eye_v[2] };
     ScePspFVector3 up = { 0.0f, 1.0f, 0.0f };
     float hw = cam->half_w, hh = cam->half_w * ((float)SCR_HEIGHT / (float)SCR_WIDTH);
 
@@ -110,17 +142,27 @@ static void draw_meshes(const frame_t *f) {
         sceGumMatrixMode(GU_MODEL);
         sceGumLoadIdentity();
         sceGumTranslate(&pos);
-        if (cmd->yaw_deg != 0.0f) {
-            ScePspFVector3 rot = { 0.0f, cmd->yaw_deg * DEG2RAD, 0.0f };
+        if (cmd->yaw_deg != 0.0f || cmd->pitch_deg != 0.0f) {
+            ScePspFVector3 rot = { cmd->pitch_deg * DEG2RAD, cmd->yaw_deg * DEG2RAD, 0.0f };
             sceGumRotateXYZ(&rot);
+        }
+        if (cmd->scale != 1.0f && cmd->scale > 0.0f) {
+            ScePspFVector3 sc = { cmd->scale, cmd->scale, cmd->scale };
+            sceGumScale(&sc);
         }
         sceGumDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D,
                         cmd->mesh->count, 0, cmd->mesh->verts);
+        s_tris += (unsigned)cmd->mesh->count / 3u;
+        s_draws++;
     }
     sceGuDisable(GU_FOG);
 }
 
-void r_draw_frame(const frame_t *f) {
+void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
+    SceInt64 t0 = sceKernelGetSystemTimeWide();
+    s_tris = 0;
+    s_draws = 0;
+
     sceGuStart(GU_DIRECT, s_list);
     sceGuClearColor(f->env.sky_bottom);
     sceGuClearDepth(0);
@@ -128,12 +170,26 @@ void r_draw_frame(const frame_t *f) {
     draw_sky(&f->env);
     setup_camera(&f->cam);
     draw_meshes(f);
+    draw_desat(f->env.desat);   /* выцветание сцены до свечений: глаза остаются яркими */
+    gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
+    gu_text_draw(f);            /* последний проход: 2D-наложение поверх всего */
     sceGuFinish();
+
+    SceInt64 t1 = sceKernelGetSystemTimeWide();
     sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
+    SceInt64 t2 = sceKernelGetSystemTimeWide();
+
     sceDisplayWaitVblankStart();
     sceGuSwapBuffers();
     s_shown = s_draw;
     s_draw ^= 1;
+
+    if (stats) {
+        stats->cpu_us = (unsigned)(t1 - t0);
+        stats->gpu_us = (unsigned)(t2 - t1);
+        stats->tris = s_tris;
+        stats->draws = s_draws + (unsigned)gu_text_last_quads() + (unsigned)gu_sprite_last_count();
+    }
 }
 
 int r_screenshot_bmp(const char *rel_path) {

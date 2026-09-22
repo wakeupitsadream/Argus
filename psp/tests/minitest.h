@@ -5,7 +5,8 @@
 #include <string.h>
 #include <math.h>
 
-static int mt_checks = 0, mt_fails = 0;
+extern int mt_checks, mt_fails;
+#define MT_DEFINE_COUNTERS() int mt_checks = 0, mt_fails = 0
 
 #define TEST(name) static void name(void)
 #define RUN(name) do { printf("  %-40s", #name); int before = mt_fails; name(); \

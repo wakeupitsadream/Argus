@@ -6,6 +6,7 @@
 #include "mesh.h"
 #include "game.h"
 #include "platform.h"
+#include "tests.h"
 #include <stdlib.h>
 
 TEST(test_ease_bounds) {
@@ -71,6 +72,40 @@ TEST(test_autoplay_parse_and_step) {
     CHECK_EQ(autoplay_parse(&ap2, "@1 press R\n@2 shot a\n@3 quit\n"), 3);
     CHECK_EQ(autoplay_step(&ap2, 100, &in, shot), AP_FLAG_SHOT | AP_FLAG_QUIT);
     CHECK_EQ(in.buttons, BTN_R);
+}
+
+TEST(test_autoplay_long_lines) {
+    autoplay_t ap;
+    /* Комментарий длиннее буфера разбора не должен ломать следующие строки. */
+    char script[2048];
+    size_t pos = 0;
+    script[pos++] = '#';
+    for (int i = 0; i < 700; i++) script[pos++] = 'x';
+    script[pos++] = '\n';
+    const char *tail = "@10 press L\n@20 assert fps>=58\n@30 quit\n";
+    memcpy(script + pos, tail, strlen(tail) + 1);
+    CHECK_EQ(autoplay_parse(&ap, script), 3);
+    CHECK_EQ(ap.ev[0].kind, AP_PRESS);
+    CHECK_EQ(ap.ev[1].kind, AP_ASSERT);
+    CHECK_STR(ap.ev[1].name, "fps>=58");
+    CHECK_EQ(ap.ev[2].kind, AP_QUIT);
+
+    /* Проверки попадают в очередь кадра и видны вызывающему. */
+    input_t in;
+    char shot[AP_NAME_LEN] = {0};
+    CHECK_EQ(autoplay_step(&ap, 20, &in, shot) & AP_FLAG_ASSERT, AP_FLAG_ASSERT);
+    CHECK_EQ(ap.assert_count, 1);
+    CHECK_STR(ap.asserts[0], "fps>=58");
+    /* На следующем кадре очередь пуста. */
+    autoplay_step(&ap, 21, &in, shot);
+    CHECK_EQ(ap.assert_count, 0);
+
+    /* Длинное имя кадра обрезается, но не портит память. */
+    autoplay_t ap2;
+    CHECK_EQ(autoplay_parse(&ap2, "@1 shot aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"), 1);
+    char shot2[AP_NAME_LEN] = {0};
+    autoplay_step(&ap2, 1, &in, shot2);
+    CHECK_EQ((int)strlen(shot2), AP_NAME_LEN - 1);
 }
 
 TEST(test_autoplay_errors) {
@@ -153,37 +188,40 @@ TEST(test_game_loop) {
     CHECK_EQ(game_init(g), 0);
     frame_t f;
     input_t in = {0};
-    game_tick(g, &in);
+    plat_stats_t st = {0};
+    game_tick(g, &in, &st);
     game_build_frame(g, &f);
-    CHECK_EQ(f.mesh_count, 1);
-    CHECK(f.meshes[0].mesh == &g->island);
+    CHECK(f.mesh_count >= 1);                       /* остров, сущности уровня и Око */
+    CHECK(f.mesh_count <= FRAME_MAX_MESHES);
+    CHECK(f.meshes[0].mesh == &g->island);          /* остров всегда первый */
+    CHECK(f.text_count >= 0);
     CHECK_NEAR(f.cam.yaw_deg, 45.0, 1e-4);
     CHECK(!f.quit);
     /* поворот камеры кнопкой R: через 36 кадров ровно +90 */
     in.buttons = BTN_R;
-    game_tick(g, &in);
+    game_tick(g, &in, NULL);
     in.buttons = 0;
-    for (int i = 0; i < 40; i++) game_tick(g, &in);
+    for (int i = 0; i < 40; i++) game_tick(g, &in, NULL);
     game_build_frame(g, &f);
     CHECK_NEAR(f.cam.yaw_deg, 135.0, 1e-3);
-    CHECK_EQ(g->cam_angle, 1);
+    CHECK_EQ(g->cam.angle, 1);
     in.buttons = BTN_START;
-    game_tick(g, &in);
+    game_tick(g, &in, NULL);
     game_build_frame(g, &f);
     CHECK(f.quit);
     game_shutdown(g);
     free(g);
 }
 
-int main(void) {
+void tests_core(void) {
     puts("core tests");
     RUN(test_ease_bounds);
     RUN(test_tween);
     RUN(test_autoplay_parse_and_step);
+    RUN(test_autoplay_long_lines);
     RUN(test_autoplay_errors);
     RUN(test_palette_file);
     RUN(test_mesh_shading);
     RUN(test_mesh_file);
     RUN(test_game_loop);
-    return MT_SUMMARY();
 }

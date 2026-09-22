@@ -23,12 +23,14 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
     const char *p = text;
     while (*p) {
         const char *eol = strchr(p, '\n');
-        size_t n = eol ? (size_t)(eol - p) : strlen(p);
-        char line[128];
-        if (n >= sizeof line) n = sizeof line - 1;
+        size_t raw = eol ? (size_t)(eol - p) : strlen(p);
+        char line[256];
+        /* Длинную строку обрезаем для разбора, но пропускаем целиком: иначе её хвост
+         * станет «следующей строкой» и сломает разбор (комментарии бывают длинными). */
+        size_t n = raw < sizeof line - 1 ? raw : sizeof line - 1;
         memcpy(line, p, n);
         line[n] = 0;
-        p += n + (eol ? 1 : 0);
+        p += raw + (eol ? 1 : 0);
         line_no++;
 
         char *s = line;
@@ -37,9 +39,9 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
         if (ap->count >= AP_MAX_EVENTS) { plat_log("autoplay: слишком много событий"); return -1; }
 
         ap_event_t *e = &ap->ev[ap->count];
-        char cmd[16] = {0}, arg[AP_NAME_LEN] = {0};
+        char cmd[16] = {0}, arg[AP_ASSERT_LEN] = {0};
         int frame = 0;
-        if (sscanf(s, "@%d %15s %31s", &frame, cmd, arg) < 2) {
+        if (sscanf(s, "@%d %15s %47s", &frame, cmd, arg) < 2) {
             plat_log("autoplay: строка %d: ожидается '@<кадр> <команда>'", line_no);
             return -1;
         }
@@ -58,6 +60,10 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
             e->kind = AP_SHOT;
             if (!arg[0]) { plat_log("autoplay: строка %d: shot <имя>", line_no); return -1; }
             snprintf(e->name, sizeof e->name, "%s", arg);
+        } else if (strcmp(cmd, "assert") == 0) {
+            e->kind = AP_ASSERT;
+            if (!arg[0]) { plat_log("autoplay: строка %d: assert <выражение>", line_no); return -1; }
+            snprintf(e->name, sizeof e->name, "%s", arg);
         } else if (strcmp(cmd, "quit") == 0) {
             e->kind = AP_QUIT;
         } else {
@@ -72,6 +78,7 @@ int autoplay_parse(autoplay_t *ap, const char *text) {
 
 int autoplay_step(autoplay_t *ap, int frame, input_t *out, char out_shot[AP_NAME_LEN]) {
     int flags = 0;
+    ap->assert_count = 0;
     while (ap->next < ap->count && ap->ev[ap->next].frame <= frame) {
         const ap_event_t *e = &ap->ev[ap->next++];
         switch (e->kind) {
@@ -80,7 +87,21 @@ int autoplay_step(autoplay_t *ap, int frame, input_t *out, char out_shot[AP_NAME
         case AP_STICK:   ap->input.lx = e->x; ap->input.ly = e->y; break;
         case AP_SHOT:
             flags |= AP_FLAG_SHOT;
-            if (out_shot) snprintf(out_shot, AP_NAME_LEN, "%s", e->name);
+            if (out_shot) snprintf(out_shot, AP_NAME_LEN, "%.*s", AP_NAME_LEN - 1, e->name);
+            break;
+        case AP_ASSERT:
+            if (ap->assert_count < AP_PENDING_MAX) {
+                /* memcpy, а не snprintf: источник и приёмник лежат в одной структуре,
+                 * и компилятор не может доказать отсутствие наложения (-Wrestrict). */
+                char *dst = ap->asserts[ap->assert_count++];
+                size_t len = strlen(e->name);
+                if (len > AP_ASSERT_LEN - 1) len = AP_ASSERT_LEN - 1;
+                memcpy(dst, e->name, len);
+                dst[len] = 0;
+                flags |= AP_FLAG_ASSERT;
+            } else {
+                plat_log("autoplay: больше %d проверок на кадр — '%s' пропущена", AP_PENDING_MAX, e->name);
+            }
             break;
         case AP_QUIT:    flags |= AP_FLAG_QUIT; break;
         default: break;

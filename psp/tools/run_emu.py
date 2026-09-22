@@ -58,6 +58,13 @@ def main():
     if proc.stderr.strip():
         print("stderr:", proc.stderr.rstrip()[-4000:])
 
+    fails = [ln for ln in proc.stdout.splitlines() if "AUTOPLAY FAIL" in ln]
+    passes = [ln for ln in proc.stdout.splitlines() if "AUTOPLAY OK" in ln]
+    if passes or fails:
+        print(f"--- проверки autoplay: пройдено {len(passes)}, провалено {len(fails)} ---")
+        for ln in fails:
+            print("  ", ln.strip())
+
     converted = 0
     try:
         from PIL import Image
@@ -77,6 +84,8 @@ def main():
         if logf.exists():
             print(f"--- {logf} ---")
             print(logf.read_text(errors="replace")[-3000:])
+    if fails:
+        return 1
     return proc.returncode
 
 

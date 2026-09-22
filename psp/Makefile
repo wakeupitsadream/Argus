@@ -7,7 +7,10 @@ TOOLCHAIN       := $(PSPDEV)/psp/share/pspdev.cmake
 SCRIPT          ?= tests/autoplay/smoke.txt
 SECONDS         ?= 20
 HOST_CC         ?= cc
-HOST_CFLAGS     := -std=c11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Icore -Itests
+# Модули, ещё не подключённые к игре (в работе) — исключаем и из хост-сборки.
+CORE_SRC        := $(filter-out core/entity.c core/puzzle_beam.c core/puzzle_mech.c core/quest.c,$(wildcard core/*.c))
+TEST_SRC        := $(filter-out tests/unit/test_entity.c tests/unit/test_beam.c tests/unit/test_mech.c tests/unit/test_quest.c,$(wildcard tests/unit/*.c))
+HOST_CFLAGS     := -std=c11 -Wall -Wextra -Werror -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Icore -Itests -Ibuild/assets
 PSP_ENV         := PSPDEV=$(PSPDEV) PATH=$(PSPDEV)/bin:$$PATH
 
 .PHONY: all assets psp test run-emu clean check-toolchain
@@ -26,11 +29,12 @@ psp: check-toolchain assets
 	rm -rf $(BUILD)/ARGUS && mkdir -p $(BUILD)/ARGUS/data
 	cp $(BUILD)/psp/EBOOT.PBP $(BUILD)/ARGUS/
 	cp $(BUILD)/assets/*.msh $(BUILD)/assets/*.pal $(BUILD)/ARGUS/data/
+	-cp $(BUILD)/assets/*.lvl $(BUILD)/assets/font.bin $(BUILD)/assets/strings_*.bin $(BUILD)/ARGUS/data/ 2>/dev/null || true
 	@echo "EBOOT: $(BUILD)/ARGUS/EBOOT.PBP ($$(du -h $(BUILD)/ARGUS/EBOOT.PBP | cut -f1))"
 
 test: assets
 	mkdir -p $(BUILD)/host
-	$(HOST_CC) $(HOST_CFLAGS) core/*.c tests/platform_stub.c tests/unit/test_core.c -o $(BUILD)/host/test_core -lm
+	$(HOST_CC) $(HOST_CFLAGS) $(CORE_SRC) tests/platform_stub.c $(TEST_SRC) -o $(BUILD)/host/test_core -lm
 	ARGUS_ASSETS=$(abspath $(BUILD)/assets) $(BUILD)/host/test_core
 
 run-emu: psp

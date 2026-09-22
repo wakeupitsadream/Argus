@@ -31,8 +31,19 @@ if ! python3 -c "import PIL, numpy, fontTools" 2>/dev/null; then
 fi
 
 PPSSPP_HEADLESS="${PPSSPP_HEADLESS:-$HOME/ppsspp/PPSSPPHeadless}"
+EMU_URL="https://github.com/wakeupitsadream/Argus/releases/download/tools-v1/ppsspp-headless-linux-x64.tar.gz"
 if [ ! -x "$PPSSPP_HEADLESS" ]; then
-    log "PPSSPPHeadless не найден ($PPSSPP_HEADLESS); собери: bash psp/ci/build-ppsspp.sh"
+    log "эмулятор не найден, пробую готовую сборку из релиза"
+    mkdir -p "$(dirname "$PPSSPP_HEADLESS")"
+    if curl -fsSL --retry 3 --max-time 300 -o "$CACHE_DIR/emu.tar.gz" "$EMU_URL" 2>/dev/null; then
+        tar -xzf "$CACHE_DIR/emu.tar.gz" -C "$(dirname "$PPSSPP_HEADLESS")"
+        rm -f "$CACHE_DIR/emu.tar.gz"
+        log "эмулятор установлен: $PPSSPP_HEADLESS"
+    else
+        # Релиза ещё нет (собирается workflow tools-build) — собираем в фоне, ~12 минут на 4 ядрах.
+        log "готовой сборки нет, запускаю сборку в фоне: лог $CACHE_DIR/ppsspp-build.log"
+        nohup bash "$(dirname "$0")/build-ppsspp.sh" > "$CACHE_DIR/ppsspp-build.log" 2>&1 &
+    fi
 fi
 
 # Экспорт переменных в окружение сессии Claude Code (если хук предоставил файл)

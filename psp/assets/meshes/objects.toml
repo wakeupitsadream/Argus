@@ -1,0 +1,412 @@
+# objects.toml — параметры процедурной геометрии объектов ARGUS.
+# Сборка: python3 tools/meshgen.py build/assets  →  build/assets/mesh_<имя>.msh (формат AMSH,
+# docs/FORMATS.md). Имена файлов совпадают с MESH_FILES в core/game.c, порядок здесь не важен.
+# Правки габаритов и числа сегментов делаются здесь, в meshgen.py — только построение.
+#
+# Соглашения:
+#   * масштаб: клетка уровня = 1.0, шаг высоты 0.5;
+#   * «лицо» объекта смотрит в +Z — так его понимает core/player.c (радужка выносится вперёд на
+#     (sin yaw, cos yaw)) и так ракурс 0 камеры (yaw 45°) видит лицо, а не затылок;
+#   * по умолчанию объект стоит на полу: низ bbox прижимается к lift (0 — пол), начало
+#     координат — центр основания. ground = false отключает прижатие: нужно там, где важен
+#     собственный центр (голова и радужка Око, ступица павлиньего хвоста);
+#   * слоты палитры: 0 верх, 1 верх-вариант, 2 стены, 3 акцент, 4 тень, 5 свечение, 6 вода, 7 запас;
+#   * ao — запечённое затенение вершины 0..255, цвет считает игра (mesh_recolor);
+#   * expect — заявленные габариты (размеры bbox) для самопроверки `--check`, tol — допуск
+#     (доля, по умолчанию 0.12): у гранёных форм ширина меньше диаметра на cos(180/sides);
+#   * у пера (fan) tip_frac — доля длины от самого широкого места до кончика;
+#   * budget — бюджет треугольников (CLAUDE.md п.17): объект ≤ 400, eye_* и мелочь ≤ 120.
+#
+# Типы частей (part.type) и их параметры перечислены в шапке tools/meshgen.py.
+
+# --- общие формы, на которые ссылаются части через use = "<имя>" ---
+
+# Одно перо павлиньего хвоста. Ступица веера — в начале координат, перо смотрит лицом в +Z,
+# кончик («глаз» пера) — слот свечения. Перо номер i в раскрытом хвосте получается поворотом
+# вокруг оси Z на угол a_i = arc_deg·(i/(count-1) - 0.5), i = 0..count-1.
+[shape.tail_fan]
+type = "fan"
+center = [0.0, 0.0, 0.0]
+count = 24
+arc_deg = 160.0
+inner_r = 0.34
+length = 1.26
+half_wid = 0.095
+thick = 0.05
+segs = 8
+tip_frac = 0.36
+bow = 0.34
+slot = 3
+slot_tip = 5
+ao = 240
+ao_tip = 255
+
+# --- Око (игрок): тело + голова + радужка ---
+
+# Тело: усечённый цилиндр, стоит на полу. core/player.c ставит его в точку игрока.
+[[object]]
+name = "eye_body"
+budget = 120
+expect = { width = 0.32, height = 0.55, depth = 0.32 }
+[[object.part]]
+type = "prism"
+center = [0.0, 0.0, 0.0]
+radius = 0.16
+radius_top = 0.13
+height = 0.55
+sides = 12
+slot = 3
+ao_top = 255
+ao_side = 228
+ao_bottom = 170
+
+# Голова: приплюснутая сфера, ЦЕНТР в начале координат — player.c поднимает её на BODY_H
+# (0.55 = высота тела до центра головы) и туда же, вперёд на 0.16, ставит радужку.
+[[object]]
+name = "eye_head"
+ground = false
+budget = 120
+expect = { width = 0.40, height = 0.34, depth = 0.40 }
+[[object.part]]
+type = "sphere"
+center = [0.0, 0.0, 0.0]
+radius = 0.2
+segs = 10
+rings = 5
+squash = 0.85
+slot = 0
+ao_top = 255
+ao_bottom = 195
+
+# Радужка: линза, центр в начале координат. Радиус 0.12 при выносе 0.16 и радиусе головы 0.2
+# даёт обод точно на поверхности головы (0.12² + 0.16² = 0.2²), наружу торчит только линза.
+# По вертикали радужка сплюснута тем же squash 0.85 (0.12·0.85 = 0.102) — тогда обод лежит
+# на приплюснутом эллипсоиде головы при любом угле, а не протыкает его сверху и снизу.
+[[object]]
+name = "eye_iris"
+ground = false
+budget = 120
+expect = { width = 0.24, height = 0.204, depth = 0.05 }
+[[object.part]]
+type = "lens"
+center = [0.0, 0.0, 0.0]
+face = "z"
+along = "y"
+r_len = 0.102
+r_wid = 0.12
+thick = 0.05
+segs = 12
+slot = 5
+ao = 255
+
+# --- отголосок ---
+
+# Парящая огранённая форма: два сложенных восьмигранных конуса с поясом.
+[[object]]
+name = "echo"
+lift = 0.25
+expect = { width = 0.52, height = 0.70, depth = 0.52 }
+[[object.part]]
+type = "gem"
+center = [0.0, 0.0, 0.0]
+height = 0.7
+radius = 0.26
+sides = 8
+rings = [[0.24, 0.66], [0.46, 1.0]]
+slot = 1
+ao_top = 255
+ao_bottom = 190
+
+# --- головоломки света ---
+
+# Зеркало: пластина в рамке на низкой стойке, отражающая плоскость смотрит в +Z.
+[[object]]
+name = "mirror"
+expect = { width = 0.56, height = 0.80, depth = 0.22 }
+[[object.part]]
+type = "prism"
+center = [0.0, 0.0, 0.0]
+radius = 0.11
+radius_top = 0.09
+height = 0.16
+sides = 8
+slot = 2
+[[object.part]]
+type = "box"
+center = [0.0, 0.48, -0.015]
+size = [0.56, 0.62, 0.03]
+slot = 2
+ao_top = 250
+ao_side = 225
+ao_bottom = 200
+[[object.part]]
+type = "box"
+center = [0.0, 0.48, 0.015]
+size = [0.46, 0.52, 0.03]
+slot = 5
+ao_top = 255
+ao_side = 255
+ao_bottom = 240
+
+# Призма-делитель: треугольная призма на стойке, ребро смотрит в +Z.
+[[object]]
+name = "prism"
+expect = { width = 0.42, height = 0.54, depth = 0.36 }
+[[object.part]]
+type = "prism"
+center = [0.0, 0.0, 0.0]
+radius = 0.08
+radius_top = 0.07
+height = 0.18
+sides = 8
+slot = 2
+[[object.part]]
+type = "prism"
+center = [0.0, 0.18, 0.0]
+radius = 0.24
+height = 0.36
+sides = 3
+phase_deg = 90.0
+slot = 5
+ao_top = 255
+ao_side = 235
+ao_bottom = 205
+
+# Приёмник луча: кольцо в вертикальной плоскости на стойке; core_radius > 0 включает линзу
+# свечения в центре кольца (по умолчанию выключена — свечение даёт билборд в игре).
+[[object]]
+name = "receiver"
+expect = { width = 0.48, height = 0.70, depth = 0.18 }
+[[object.part]]
+type = "prism"
+center = [0.0, 0.0, 0.0]
+radius = 0.09
+radius_top = 0.075
+height = 0.26
+sides = 8
+slot = 2
+[[object.part]]
+type = "ring"
+center = [0.0, 0.46, 0.0]
+face = "z"
+r_inner = 0.16
+r_outer = 0.24
+thick = 0.07
+segs = 12
+slot = 3
+ao_face = 250
+ao_wall = 225
+
+# Рычаг: основание-диск и наклонённая вперёд ручка с шариком.
+[[object]]
+name = "lever"
+expect = { width = 0.36, height = 0.51, depth = 0.42 }
+[[object.part]]
+type = "prism"
+center = [0.0, 0.0, 0.0]
+radius = 0.18
+radius_top = 0.17
+height = 0.06
+sides = 10
+slot = 2
+[[object.part]]
+type = "cyl"
+from = [0.0, 0.03, 0.0]
+to = [0.0, 0.42, 0.2]
+radius = 0.035
+sides = 6
+slot = 3
+ao_side = 235
+ao_cap = 250
+[[object.part]]
+type = "lens"
+center = [0.0, 0.44, 0.21]
+face = "z"
+along = "y"
+r_len = 0.07
+r_wid = 0.07
+thick = 0.08
+segs = 12
+slot = 3
+ao = 250
+
+# --- механизмы ---
+
+# Нажимная плита: широкий низкий обод и площадка-акцент.
+[[object]]
+name = "plate"
+expect = { width = 0.90, height = 0.064, depth = 0.90 }
+[[object.part]]
+type = "box"
+center = [0.0, 0.012, 0.0]
+size = [0.9, 0.024, 0.9]
+slot = 2
+ao_top = 235
+ao_side = 215
+ao_bottom = 170
+[[object.part]]
+type = "box"
+center = [0.0, 0.039, 0.0]
+size = [0.78, 0.05, 0.78]
+slot = 3
+ao_top = 255
+ao_side = 225
+ao_bottom = 190
+
+# Толкаемый блок: куб 0.8 со скошенными верхними рёбрами.
+[[object]]
+name = "block"
+expect = { width = 0.80, height = 0.80, depth = 0.80 }
+[[object.part]]
+type = "chamfer_box"
+center = [0.0, 0.4, 0.0]
+size = [0.8, 0.8, 0.8]
+chamfer = 0.09
+slot = 2
+ao_top = 255
+ao_side = 225
+ao_bottom = 165
+
+# Дверь-плита.
+[[object]]
+name = "door"
+expect = { width = 1.00, height = 1.60, depth = 0.20 }
+[[object.part]]
+type = "box"
+center = [0.0, 0.8, 0.0]
+size = [1.0, 1.6, 0.2]
+slot = 2
+ao_top = 250
+ao_side = 230
+ao_bottom = 160
+
+# --- глаза ---
+
+# Малый глаз (коллекционный): линза-«зерно».
+[[object]]
+name = "eye_small"
+budget = 120
+expect = { width = 0.36, height = 0.36, depth = 0.09 }
+[[object.part]]
+type = "lens"
+center = [0.0, 0.18, 0.0]
+face = "z"
+along = "y"
+r_len = 0.18
+r_wid = 0.18
+thick = 0.09
+segs = 14
+slot = 5
+ao = 255
+
+# Большой глаз (финал региона): линза в кольце-оправе.
+[[object]]
+name = "eye_big"
+budget = 120
+expect = { width = 1.12, height = 1.12, depth = 0.20 }
+[[object.part]]
+type = "ring"
+center = [0.0, 0.56, 0.0]
+face = "z"
+r_inner = 0.45
+r_outer = 0.56
+thick = 0.14
+segs = 12
+slot = 3
+ao_face = 250
+ao_wall = 220
+[[object.part]]
+type = "lens"
+center = [0.0, 0.56, 0.0]
+face = "z"
+along = "y"
+r_len = 0.45
+r_wid = 0.45
+thick = 0.2
+segs = 10
+slot = 5
+ao = 255
+
+# --- обстановка ---
+
+# Камень с надписью: стела, наклонённая назад, чтобы надпись смотрела на камеру; вросла в цоколь.
+[[object]]
+name = "stone"
+expect = { width = 0.60, height = 0.69, depth = 0.34 }
+[[object.part]]
+type = "box"
+center = [0.0, 0.035, 0.0]
+size = [0.6, 0.07, 0.34]
+slot = 2
+ao_top = 235
+ao_side = 215
+ao_bottom = 170
+[[object.part]]
+type = "box"
+center = [0.0, 0.35, 0.0]
+size = [0.5, 0.68, 0.11]
+pitch_deg = -12.0
+slot = 2
+ao_top = 255
+ao_side = 230
+ao_bottom = 180
+
+# Постамент: восьмиугольная призма с лёгким сбегом.
+[[object]]
+name = "plinth"
+expect = { width = 1.20, height = 0.35, depth = 1.20 }
+[[object.part]]
+type = "prism"
+center = [0.0, 0.0, 0.0]
+radius = 0.6
+radius_top = 0.57
+height = 0.35
+sides = 8
+phase_deg = 22.5
+slot = 2
+ao_top = 255
+ao_side = 225
+ao_bottom = 165
+
+# --- павлиний хвост ---
+
+# Раскрытый хвост: 24 пера по дуге 160°, ступица (центр веера) — в начале координат,
+# основание — отдельный постамент mesh_plinth. ground = false, чтобы ступица не сдвигалась:
+# только тогда одиночное перо, повёрнутое вокруг Z, встаёт ровно в своё место.
+[[object]]
+name = "peacock_tail"
+ground = false
+budget = 400
+expect = { width = 2.98, height = 1.56, depth = 0.54 }
+[[object.part]]
+use = "tail_fan"
+
+# Одно перо в «нулевой» позе веера (смотрит вверх, лицом в +Z) — из них игра собирает хвост
+# по мере прогресса: перо i = поворот вокруг Z на a_i (см. [shape.tail_fan]).
+[[object]]
+name = "peacock_feather"
+ground = false
+budget = 120
+expect = { width = 0.19, height = 1.26, depth = 0.05 }
+[[object.part]]
+use = "tail_fan"
+count = 1
+arc_deg = 0.0
+bow = 0.0
+
+# Перо-награда: маленькая линза-пластина.
+[[object]]
+name = "feather"
+budget = 120
+expect = { width = 0.104, height = 0.34, depth = 0.03 }
+[[object.part]]
+type = "lens"
+center = [0.0, 0.17, 0.0]
+face = "z"
+along = "y"
+r_len = 0.17
+r_wid = 0.06
+thick = 0.03
+segs = 6
+slot = 5
+ao = 255

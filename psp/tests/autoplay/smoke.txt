@@ -1,9 +1,20 @@
-# smoke: остров хаба, три ракурса камеры, выход. Кадры при 60 fps.
-@30 shot hub_a0
-@31 press R
-@32 release R
-@90 shot hub_a1
-@91 press R
-@92 release R
-@150 shot hub_a2
-@160 quit
+# smoke вехи 2: ресурсы загрузились, Око ходит, камера крутится, взгляд выцветает мир.
+@30 assert level_ok=1
+@31 assert font_ok=1
+@32 assert strings_ok=1
+@40 shot hub_start
+@50 stick 0.0 -1.0
+@140 stick 0.0 0.0
+@150 shot hub_walk
+@160 press R
+@161 release R
+@210 shot hub_rotated
+@220 press circle
+@250 shot hub_look
+@251 assert look=1
+@252 assert desat>0.5
+@260 release circle
+@290 assert tris<=8000
+@291 assert draws<=200
+@300 shot hub_final
+@310 quit

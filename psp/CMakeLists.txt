@@ -11,13 +11,25 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(ARGUS_ASSETS "${CMAKE_SOURCE_DIR}/build/assets" CACHE PATH "каталог собранных ассетов (иконки XMB)")
 
 file(GLOB CORE_SRC CONFIGURE_DEPENDS core/*.c)
+# Модули, которые ещё не подключены к игре (в работе): исключаем из сборки,
+# чтобы EBOOT собирался. Список сокращается по мере интеграции.
+set(ARGUS_PENDING "core/(entity|puzzle_beam|puzzle_mech|quest)\\.c$" CACHE STRING "не собираемые пока модули")
+if(ARGUS_PENDING)
+    list(FILTER CORE_SRC EXCLUDE REGEX "${ARGUS_PENDING}")
+endif()
 file(GLOB PSP_SRC CONFIGURE_DEPENDS platform/psp/*.c)
 
 add_executable(argus ${CORE_SRC} ${PSP_SRC})
-target_include_directories(argus PRIVATE core platform/psp)
-target_compile_options(argus PRIVATE -Wall -Wextra -G0 -O2)
+target_include_directories(argus PRIVATE core platform/psp "${ARGUS_ASSETS}")
+# В Debug — -O0 и символы: трассы PPSSPP тогда указывают точную строку.
+target_compile_options(argus PRIVATE -Wall -Wextra -G0
+    $<$<CONFIG:Debug>:-O0>
+    $<$<NOT:$<CONFIG:Debug>>:-O2>)
 target_compile_definitions(argus PRIVATE $<$<CONFIG:Debug>:ARGUS_DEBUG=1>)
-target_link_libraries(argus PRIVATE pspgum pspgu pspge pspdisplay pspctrl m pspsdk c psputility pspuser pspkernel)
+# ВАЖНО: перечисляем только библиотеки приложения. Явные -lc/-lm/-lpspuser/-lpspkernel
+# ломают порядок импорт-стабов (psp-fixup-imports: «stubs out of order»), и вызовы sce*
+# уходят в мусор. Остальное добавляют specs psp-gcc в правильном порядке.
+target_link_libraries(argus PRIVATE pspgum pspgu psputility pspdebug pspdisplay pspge pspctrl)
 
 create_pbp_file(
     TARGET argus

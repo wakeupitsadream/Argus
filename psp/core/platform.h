@@ -14,4 +14,16 @@ void plat_free(void *p);
 /* Отладочный лог (stdout в эмуляторе, файл на приставке в debug-сборке). */
 void plat_log(const char *fmt, ...);
 
+/* Замеры платформы за предыдущий кадр — для debug-оверлея. Заполняет платформа. */
+typedef struct {
+    float fps;          /* 1 / период кадра */
+    unsigned frame_us;  /* период кадра, мкс */
+    unsigned cpu_us;    /* построение кадра + отправка дисплей-листа */
+    unsigned gpu_us;    /* ожидание sceGuSync */
+    unsigned tris;      /* треугольников отправлено */
+    unsigned draws;     /* вызовов отрисовки */
+    unsigned heap_free; /* свободно в куче, байт */
+    unsigned heap_max;  /* крупнейший свободный блок, байт */
+} plat_stats_t;
+
 #endif

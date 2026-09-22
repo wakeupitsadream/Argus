@@ -9,6 +9,7 @@
 
 static char s_base[256] = "";
 
+
 void fs_init(const char *argv0) {
     s_base[0] = 0;
     if (!argv0 || !argv0[0]) return;

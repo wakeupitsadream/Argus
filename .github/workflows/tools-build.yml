@@ -1,0 +1,38 @@
+# Собирает PPSSPPHeadless (эмулятор для автотестов игры) один раз и публикует как ассет релиза,
+# чтобы веб-сессии Claude Code скачивали его за секунды вместо 12-минутной сборки.
+# Запуск: вручную (workflow_dispatch) или пушем тега tools-v*.
+name: tools-build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["tools-v*"]
+
+jobs:
+  ppsspp-headless:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential cmake ninja-build libgl1-mesa-dev libglu1-mesa-dev
+      - name: build
+        run: |
+          bash psp/ci/build-ppsspp.sh
+        env:
+          PPSSPP_SRC: ${{ runner.temp }}/ppsspp-src
+          PPSSPP_HEADLESS: ${{ runner.temp }}/out/PPSSPPHeadless
+      - name: package
+        run: |
+          cd "${{ runner.temp }}/out"
+          tar -czf "$GITHUB_WORKSPACE/ppsspp-headless-linux-x64.tar.gz" PPSSPPHeadless assets
+          ls -la "$GITHUB_WORKSPACE/ppsspp-headless-linux-x64.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ppsspp-headless-linux-x64
+          path: ppsspp-headless-linux-x64.tar.gz
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/tools-v')
+        with:
+          files: ppsspp-headless-linux-x64.tar.gz

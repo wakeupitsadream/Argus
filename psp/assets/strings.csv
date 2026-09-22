@@ -1,0 +1,42 @@
+id,ru,en
+TITLE,АРГУС,ARGUS
+MENU_NEW,Новая игра,New Game
+MENU_CONTINUE,Продолжить,Continue
+MENU_LANG,Язык,Language
+MENU_QUIT,Выход,Quit
+PRESS_START,Нажми Start,Press Start
+LANG_RU,Русский,Русский
+LANG_EN,English,English
+PAUSE_TITLE,Пауза,Paused
+PAUSE_RESUME,Продолжить,Resume
+PAUSE_MENU,В меню,Back to Menu
+HUB_NAME,Веко,The Eyelid
+HUB_CAPTION,Здесь дремлют сто взглядов,Here a hundred gazes doze
+REGION_MIRRORS_NAME,Сад Зеркал,The Mirror Garden
+REGION_MIRRORS_CAPTION,"Свет ищет, на что смотреть",Light looks for something to see
+REGION_TERRACES_NAME,Часовые Террасы,The Hour Terraces
+REGION_TERRACES_CAPTION,Ступени поворачиваются без спроса,The stairs turn unasked
+REGION_WATER_NAME,Тихая Вода,The Still Water
+REGION_WATER_CAPTION,Отражение помнит другой путь,The reflection remembers another path
+REGION_LIBRARY_NAME,Библиотека Сна,The Library of Sleep
+REGION_LIBRARY_CAPTION,Страницы читают тебя в ответ,The pages read you back
+HINT_MOVE,Стик — идти,Stick to move
+HINT_CAMERA,L и R — повернуть мир,L and R turn the world
+HINT_OBSERVE,Держи круг — взгляд,Hold Circle to gaze
+HINT_INTERACT,Крест — взаимодействие,Cross to interact
+STONE_1,Сто глаз. Ни одного сна.,A hundred eyes. Not one dream.
+STONE_2,Пока смотришь — мир стоит,"While you watch, the world holds still"
+STONE_3,Тысячу лет он не закрыл ни одного,For a thousand years he closed not one
+STONE_4,"Что не видят, то свободно",What is not seen is free
+STONE_5,Гера забрала глаза и раздала их перьям,Hera took the eyes and gave them to the feathers
+STONE_6,Усталость стража — милость мира,The watchman's weariness is the world's mercy
+ECHO_1,Я помню форму. Имя — нет.,I remember the shape. Not the name.
+ECHO_2,Не буди всё сразу. Начни с одного.,Don't wake it all at once. Start with one.
+ECHO_3,Отвернись — и я снова двинусь.,"Look away, and I will move again."
+SAVED,Сохранено,Saved
+EYE_OPENED,Глаз открыт,An eye opens
+EYE_COUNT,Глаза: %d,Eyes: %d
+EYE_COUNT_OF,Глаза: %d из %d,Eyes: %d of %d
+GATE_LOCKED,Воротам нужны четыре больших глаза,The gate needs four great eyes
+FEATHER_FOUND,Перо раскрылось,A feather unfolds
+LOADING,Сон расходится…,The dream parts…

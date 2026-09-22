@@ -37,13 +37,40 @@ def build_palettes(out_dir):
 
 
 def build_levels(out_dir):
+    levelc = ROOT / "tools" / "levelc.py"
+    amsh = ROOT / "tools" / "amsh.py"
+    tool_mtime = max(levelc.stat().st_mtime, amsh.stat().st_mtime)
     for src in sorted((ROOT / "levels").glob("*.toml")):
-        dst = out_dir / (src.stem + ".msh")
-        if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime \
-                and dst.stat().st_mtime >= (ROOT / "tools" / "levelc.py").stat().st_mtime:
-            print(f"{dst.name}: актуален")
+        msh = out_dir / (src.stem + ".msh")
+        lvl = out_dir / (src.stem + ".lvl")
+        if msh.exists() and lvl.exists() and min(msh.stat().st_mtime, lvl.stat().st_mtime) >= max(src.stat().st_mtime, tool_mtime):
+            print(f"{src.stem}: актуален")
             continue
-        subprocess.run([sys.executable, str(ROOT / "tools" / "levelc.py"), str(src), str(dst)], check=True)
+        subprocess.run([sys.executable, str(levelc), str(src), str(out_dir)], check=True)
+    subprocess.run([sys.executable, str(levelc), "--headers", str(out_dir)], check=True)
+
+
+def build_meshes(out_dir):
+    gen = ROOT / "tools" / "meshgen.py"
+    if not gen.exists():
+        print("meshgen.py отсутствует — меши объектов не пересобираются")
+        return
+    # Меши объектов не блокируют сборку: если генератор сломан, остаются прежние файлы,
+    # и игра запускается (проверяется отдельно в make test и в прогоне эмулятора).
+    r = subprocess.run([sys.executable, str(gen), str(out_dir)])
+    if r.returncode != 0:
+        print(f"ВНИМАНИЕ: meshgen.py упал (код {r.returncode}) — используются ранее собранные меши")
+    preview = ROOT / "tools" / "meshpreview.py"
+    if preview.exists():
+        subprocess.run([sys.executable, str(preview), str(out_dir)], check=True)
+
+
+def build_font(out_dir):
+    subprocess.run([sys.executable, str(ROOT / "tools" / "fontgen.py"), str(out_dir / "font.bin")], check=True)
+
+
+def build_strings(out_dir):
+    subprocess.run([sys.executable, str(ROOT / "tools" / "stringsgen.py"), str(out_dir)], check=True)
 
 
 def build_xmb(out_dir):
@@ -55,6 +82,9 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     build_palettes(out_dir)
     build_levels(out_dir)
+    build_meshes(out_dir)
+    build_font(out_dir)
+    build_strings(out_dir)
     build_xmb(out_dir)
 
 
