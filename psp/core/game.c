@@ -589,6 +589,11 @@ static void do_interact(game_t *g) {
     default:
         break;
     }
+
+    /* Искры на месте действия: механизм отвечает не только звуком. */
+    float spark[3] = { e->x, e->y + 0.45f, e->z };
+    particles_emit_burst(&g->particles, spark, 5, g->pal->slots[SLOT_ACCENT], 0.09f);
+
     entities_propagate(&g->entities);
 }
 
@@ -820,7 +825,14 @@ void game_tick(game_t *g, const input_t *in_real, const plat_stats_t *stats) {
     /* Шаги: тон через каждые 0,95 единицы пути — ровно, без привязки к частоте кадров. */
     if (playing && g->player.speed > 0.05f) {
         g->step_dist += g->player.speed * DT;
-        if (g->step_dist >= 0.95f) { g->step_dist = 0.0f; audio_play(&g->audio, SFX_STEP); }
+        if (g->step_dist >= 0.95f) {
+            g->step_dist = 0.0f;
+            audio_play(&g->audio, SFX_STEP);
+            /* Пыль из-под ног: две искры на шаг — ровно столько, чтобы движение
+             * читалось, и недостаточно, чтобы превратиться в шлейф. */
+            float feet[3] = { g->player.pos.x, g->player.pos.y + 0.06f, g->player.pos.z };
+            particles_emit_burst(&g->particles, feet, 2, g->pal->slots[SLOT_TOP_ALT], 0.05f);
+        }
     } else {
         g->step_dist = 0.0f;
     }
