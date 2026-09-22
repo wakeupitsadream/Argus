@@ -1,0 +1,13 @@
+# Переход между островами: хаб → Тихая Вода по южному мосту и обратно.
+@20 press cross
+@21 release cross
+@90 assert screen=1
+@91 assert level=1
+@100 stick -0.707 0.707
+@160 stick 0.0 0.0
+@200 assert level=10
+@210 shot travel_water
+@220 stick -0.707 -0.707
+@230 stick 0.0 0.0
+@236 assert px=-999
+@240 quit

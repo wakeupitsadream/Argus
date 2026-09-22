@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""stringsgen.py — assets/strings.csv → strings_ru.bin, strings_en.bin (ASTR v1) и strings_ids.h.
+"""stringsgen.py — assets/strings.csv (+ фрагменты assets/strings/*.csv) → strings_ru.bin, strings_en.bin (ASTR v1) и strings_ids.h.
 
 Использование: python3 tools/stringsgen.py <каталог_вывода>
 
@@ -20,6 +20,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "assets" / "strings.csv"
+# Фрагменты по регионам: каждый остров дописывает свои строки отдельным файлом,
+# чтобы параллельная работа над контентом не сводилась к правкам одного CSV.
+# Порядок: сначала базовый strings.csv, потом фрагменты по алфавиту имён файлов.
+FRAGMENTS = ROOT / "assets" / "strings"
 
 MAGIC = b"ASTR"
 VERSION = 1
@@ -37,9 +41,9 @@ ID_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 SPEC_RE = re.compile(r"%(?:(%)|[-+ #0]*[0-9]*(?:\.[0-9]+)?(hh|h|ll|l|z|t|j|L)?([diouxXeEfgGcsp]))")
 
 
-def fail(line, msg):
+def fail(line, msg, src=None):
     """Ошибка с привязкой к строке CSV; sys.exit печатает в stderr и выходит с кодом 1."""
-    sys.exit(f"{SRC}:{line}: {msg}")
+    sys.exit(f"{src or SRC}:{line}: {msg}")
 
 
 def printf_specs(text):
@@ -62,46 +66,54 @@ def printf_specs(text):
             specs.append("%" + (m.group(2) or "") + m.group(3))
 
 
-def read_rows():
-    """Читает и проверяет CSV. Возвращает список (id, {'ru': ..., 'en': ...})."""
-    if not SRC.exists():
-        sys.exit(f"stringsgen: нет {SRC}")
-    with SRC.open("r", encoding="utf-8-sig", newline="") as f:
+def read_file(path, rows, seen):
+    """Дочитывает один CSV в общий список. seen — идентификаторы со ссылкой на источник."""
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f, restkey="_extra")
         if reader.fieldnames is None:
-            sys.exit(f"stringsgen: {SRC} пуст")
+            sys.exit(f"stringsgen: {path} пуст")
         if tuple(reader.fieldnames) != COLUMNS:
-            fail(1, f"колонки {reader.fieldnames}, нужно {list(COLUMNS)}")
+            fail(1, f"колонки {reader.fieldnames}, нужно {list(COLUMNS)}", path)
 
-        rows, seen = [], {}
         for row in reader:  # пустые строки csv пропускает сам
             line = reader.line_num
             if row.get("_extra"):
-                fail(line, f"лишние колонки: {row['_extra']}")
+                fail(line, f"лишние колонки: {row['_extra']}", path)
             sid = (row.get("id") or "").strip()
             if not sid:
-                fail(line, "пустой идентификатор")
+                fail(line, "пустой идентификатор", path)
             if not ID_RE.match(sid):
-                fail(line, f"идентификатор {sid!r} не подходит под ^[A-Z][A-Z0-9_]*$")
+                fail(line, f"идентификатор {sid!r} не подходит под ^[A-Z][A-Z0-9_]*$", path)
             if sid in seen:
-                fail(line, f"идентификатор {sid!r} уже был в строке {seen[sid]}")
-            seen[sid] = line
+                where = seen[sid]
+                fail(line, f"идентификатор {sid!r} уже был в {where[0]}:{where[1]}", path)
+            seen[sid] = (path.name, line)
 
             values, specs = {}, {}
             for lang in LANGS:
                 value = (row.get(lang) or "").strip()
                 if not value:
-                    fail(line, f"{sid}: пустая колонка {lang}")
+                    fail(line, f"{sid}: пустая колонка {lang}", path)
                 try:
                     specs[lang] = printf_specs(value)
                 except ValueError as err:
-                    fail(line, f"{sid}, колонка {lang}: {err}")
+                    fail(line, f"{sid}, колонка {lang}: {err}", path)
                 values[lang] = value
             if specs["ru"] != specs["en"]:
                 fail(line, f"{sid}: спецификаторы printf расходятся — "
-                           f"ru {specs['ru'] or 'нет'}, en {specs['en'] or 'нет'}")
+                           f"ru {specs['ru'] or 'нет'}, en {specs['en'] or 'нет'}", path)
             rows.append((sid, values))
 
+
+def read_rows():
+    """Читает базовый CSV и фрагменты assets/strings/*.csv. Возвращает [(id, {ru, en})]."""
+    if not SRC.exists():
+        sys.exit(f"stringsgen: нет {SRC}")
+    rows, seen = [], {}
+    read_file(SRC, rows, seen)
+    if FRAGMENTS.is_dir():
+        for frag in sorted(FRAGMENTS.glob("*.csv")):
+            read_file(frag, rows, seen)
     if not rows:
         sys.exit(f"stringsgen: в {SRC} нет ни одной строки")
     return rows
@@ -126,7 +138,7 @@ def build_header(ids):
     """Текст strings_ids.h: enum STR_* в порядке CSV и финальный STR_COUNT."""
     width = max(len(sid) for sid in ids) + 5  # 'STR_' + идентификатор + пробел
     lines = [
-        "/* strings_ids.h — сгенерировано tools/stringsgen.py из assets/strings.csv.",
+        "/* strings_ids.h — сгенерировано tools/stringsgen.py из assets/strings.csv и фрагментов assets/strings.",
         " * НЕ РЕДАКТИРОВАТЬ: правки пропадут при следующем `make assets`. */",
         "#ifndef ARGUS_STRINGS_IDS_H",
         "#define ARGUS_STRINGS_IDS_H",
