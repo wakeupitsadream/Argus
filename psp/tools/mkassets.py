@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PAL_MAGIC = b"APAL"
-PAL_VERSION = 1
+PAL_VERSION = 2
 
 
 def color_abgr(hex_str):
@@ -29,9 +29,12 @@ def build_palettes(out_dir):
         slots = [color_abgr(c) for c in p["slots"]]
         if len(slots) != 8:
             sys.exit(f"палитра {name}: нужно ровно 8 слотов")
-        blob += struct.pack("<16sIIff8I", name.encode("utf-8"), color_abgr(p["sky_top"]),
+        # sun/sky — цвета света; по умолчанию тёплое солнце и холодное небо.
+        sun = color_abgr(p.get("sun", "#fff2d8"))
+        sky = color_abgr(p.get("sky", "#7d96d6"))
+        blob += struct.pack("<16sIIff8III", name.encode("utf-8"), color_abgr(p["sky_top"]),
                             color_abgr(p["sky_bottom"]), float(p["fog_near"]),
-                            float(p["fog_far"]), *slots)
+                            float(p["fog_far"]), *slots, sun, sky)
     (out_dir / "palettes.pal").write_bytes(blob)
     print(f"palettes.pal: {len(data)} палитр ({', '.join(data)})")
 

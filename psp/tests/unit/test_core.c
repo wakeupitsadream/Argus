@@ -152,26 +152,37 @@ TEST(test_palette_file) {
 }
 
 TEST(test_mesh_shading) {
-    light_t light = { { 0.0f, 1.0f, 0.0f }, 0.5f, 0.5f, 0.5f };
+    /* Свет: солнце строго сверху, оба источника белые — так в числах виден вклад
+     * каждого слагаемого, а не смесь цветов. */
+    light_t light = { { 0.0f, 1.0f, 0.0f }, 0.5f, 0.5f, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f } };
     float up[3] = { 0.0f, 1.0f, 0.0f }, side[3] = { 1.0f, 0.0f, 0.0f };
     unsigned white = 0xFFFFFFFFu;
-    /* Палитра-пустышка: белый верх, чёрная тень — так видно вклад каждого слагаемого. */
     palette_t pal;
     memset(&pal, 0, sizeof pal);
     for (int k = 0; k < PAL_SLOTS; k++) pal.slots[k] = 0xFF000000u;
     pal.slots[SLOT_TOP] = white;
-    pal.slots[SLOT_SHADOW] = 0xFF000000u;
+    pal.sun = 0xFFFFFFFFu;
+    pal.sky = 0xFFFFFFFFu;
 
-    /* Полный свет и полное солнце: небесного подсвета нет, цвет — чистый белый. */
+    /* Прямой свет + заливка = 1.0: чистый белый. */
     CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 255, up, &light), 0xFFFFFFFFu);
-    /* Грань в сторону: только ambient, и половина его уходит в чёрный тон тени. */
-    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 255, side, &light), 0xFF404040u);
-    /* Та же грань, но солнце перекрыто тенью — прямого света и так не было. */
-    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 0, side, &light), 0xFF404040u);
-    /* Верхняя грань в тени: прямой свет погашен, остаётся приглушённый ambient. */
-    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 0, up, &light), 0xFF404040u);
+    /* Грань в сторону: прямой свет заворачивается за терминатор (LIGHT_WRAP = 0,22),
+     * поэтому остаётся заливка 0,5 и ещё 0,5·0,22/1,22 прямого — 0,590 от белого. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 255, side, &light), 0xFF969696u);
+    /* Запечённая тень гасит прямой свет целиком, заливку — нет. */
+    CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 255, 0, up, &light), 0xFF808080u);
     /* AO = 0 гасит всё. */
     CHECK_EQ(mesh_shade_color(&pal, SLOT_TOP, 0, 255, up, &light), 0xFF000000u);
+
+    /* Цвет света переносится на материал: синее небо делает тень синей,
+     * а не просто тёмной — ради этого вся модель и переписана. */
+    pal.sky = 0xFFFF0000u;   /* 0xAABBGGRR: чистый синий */
+    light_from_palette(&light, &pal);
+    unsigned shade = mesh_shade_color(&pal, SLOT_TOP, 255, 255, side, &light);
+    unsigned sr = shade & 0xFFu, sb = (shade >> 16) & 0xFFu;
+    CHECK_EQ(sr, 23u);          /* красный — только завёрнутый прямой свет */
+    CHECK_EQ(sb, 150u);         /* синий — он же плюс синяя заливка */
+    CHECK(sb > sr * 4u);        /* тень синяя, а не просто тёмная */
 }
 
 TEST(test_mesh_file) {

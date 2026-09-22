@@ -43,7 +43,14 @@ typedef struct {
 typedef struct {
     short x, y, w, h;
     unsigned color_top, color_bottom; /* 0xAABBGGRR, альфа участвует */
+    /* Куда плашка растворяется по горизонтали: PANEL_FADE_NONE — ровный
+     * прямоугольник, PANEL_FADE_RIGHT — правый край уходит в прозрачность.
+     * Жёсткая вертикальная граница подложки поперёк кадра — самая заметная
+     * «самоделка» в интерфейсе: сцена делится на две половины разной яркости. */
+    unsigned char fade;
 } frame_panel_t;
+
+enum { PANEL_FADE_NONE = 0, PANEL_FADE_RIGHT, PANEL_FADE_LEFT };
 
 typedef struct {
     char utf8[FRAME_TEXT_LEN];
@@ -130,6 +137,9 @@ frame_mesh_t *frame_push_ghost(frame_t *f, const mesh_t *m, float x, float y, fl
 /* Плашка под текст; NULL при переполнении пула. */
 frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
                                 unsigned color_top, unsigned color_bottom);
+/* То же, но с растворением края по горизонтали (PANEL_FADE_*). */
+frame_panel_t *frame_push_panel_fade(frame_t *f, int x, int y, int w, int h,
+                                     unsigned color_top, unsigned color_bottom, int fade);
 /* Полоса водной глади; NULL при переполнении пула. */
 frame_water_t *frame_push_water(frame_t *f, float x0, float z0, float x1, float z1);
 /* Контактная тень под объектом; NULL при переполнении пула. */

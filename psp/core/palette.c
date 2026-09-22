@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define PAL_MAGIC "APAL"
-#define PAL_VERSION 1u
+#define PAL_VERSION 2u
 
 int palette_set_load(palette_set_t *ps, void *blob, size_t len) {
     memset(ps, 0, sizeof *ps);

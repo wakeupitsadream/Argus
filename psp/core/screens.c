@@ -141,7 +141,8 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
         /* Левая колонка под текст: плашка с градиентом, название плакатным кеглем,
          * тонкая линейка акцентом и меню под ней. Без подложки текст на изометрии
          * читается плохо, а экран выглядит как отладочный. */
-        frame_push_panel(f, 0, 0, 268, SCR_H, (176u << 24) | shade, (96u << 24) | shade);
+        frame_push_panel_fade(f, 0, 0, 300, SCR_H, (186u << 24) | shade, (108u << 24) | shade,
+                              PANEL_FADE_RIGHT);
         frame_push_text_shadow(f, FONT_DISPLAY, TEXT_LEFT, 40, 96, title_c, "%s", STR(STR_TITLE));
         frame_push_panel(f, 40, 108, 150, 2, (220u << 24) | (pal->slots[SLOT_ACCENT] & 0x00FFFFFFu),
                          (60u << 24) | (pal->slots[SLOT_ACCENT] & 0x00FFFFFFu));
@@ -149,14 +150,16 @@ void screens_build(const screens_t *s, frame_t *f, const palette_t *pal, int lan
         build_menu(s, f, pal, lang, 176);
         break;
     case SCR_PAUSE:
-        frame_push_panel(f, 0, 0, 268, SCR_H, (176u << 24) | shade, (96u << 24) | shade);
+        frame_push_panel_fade(f, 0, 0, 300, SCR_H, (186u << 24) | shade, (108u << 24) | shade,
+                              PANEL_FADE_RIGHT);
         frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 44, 86, title_c, "%s", STR(STR_PAUSE_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 112, dim_c,
                                i18n_str(STR_EYE_COUNT_OF), eyes, eyes_total);
         build_menu(s, f, pal, lang, 158);
         break;
     case SCR_CHOICE:
-        frame_push_panel(f, 0, 0, 300, SCR_H, (196u << 24) | shade, (120u << 24) | shade);
+        frame_push_panel_fade(f, 0, 0, 330, SCR_H, (200u << 24) | shade, (128u << 24) | shade,
+                              PANEL_FADE_RIGHT);
         frame_push_text_shadow(f, FONT_TITLE, TEXT_LEFT, 40, 96, title_c, "%s", STR(STR_CHOICE_TITLE));
         frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 46, 118, dim_c, "%s", STR(STR_CHOICE_LINE));
         if (s->frames > 60) build_menu(s, f, pal, lang, 166);

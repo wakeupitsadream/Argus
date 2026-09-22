@@ -6,12 +6,16 @@
 #define PAL_SLOTS 8
 enum { SLOT_TOP = 0, SLOT_TOP_ALT, SLOT_WALL, SLOT_ACCENT, SLOT_SHADOW, SLOT_GLOW, SLOT_WATER, SLOT_EXTRA };
 
-/* Раскладка совпадает с файлом: 64 байта, little-endian, все поля по 4 байта. */
+/* Раскладка совпадает с файлом: 72 байта, little-endian, все поля по 4 байта.
+ * sun/sky — цвета двух источников: тёплое солнце и холодный небесный подсвет.
+ * Цветной свет вместо серого — главный приём стилизованного рендера: материал
+ * остаётся собой, а тень становится синей, а не просто тёмной. */
 typedef struct {
     char name[16];
     unsigned sky_top, sky_bottom;   /* 0xAABBGGRR */
     float fog_near, fog_far;
     unsigned slots[PAL_SLOTS];
+    unsigned sun, sky;              /* цвет прямого света и цвет заливки, 0xAABBGGRR */
 } palette_t;
 
 typedef struct {

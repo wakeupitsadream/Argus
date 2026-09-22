@@ -1,4 +1,7 @@
 #include "mesh.h"
+
+/* Доля «заворота» света за терминатор: 0 — честный ламберт, 1 — полностью плоско. */
+#define LIGHT_WRAP 0.22f
 #include "platform.h"
 #include <string.h>
 
@@ -41,28 +44,33 @@ static unsigned char scale_channel(unsigned c, float k) {
     return (unsigned char)v;
 }
 
+void light_from_palette(light_t *light, const palette_t *pal) {
+    if (!light || !pal) return;
+    for (int i = 0; i < 3; i++) {
+        light->sun_rgb[i] = (float)((pal->sun >> (8 * i)) & 0xFFu) / 255.0f;
+        light->sky_rgb[i] = (float)((pal->sky >> (8 * i)) & 0xFFu) / 255.0f;
+    }
+}
+
 unsigned mesh_shade_color(const palette_t *pal, unsigned slot, unsigned char ao,
                           unsigned char sun, const float n[3], const light_t *light) {
     if (!pal || !light) return 0xFFFFFFFFu;
     unsigned pal_color = pal->slots[slot < PAL_SLOTS ? slot : 0];
-    unsigned shadow_color = pal->slots[SLOT_SHADOW];
 
     float ndl = n[0] * light->dir[0] + n[1] * light->dir[1] + n[2] * light->dir[2];
     if (ndl < 0.0f) ndl = 0.0f;
-    float sun01 = (float)sun / 255.0f;
-    float direct = light->diffuse * ndl * sun01;      /* прямой свет с учётом падающей тени */
+    /* Мягкий спад (wrap): грань, отвёрнутая от солнца, не проваливается в ноль.
+     * Резкий ламберт на восьми ориентациях кубической геометрии даёт чёрные боковины —
+     * именно они читаются как дыры в силуэте. */
+    ndl = (ndl + LIGHT_WRAP) / (1.0f + LIGHT_WRAP);
+    float direct = light->diffuse * ndl * ((float)sun / 255.0f);
     float amb = light->ambient;
-    /* Чем меньше прямого света, тем сильнее цвет уводится в тон тени палитры. */
-    float cool = light->sky_mix * (1.0f - ndl * sun01);
-    if (cool < 0.0f) cool = 0.0f;
-    if (cool > 1.0f) cool = 1.0f;
     float ao01 = (float)ao / 255.0f;
 
     unsigned out[3];
     for (int i = 0; i < 3; i++) {
         float pc = (float)((pal_color >> (8 * i)) & 0xFFu);
-        float sc = (float)((shadow_color >> (8 * i)) & 0xFFu);
-        float v = ao01 * ((pc * (amb + direct)) * (1.0f - cool) + (sc * amb) * cool);
+        float v = ao01 * pc * (light->sun_rgb[i] * direct + light->sky_rgb[i] * amb);
         out[i] = scale_channel((unsigned)(v + 0.5f), 1.0f);
     }
     return 0xFF000000u | (out[2] << 16) | (out[1] << 8) | out[0];

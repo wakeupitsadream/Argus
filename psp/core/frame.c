@@ -52,14 +52,20 @@ static void trim_utf8(char *s) {
     if (need > strlen(s) - (n - 1)) s[n - 1] = 0; /* ведущий байт без хвоста — отбросить */
 }
 
-frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
-                                unsigned color_top, unsigned color_bottom) {
+frame_panel_t *frame_push_panel_fade(frame_t *f, int x, int y, int w, int h,
+                                     unsigned color_top, unsigned color_bottom, int fade) {
     if (!f || f->panel_count >= FRAME_MAX_PANELS || w <= 0 || h <= 0) return NULL;
     frame_panel_t *p = &f->panels[f->panel_count++];
     p->x = (short)x; p->y = (short)y; p->w = (short)w; p->h = (short)h;
     p->color_top = color_top;
     p->color_bottom = color_bottom;
+    p->fade = (unsigned char)fade;
     return p;
+}
+
+frame_panel_t *frame_push_panel(frame_t *f, int x, int y, int w, int h,
+                                unsigned color_top, unsigned color_bottom) {
+    return frame_push_panel_fade(f, x, y, w, h, color_top, color_bottom, PANEL_FADE_NONE);
 }
 
 frame_water_t *frame_push_water(frame_t *f, float x0, float z0, float x1, float z1) {

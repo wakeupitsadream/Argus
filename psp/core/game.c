@@ -32,7 +32,7 @@
 #define DOOR_DROP 1.5f       /* насколько открытая дверь уходит в пол */
 #define ENT_VIS_RATE 0.18f   /* догоняющее сглаживание двери и панели (как у камеры) */
 #define DUST_COUNT 28        /* пылинок в воздухе: остаток пула нужен лучу и свечениям */
-#define VIGNETTE_BASE 0.40f  /* затемнение краёв кадра; в режиме взгляда чуть сильнее */
+#define VIGNETTE_BASE 0.30f  /* затемнение краёв кадра; в режиме взгляда чуть сильнее */
 #define TAIL_FEATHERS_MAX 12 /* перьев на хвосте: больше не влезает в пул мешей кадра */
 #define TAIL_FAN_DEG 150.0f  /* раскрытие веера */
 #define TAIL_TILT_DEG 26.0f  /* наклон пера наружу */
@@ -195,6 +195,7 @@ static void audio_set_region_ambient(game_t *g, const char *region) {
 /* Пере-раскрашивает предметы и силуэты под текущую палитру: цвет живёт в палитре,
  * а не в ассете, поэтому смена региона — это только повторный резолв (TECH.md §2.4). */
 static void recolor_objects(game_t *g) {
+    light_from_palette(&g->light, g->pal);
     for (int i = 0; i < MESH_COUNT; i++) {
         if (g->object_ok[i]) mesh_recolor(&g->objects[i], g->pal, &g->light);
     }
@@ -239,7 +240,7 @@ static int load_level(game_t *g, int index, int entry_id) {
 
     const palette_t *pal = palette_find(&g->pals, g->level.palette);
     if (pal && pal != g->pal) { g->pal = pal; recolor_objects(g); }
-    mesh_recolor(&g->island, g->pal, &g->light);
+    mesh_recolor(&g->island, g->pal, &g->light);   /* свет уже обновлён под палитру */
 
     player_init(&g->player, &g->level);
     const level_entity_t *entry = entry_id > 0 ? level_entity_by_id(&g->level, entry_id) : NULL;
@@ -294,7 +295,7 @@ static int load_level(game_t *g, int index, int entry_id) {
     g->level_frames = 0;
     particles_init(&g->particles, 0x51F0A17Du + (unsigned)index * 7919u);
     float dust[3] = { target[0], target[1] + 1.5f, target[2] };
-    particles_set_ambient(&g->particles, dust, 8.5f, DUST_COUNT, 0xA0C8E8FFu);
+    particles_set_ambient(&g->particles, dust, 8.5f, DUST_COUNT, 0x64C8E8FFu);
 
     audio_set_region(g, g->pal->name);
     audio_set_region_ambient(g, g->pal->name);
@@ -321,12 +322,14 @@ int game_init(game_t *g) {
      * плоская заливка одного тона — ровно то, от чего кадр выглядит дёшево. */
     g->light.dir[0] = 0.62f; g->light.dir[1] = 0.80f; g->light.dir[2] = 0.34f;
     normalize3(g->light.dir);
-    g->light.ambient = 0.44f;
-    g->light.diffuse = 0.56f;
-    g->light.sky_mix = 0.50f;   /* половина неосвещённого цвета — тон тени палитры */
+    /* Небесная заливка слабее прямого света вчетверо: тень должна быть тенью.
+     * Цвета источников приходят из палитры региона (set_palette). */
+    g->light.ambient = 0.26f;
+    g->light.diffuse = 0.88f;
 
     g->pal = palette_find(&g->pals, "hub");
     if (!g->pal) { plat_log("game: нет палитры hub"); return -1; }
+    light_from_palette(&g->light, g->pal);
 
     load_meshes(g);
     load_ghost_meshes(g);

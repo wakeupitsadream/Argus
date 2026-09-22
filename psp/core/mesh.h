@@ -26,15 +26,20 @@ typedef struct {
     void *blob;
 } mesh_t;
 
+/* Два источника: солнце (прямой, тёплый) и небо (заливка, холодная). Оба — цветные
+ * множители, а не яркости: материал умножается на цвет света, поэтому освещённая
+ * грань уходит в тепло, а тень — в синеву, сохраняя цвет камня. Серый ambient давал
+ * ровно ту картинку, из-за которой сцена выглядела дешёвой. */
 typedef struct {
-    float dir[3];      /* направление НА источник света, нормализовано */
-    float ambient;     /* 0..1 */
-    float diffuse;     /* 0..1 */
-    /* Доля небесного подсвета в неосвещённой части: цвет там уходит к тону тени
-     * палитры, а не просто темнеет. Именно из-за этого тень читается как тень,
-     * а не как выцветший серый — приём стилизованного рендера, дешёвый и заметный. */
-    float sky_mix;
+    float dir[3];        /* направление НА источник света, нормализовано */
+    float ambient;       /* 0..1 — сила небесной заливки */
+    float diffuse;       /* 0..1 — сила прямого света */
+    float sun_rgb[3];    /* цвет солнца, 0..1 */
+    float sky_rgb[3];    /* цвет неба, 0..1 */
 } light_t;
+
+/* Ставит цвета источников из палитры региона (pal->sun, pal->sky). */
+void light_from_palette(light_t *light, const palette_t *pal);
 
 /* Принимает буфер файла во владение. 0 при успехе. Цвета не резолвит — вызови mesh_recolor. */
 int mesh_load(mesh_t *m, void *blob, size_t len);
@@ -43,8 +48,8 @@ void mesh_recolor(mesh_t *m, const palette_t *pal, const light_t *light);
 void mesh_recolor_flat(mesh_t *m, unsigned color);
 void mesh_free(mesh_t *m);
 
-/* Цвет одной вершины. Прямой свет гасится запечённой тенью (sun), неосвещённая часть
- * подмешивает тон тени палитры (light->sky_mix), всё вместе умножается на AO. */
+/* Цвет одной вершины: материал × (солнце·N·L·тень + небо·ambient), всё × AO.
+ * Запечённая тень (sun) гасит только прямой свет, поэтому в тени остаётся небо. */
 unsigned mesh_shade_color(const palette_t *pal, unsigned slot, unsigned char ao,
                           unsigned char sun, const float n[3], const light_t *light);
 

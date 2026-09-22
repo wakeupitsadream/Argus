@@ -15,7 +15,7 @@
 #define DUST_DRIFT 0.0034f
 #define DUST_PHASE_STEP 0.019f
 #define DUST_FADE_EDGE 0.28f   /* доля жизни на вход и на выход яркости */
-#define DUST_SIZE 0.17f
+#define DUST_SIZE 0.085f
 
 /* Искры: 36..72 кадра — 0.6..1.2 с. */
 #define SPARK_LIFE_MIN 36
