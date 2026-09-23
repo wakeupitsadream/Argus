@@ -18,9 +18,21 @@
 #define SCR_HEIGHT 272
 #define DEG2RAD (3.14159265358979f / 180.0f)
 
+/* Блум считается в четверть кадра: 128×64 — степень двойки и для буфера рисования,
+ * и для текстуры. Дальше он растягивается на экран с билинейной фильтрацией, и сама
+ * крупность текселя даёт мягкость, за которую в других местах платят размытием. */
+#define BLOOM_W 128
+#define BLOOM_H 64
+/* Порог покомпонентный — иначе на PSP нельзя, — поэтому он высокий: розовый горизонт
+ * (217, 143, 126) при низком пороге проходил одним красным каналом и краснил небо.
+ * Выше 192 остаются только солнце, свечения, луч, глаза и самые светлые кромки камня. */
+#define BLOOM_THRESHOLD 0x00C0C0C0u
+#define BLOOM_STRENGTH 0.75f        /* сколько свечения добавляется поверх сцены */
+
 static unsigned int __attribute__((aligned(16))) s_list[262144];
 static void *s_fb[2];   /* смещения в VRAM (как принимает sceGuDrawBuffer) */
 static void *s_zb;
+static void *s_bloom[2]; /* два маленьких буфера пинг-понга для блума (смещения в VRAM) */
 static int s_draw = 0;  /* индекс буфера, в который рисуется текущий кадр */
 static int s_shown = 1; /* индекс буфера, показанного после последнего swap */
 static unsigned s_tris, s_draws;
@@ -34,6 +46,8 @@ int r_init(void) {
     s_fb[0] = guGetStaticVramBuffer(BUF_WIDTH, SCR_HEIGHT, GU_PSM_8888);
     s_fb[1] = guGetStaticVramBuffer(BUF_WIDTH, SCR_HEIGHT, GU_PSM_8888);
     s_zb = guGetStaticVramBuffer(BUF_WIDTH, SCR_HEIGHT, GU_PSM_4444);
+    s_bloom[0] = guGetStaticVramBuffer(BLOOM_W, BLOOM_H, GU_PSM_8888);
+    s_bloom[1] = guGetStaticVramBuffer(BLOOM_W, BLOOM_H, GU_PSM_8888);
 
     sceGuInit();
     sceGuStart(GU_DIRECT, s_list);
@@ -299,6 +313,41 @@ static void draw_stars(const frame_env_t *env, float yaw_deg) {
     if (n > 0) sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
 }
 
+/* Стайка птиц: пять силуэтов-галочек, медленно пересекающих небо. Единственное,
+ * что движется в верхней половине кадра кроме облаков, — и именно оно делает
+ * небо небом, а не задником. Проход длится около 40 секунд, пауза между
+ * проходами — столько же; крылья машут с разной фазой. */
+#define BIRD_COUNT 5
+
+static void draw_birds(const frame_env_t *env, float t) {
+    const float W = (float)SCR_WIDTH, H = (float)SCR_HEIGHT;
+    const float period = 80.0f;                       /* с: проход + пауза */
+    float phase = fmodf(t + 13.0f, period) / period;  /* 0..1 внутри периода */
+    if (phase > 0.5f) return;                          /* вторая половина — пусто */
+    float head_x = -40.0f + (W + 120.0f) * (phase * 2.0f);
+    /* Силуэт темнее зенита: птица на небе цвета неба невидима. */
+    unsigned rgb = mix_rgb(env->sky_top, 0xFF000000u, 0.85f, 255u) & 0x00FFFFFFu;
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(6 * BIRD_COUNT * sizeof(vtx2d_t));
+    if (!v) return;
+    int n = 0;
+    for (int i = 0; i < BIRD_COUNT; i++) {
+        /* клин: ведущая впереди, остальные позади и по сторонам */
+        float bx = head_x - (float)(i * 18) - (float)((i & 1) * 7);
+        float by = H * 0.19f + (float)(i * 5) * (float)((i & 1) ? 1 : -1) + sinf(t * 0.7f + (float)i) * 3.0f;
+        float flap = sinf(t * 9.0f + (float)i * 1.3f);  /* -1..1: взмах */
+        float span = 7.0f, lift = 3.2f * flap;
+        unsigned c = (255u << 24) | rgb;
+        /* два крыла — две тонкие полоски от тела вверх-в-стороны */
+        v[n++] = (vtx2d_t){ c, bx - span, by - lift - 1.2f, 0.0f };
+        v[n++] = (vtx2d_t){ c, bx, by + 1.6f, 0.0f };
+        v[n++] = (vtx2d_t){ c, bx, by - 1.0f, 0.0f };
+        v[n++] = (vtx2d_t){ c, bx, by - 1.0f, 0.0f };
+        v[n++] = (vtx2d_t){ c, bx, by + 1.6f, 0.0f };
+        v[n++] = (vtx2d_t){ c, bx + span, by - lift - 1.2f, 0.0f };
+    }
+    sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
+}
+
 /* Лучи от солнца: узкие клинья аддитивом. Держим их на грани видимости — это
  * воздух в кадре, а не эффект; заметный луч сразу читается как дешёвый фильтр. */
 #define RAY_COUNT 4
@@ -418,9 +467,10 @@ static void draw_sky(const frame_t *f) {
     sky_band(drift(W * 0.44f, t, 3.4f, W), H * 0.36f, W * 0.46f, 9.0f, warm, 14u);
     sky_band(drift(W * 0.58f, t, 1.1f, W), H * 0.49f, W * 0.40f, 18.0f, warm, 26u);
 
-    /* 4. Звёзды и дальний план: слои мира за горизонтом. */
+    /* 4. Звёзды, дальний план и птицы: слои мира за горизонтом. */
     draw_stars(env, f->cam.yaw_deg);
     draw_backdrop(env, f->cam.yaw_deg);
+    draw_birds(env, t);
 
     /* 5. Облачное море: дальний план уходит в него нижним краем и перестаёт быть
      *    наклейкой на градиенте, а низ кадра перестаёт быть пустотой. */
@@ -518,6 +568,130 @@ static void draw_panels(const frame_t *f) {
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, n, 0, v);
     sceGuDisable(GU_BLEND);
+    sceGuEnable(GU_CULL_FACE);
+    sceGuDepthMask(GU_FALSE);
+    sceGuEnable(GU_DEPTH_TEST);
+}
+
+/* ——— блум ———
+ * Единственный настоящий пост-эффект в игре и главное, что отличает картинку
+ * «с шейдерами» от картинки «без». Шейдеров на PSP нет, но есть всё остальное:
+ * кадровый буфер можно читать как текстуру, рисовать в маленький буфер и
+ * смешивать вычитанием. Из этого складывается честный блум в четыре шага:
+ *   1. кадр рисуется в буфер 128×64 — уменьшение вчетверо;
+ *   2. из него вычитается серый порог (GU_REVERSE_SUBTRACT): остаются только яркие
+ *      места — солнце, глаза, луч, светлые кромки камня;
+ *   3. два прохода пинг-понга по четыре смещённых копии на четверть яркости —
+ *      размытие крестом на два текселя;
+ *   4. результат растягивается на экран аддитивом с билинейной фильтрацией.
+ * Семь маленьких вызовов; на приставке — проверить, что чтение кадрового буфера
+ * как текстуры не требует sceGuTexSync между шагами (в PPSSPP не требует). */
+
+typedef struct {
+    float u, v;
+    unsigned color;
+    float x, y, z;
+} vtx_tex_t;
+
+static void *vram_abs(void *rel) {
+    return (void *)((unsigned)sceGeEdramGetAddr() + (unsigned)rel);
+}
+
+/* Переключает цель рисования вместе с окном и ножницами: иначе GE продолжит
+ * рисовать в старые координаты и половина квада уйдёт за край буфера. */
+static void set_target(void *rel, int w, int h) {
+    sceGuDrawBufferList(GU_PSM_8888, rel, w);
+    sceGuOffset(2048 - (unsigned)(w / 2), 2048 - (unsigned)(h / 2));
+    sceGuViewport(2048, 2048, w, h);
+    sceGuScissor(0, 0, w, h);
+}
+
+static void tex_quad(float x0, float y0, float x1, float y1,
+                     float u0, float v0, float u1, float v1, unsigned color) {
+    vtx_tex_t *v = (vtx_tex_t *)sceGuGetMemory(2 * sizeof(vtx_tex_t));
+    if (!v) return;
+    v[0] = (vtx_tex_t){ u0, v0, color, x0, y0, 0.0f };
+    v[1] = (vtx_tex_t){ u1, v1, color, x1, y1, 0.0f };
+    sceGuDrawArray(GU_SPRITES, GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
+                   2, 0, v);
+}
+
+/* Ровный квад без текстуры: порог. */
+static void flat_quad(float w, float h, unsigned color) {
+    vtx2d_t *v = (vtx2d_t *)sceGuGetMemory(2 * sizeof(vtx2d_t));
+    if (!v) return;
+    v[0] = (vtx2d_t){ color, 0.0f, 0.0f, 0.0f };
+    v[1] = (vtx2d_t){ color, w, h, 0.0f };
+    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, 0, v);
+}
+
+static void use_texture(void *rel, int w, int h) {
+    sceGuTexMode(GU_PSM_8888, 0, 0, 0);
+    sceGuTexImage(0, w, h, w, vram_abs(rel));
+    sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGB);
+    sceGuTexFilter(GU_LINEAR, GU_LINEAR);
+    sceGuTexWrap(GU_CLAMP, GU_CLAMP);
+    sceGuTexFlush();
+}
+
+static void draw_bloom(void) {
+    const float W = (float)SCR_WIDTH, H = (float)SCR_HEIGHT;
+    const float BW = (float)BLOOM_W, BH = (float)BLOOM_H;
+
+    sceGuDisable(GU_DEPTH_TEST);
+    sceGuDepthMask(GU_TRUE);
+    sceGuDisable(GU_FOG);
+    sceGuDisable(GU_CULL_FACE);
+    sceGuDisable(GU_LIGHTING);
+    sceGuShadeModel(GU_FLAT);
+    sceGuEnable(GU_TEXTURE_2D);
+
+    /* 1. Кадр → буфер A, уменьшение вчетверо. Кадровый буфер читается как текстура
+     *    512×512: реальные строки только первые 272, дальше не сэмплируем. */
+    set_target(s_bloom[0], BLOOM_W, BLOOM_H);
+    sceGuDisable(GU_BLEND);
+    use_texture(s_fb[s_draw], 512, 512);
+    tex_quad(0.0f, 0.0f, BW, BH, 0.0f, 0.0f, W, H, 0xFFFFFFFFu);
+
+    /* 2. Порог: A = A − серый. Тёмное обнуляется, светится только яркое. */
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_REVERSE_SUBTRACT, GU_FIX, GU_FIX, 0xFFFFFFFFu, 0xFFFFFFFFu);
+    flat_quad(BW, BH, 0xFF000000u | BLOOM_THRESHOLD);
+
+    /* 3. Размытие: A → B четырьмя копиями со сдвигом по горизонтали, B → A по вертикали.
+     *    Каждая копия — четверть яркости через цвет вершины, сумма — исходная яркость. */
+    sceGuEnable(GU_TEXTURE_2D);
+    sceGuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0xFFFFFFFFu, 0xFFFFFFFFu);
+    static const float taps[4] = { -2.5f, -1.0f, 1.0f, 2.5f }; /* в текселях: ±9 px экрана */
+    for (int pass = 0; pass < 2; pass++) {
+        void *src = s_bloom[pass & 1], *dst = s_bloom[(pass + 1) & 1];
+        set_target(dst, BLOOM_W, BLOOM_H);
+        sceGuDisable(GU_BLEND);
+        flat_quad(BW, BH, 0xFF000000u);   /* очистка цели */
+        sceGuEnable(GU_BLEND);
+        use_texture(src, BLOOM_W, BLOOM_H);
+        for (int k = 0; k < 4; k++) {
+            float ox = pass == 0 ? taps[k] : 0.0f;
+            float oy = pass == 1 ? taps[k] : 0.0f;
+            tex_quad(0.0f, 0.0f, BW, BH, ox, oy, BW + ox, BH + oy, 0xFF404040u);
+        }
+    }
+
+    /* 4. Обратно в кадр: аддитив, билинейное растяжение — свечение ложится мягко. */
+    set_target(s_fb[s_draw], BUF_WIDTH, SCR_HEIGHT);
+    sceGuOffset(2048 - (SCR_WIDTH / 2), 2048 - (SCR_HEIGHT / 2));
+    sceGuViewport(2048, 2048, SCR_WIDTH, SCR_HEIGHT);
+    sceGuScissor(0, 0, SCR_WIDTH, SCR_HEIGHT);
+    use_texture(s_bloom[0], BLOOM_W, BLOOM_H);
+    unsigned k = (unsigned)(BLOOM_STRENGTH * 255.0f);
+    tex_quad(0.0f, 0.0f, W, H, 0.0f, 0.0f, BW, BH, 0xFF000000u | (k << 16) | (k << 8) | k);
+    s_draws += 8;
+
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuDisable(GU_BLEND);
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuShadeModel(GU_SMOOTH);
     sceGuEnable(GU_CULL_FACE);
     sceGuDepthMask(GU_FALSE);
     sceGuEnable(GU_DEPTH_TEST);
@@ -687,17 +861,34 @@ static void draw_water(const frame_t *f) {
 
     vtx_static_t *v = (vtx_static_t *)sceGuGetMemory((int)(6u * (unsigned)count * sizeof(vtx_static_t)));
     if (!v) return;
-    unsigned c = f->water_color;
+    /* Гладь «отражает небо»: чем дальше от камеры вглубь кадра, тем сильнее цвет
+     * воды уходит в цвет горизонта — так на воде появляется горизонт, как в жизни.
+     * Отражать геометрию по-честному на PSP дорого, а этот градиент бесплатен. */
+    float fx = 0.0f, fz = 0.0f;
+    cam_forward_xz(&f->cam, &fx, &fz);
+    unsigned base = f->water_color;
+    unsigned a_w = (base >> 24) & 0xFFu;
+    unsigned horizon = f->env.sky_bottom;
     float y = f->water_y;
     int n = 0;
     for (int i = 0; i < count; i++) {
         const frame_water_t *w = &f->water[i];
-        v[n++] = (vtx_static_t){ c, w->x0, y, w->z0 };
-        v[n++] = (vtx_static_t){ c, w->x1, y, w->z0 };
-        v[n++] = (vtx_static_t){ c, w->x1, y, w->z1 };
-        v[n++] = (vtx_static_t){ c, w->x0, y, w->z0 };
-        v[n++] = (vtx_static_t){ c, w->x1, y, w->z1 };
-        v[n++] = (vtx_static_t){ c, w->x0, y, w->z1 };
+        const float px[4] = { w->x0, w->x1, w->x1, w->x0 };
+        const float pz[4] = { w->z0, w->z0, w->z1, w->z1 };
+        unsigned cs[4];
+        for (int k = 0; k < 4; k++) {
+            float d = (px[k] - f->cam.target[0]) * fx + (pz[k] - f->cam.target[2]) * fz;
+            float kmix = 0.25f + 0.045f * d;           /* назад — темнее и гуще, вперёд — небо */
+            if (kmix < 0.05f) kmix = 0.05f;
+            if (kmix > 0.70f) kmix = 0.70f;
+            cs[k] = mix_rgb(base, horizon, kmix, a_w);
+        }
+        v[n++] = (vtx_static_t){ cs[0], px[0], y, pz[0] };
+        v[n++] = (vtx_static_t){ cs[1], px[1], y, pz[1] };
+        v[n++] = (vtx_static_t){ cs[2], px[2], y, pz[2] };
+        v[n++] = (vtx_static_t){ cs[0], px[0], y, pz[0] };
+        v[n++] = (vtx_static_t){ cs[2], px[2], y, pz[2] };
+        v[n++] = (vtx_static_t){ cs[3], px[3], y, pz[3] };
     }
 
     sceGuDisable(GU_TEXTURE_2D);
@@ -834,6 +1025,7 @@ void r_draw_frame(const frame_t *f, plat_stats_t *stats) {
     draw_ghosts(f);             /* Око видно сквозь террасы — иначе теряется в изометрии */
     draw_desat(f->env.desat, f->env.desat_color); /* мир уходит в тон тени, свечения — поверх */
     gu_sprite_draw(f);          /* аддитивные билборды: свечение, искры, пылинки */
+    draw_bloom();               /* свечение ярких мест: солнце, глаза, луч, кромки камня */
     draw_sun_bloom(&f->env);    /* ореол солнца поверх сцены: небо и остров в одном воздухе */
     /* Виньетка — по сцене и свечениям, но до текста: подписи должны остаться чистыми. */
     draw_vignette(f->env.vignette, f->env.sky_top);
