@@ -213,7 +213,7 @@ type = "ECHO"
 id = 111
 cell = [4.5, 4.5]
 yaw = 45.0
-name = "ECHO_1"
+name = "WATER_ECHO_OFFER"
 
 [[entity]]
 type = "STONE_TEXT"

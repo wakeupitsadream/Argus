@@ -63,7 +63,7 @@ str_offer = "MIRRORS_ECHO_OFFER"
 str_progress = "MIRRORS_ECHO_PROGRESS"
 str_done = "MIRRORS_ECHO_DONE"
 
-# --- регионы, которые ещё собираются: id отголосков зарезервированы ---
+# --- Часовые Террасы, Тихая Вода, Библиотека Сна: у каждого отголоска свой голос ---
 
 [[quest]]
 name = "terraces_echo"
@@ -71,9 +71,9 @@ giver = 81
 need_flag = 88
 accept_flag = 214
 reward_flag = 215
-str_offer = "ECHO_1"
-str_progress = "ECHO_2"
-str_done = "ECHO_3"
+str_offer = "TERRACES_ECHO_OFFER"
+str_progress = "TERRACES_ECHO_PROGRESS"
+str_done = "TERRACES_ECHO_DONE"
 
 [[quest]]
 name = "water_echo"
@@ -81,9 +81,9 @@ giver = 111
 need_flag = 118
 accept_flag = 216
 reward_flag = 217
-str_offer = "ECHO_1"
-str_progress = "ECHO_2"
-str_done = "ECHO_3"
+str_offer = "WATER_ECHO_OFFER"
+str_progress = "WATER_ECHO_PROGRESS"
+str_done = "WATER_ECHO_DONE"
 
 [[quest]]
 name = "library_echo"

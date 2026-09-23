@@ -3,6 +3,7 @@
 # каждый доказан отдельно, здесь проверяется, что четыре глаза подряд дают
 # финальный выбор, а выбор — экран финала и титры. Скрипт длинный: ему нужно
 # больше времени эмулятора, чем остальным (make run-emu SECONDS=150).
+# Пересобирается скриптом из истории коммита при правке любого из четырёх прогонов.
 @20 press cross
 @21 release cross
 @100 level mirrors_3 70
@@ -53,91 +54,101 @@
 @1281 release cross
 @1350 assert seg2=2
 @1360 stick 0.707 0.707
-@1466 stick 0.0 0.0
-@1472 stick -0.707 0.707
-@1492 stick 0.0 0.0
-@1510 assert eyes>=1
-@1550 assert eyes>=2
-@1650 level water_2 0
-@1720 assert level_ok=1
-@1721 assert ent129=0
-@1730 stick 0.707 0.707
-@1785 stick 0.0 0.0
-@1795 stick 0.707 -0.707
-@1815 stick 0.0 0.0
-@1830 assert prompt=127
-@1835 press cross
-@1836 release cross
-@1890 stick 0.707 -0.707
-@1915 stick 0.0 0.0
-@1930 assert prompt=127
-@1935 press cross
-@1936 release cross
-@1990 assert ent128=1
-@1991 assert ent129=1
-@2000 stick -0.707 0.707
-@2042 stick 0.0 0.0
-@2060 stick 0.707 0.707
-@2190 stick 0.0 0.0
-@2200 stick -0.707 0.707
-@2258 stick 0.0 0.0
-@2270 assert prompt=126
-@2275 press cross
-@2276 release cross
-@2330 press cross
-@2331 release cross
-@2390 assert water=3
-@2400 stick 0.707 -0.707
-@2462 stick 0.0 0.0
-@2470 stick 0.707 0.707
-@2530 press cross
-@2531 release cross
-@2590 press cross
-@2591 release cross
-@2650 press cross
-@2651 release cross
-@2710 press cross
-@2711 release cross
-@2770 stick 0.0 0.0
-@2780 assert ex130>7.0
-@2785 assert ent131=1
-@2786 assert eyes>=1
-@2826 assert eyes>=3
-@2926 level library_2 0
-@2996 assert level_ok=1
-@3006 stick 0.707 0.707
-@3166 assert px<-5.0
-@3366 stick 0.0 0.0
-@3371 assert px>0.0
-@3386 stick 0.707 -0.707
-@3436 stick 0.0 0.0
-@3446 assert prompt=153
-@3451 press cross
-@3452 release cross
-@3481 stick 0.707 0.707
-@3551 stick 0.0 0.0
-@3561 stick -0.707 0.707
-@3621 stick 0.0 0.0
-@3631 assert prompt=154
-@3636 press cross
-@3637 release cross
-@3666 stick -0.707 -0.707
-@3741 stick 0.0 0.0
-@3751 stick -0.707 0.707
-@3811 stick 0.0 0.0
-@3821 assert prompt=155
-@3826 press cross
-@3827 release cross
-@3866 assert eyes>=1
-@3906 assert eyes>=4
-@3946 assert screen=5
-@3951 shot full_choice
-@3966 press cross
-@3967 release cross
-@4036 assert screen=3
-@4041 shot full_ending
-@4126 press cross
-@4127 release cross
-@4196 assert screen=4
-@4201 shot full_credits
-@4216 quit
+@1420 press cross
+@1421 release cross
+@1480 press cross
+@1481 release cross
+@1540 press cross
+@1541 release cross
+@1600 press cross
+@1601 release cross
+@1660 press cross
+@1661 release cross
+@1720 stick 0.0 0.0
+@1730 assert ex190>9.0
+@1731 assert ent106=1
+@1732 assert eyes>=1
+@1772 assert eyes>=2
+@1872 level water_2 0
+@1942 assert level_ok=1
+@1943 assert ent129=0
+@1952 stick 0.707 0.707
+@2007 stick 0.0 0.0
+@2017 stick 0.707 -0.707
+@2037 stick 0.0 0.0
+@2052 assert prompt=127
+@2057 press cross
+@2058 release cross
+@2112 stick 0.707 -0.707
+@2137 stick 0.0 0.0
+@2152 assert prompt=127
+@2157 press cross
+@2158 release cross
+@2212 assert ent128=1
+@2213 assert ent129=1
+@2222 stick -0.707 0.707
+@2264 stick 0.0 0.0
+@2282 stick 0.707 0.707
+@2412 stick 0.0 0.0
+@2422 stick -0.707 0.707
+@2480 stick 0.0 0.0
+@2492 assert prompt=126
+@2497 press cross
+@2498 release cross
+@2552 press cross
+@2553 release cross
+@2612 assert water=3
+@2622 stick 0.707 -0.707
+@2684 stick 0.0 0.0
+@2692 stick 0.707 0.707
+@2752 press cross
+@2753 release cross
+@2812 press cross
+@2813 release cross
+@2872 press cross
+@2873 release cross
+@2932 press cross
+@2933 release cross
+@2992 stick 0.0 0.0
+@3002 assert ex130>7.0
+@3007 assert ent131=1
+@3008 assert eyes>=1
+@3048 assert eyes>=3
+@3148 level library_2 0
+@3218 assert level_ok=1
+@3228 stick 0.707 0.707
+@3388 assert px<-5.0
+@3588 stick 0.0 0.0
+@3593 assert px>0.0
+@3608 stick 0.707 -0.707
+@3658 stick 0.0 0.0
+@3668 assert prompt=153
+@3673 press cross
+@3674 release cross
+@3703 stick 0.707 0.707
+@3773 stick 0.0 0.0
+@3783 stick -0.707 0.707
+@3843 stick 0.0 0.0
+@3853 assert prompt=154
+@3858 press cross
+@3859 release cross
+@3888 stick -0.707 -0.707
+@3963 stick 0.0 0.0
+@3973 stick -0.707 0.707
+@4033 stick 0.0 0.0
+@4043 assert prompt=155
+@4048 press cross
+@4049 release cross
+@4088 assert eyes>=1
+@4128 assert eyes>=4
+@4168 assert screen=5
+@4173 shot full_choice
+@4188 press cross
+@4189 release cross
+@4258 assert screen=3
+@4263 shot full_ending
+@4348 press cross
+@4349 release cross
+@4418 assert screen=4
+@4423 shot full_credits
+@4438 quit

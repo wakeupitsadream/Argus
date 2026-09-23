@@ -187,8 +187,12 @@ void plates_update(entities_t *es, float px, float pz) {
         int cx = 0, cz = 0;
         if (!mech_cell_of(l, e, &cx, &cz)) continue;
 
-        /* Сравниваем по клетке, а не по расстоянию: блок всегда в центре клетки. */
-        int pressed = (player_in && pcx == cx && pcz == cz) ? 1 : 0;
+        /* Сравниваем по клетке, а не по расстоянию: блок всегда в центре клетки.
+         * params[0] = 1 — плита «только под груз»: Око её не продавливает. Без этого
+         * любая головоломка «доставь блок на плиту» решается ногой, а блок остаётся
+         * декорацией (нашла рецензия Часовых Террас). */
+        int heavy = e->def->params[0] == 1;
+        int pressed = (!heavy && player_in && pcx == cx && pcz == cz) ? 1 : 0;
         if (!pressed) pressed = mech_type_in_cell(es, ENT_BLOCK, cx, cz);
         /* Плот тоже давит на плиту: иначе головоломка «подвести плавучий блок» нерешаема. */
         if (!pressed) pressed = mech_type_in_cell(es, ENT_FLOAT_BLOCK, cx, cz);

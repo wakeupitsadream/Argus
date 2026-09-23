@@ -1,8 +1,10 @@
 id,ru,en
 TERRACES_1_CAPTION,Часовые Террасы,The Hour Terraces
 TERRACES_2_CAPTION,Часовые Террасы: лестницы,Hour Terraces: the stairs
-TERRACES_STONE_1,"Механизм не помнит, зачем его завели.",The mechanism forgets why it was wound.
-TERRACES_STONE_2,"Лестница ведёт туда, куда её повернули.",A stair goes where it was turned to go.
-TERRACES_ECHO_OFFER,"Я считал обороты. Сбился на девятьсот девяносто девятом.","I counted the turns. Lost the thread at nine hundred ninety-nine."
 TERRACES_3_CAPTION,Часовые Террасы: большой глаз,Hour Terraces: the great eye
-TERRACES_STONE_3,"Время идёт кругом. Идти за ним — значит вернуться.",Time goes in a circle. To follow it is to return.
+TERRACES_STONE_1,"Механизм не помнит, зачем его завели. Он просто идёт.",The mechanism forgets why it was wound. It just runs.
+TERRACES_STONE_2,"Лестница ведёт туда, куда её повернули, а не туда, куда смотришь.","A stair goes where it was turned, not where you look."
+TERRACES_STONE_3,"Он считал обороты, чтобы не уснуть. Считать тоже надоедает.","He counted the turns to stay awake. Counting wears thin too."
+TERRACES_ECHO_OFFER,"Я считал за него обороты. Сбился на девятьсот девяносто девятом — и глаз укатился вниз.","I counted the turns for him. Lost the thread at nine hundred ninety-nine, and the eye rolled down."
+TERRACES_ECHO_PROGRESS,"Он на втором острове, за воротами наверху. Лестницу надо повернуть.","It is on the second island, past the gate at the top. The stair must be turned."
+TERRACES_ECHO_DONE,"Нашёл. Возьми перо. Я больше не считаю — пусть идёт, как идёт.","You found it. Take the feather. I no longer count — let it run as it runs."

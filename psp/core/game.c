@@ -990,6 +990,31 @@ static float entity_glow_size(const entity_t *e, float *bright) {
     }
 }
 
+/* Постамент панели памяти показывает порядок сам: пока панель не собрана, её
+ * последовательность проигрывается по кругу, и постамент вспыхивает на своём такте.
+ * Это и есть головоломка на память из GDD §1.3 — «запомнить, как гаснут огни, и
+ * повторить», а не перебор шести порядков наугад. Собранная панель гасит показ. */
+#define TRIGGER_BEAT_FRAMES 40   /* 0,67 с на огонь; после последнего — пауза в два такта */
+
+static float trigger_glow(const game_t *g, const entity_t *e, float *bright) {
+    *bright = 0.16f;                                   /* тлеет всегда: видно, что это кнопка */
+    const entity_t *panel = entities_by_id_const(&g->entities, e->def->params[1]);
+    if (!panel || !panel->def || panel->def->type != ENT_MEMORY_PANEL) return 0.55f;
+    if (panel->outputs & 1u) { *bright = 0.45f; return 0.55f; }   /* собрана: ровный свет */
+    const int *seq = panel->def->params;
+    int len = seq[4] > 0 ? seq[4] : 0;
+    if (len <= 0) while (len < 4 && seq[len] != 0) len++;
+    if (len <= 0) return 0.55f;
+    int beats = len + 2;                                /* последовательность + пауза */
+    int beat = (g->frame / TRIGGER_BEAT_FRAMES) % beats;
+    if (beat < len && seq[beat] == e->def->params[0]) {
+        float t = (float)(g->frame % TRIGGER_BEAT_FRAMES) / (float)TRIGGER_BEAT_FRAMES;
+        *bright = 0.35f + 0.65f * (1.0f - t);          /* вспыхнул и гаснет к концу такта */
+        return 0.9f;
+    }
+    return 0.55f;
+}
+
 /* Веер перьев на хвосте. Раскрывается по мере прогресса: большие глаза дают по перу
  * с запасом, малые — по одному на четыре. Перья кладутся от краёв к центру, поэтому
  * веер растёт симметрично, а не отращивает одну сторону. */
@@ -1094,6 +1119,7 @@ static void build_entities(game_t *g, frame_t *f) {
 
         float bright = 0.0f;
         float size = entity_glow_size(e, &bright);
+        if (type == ENT_TRIGGER) size = trigger_glow(g, e, &bright);
         if (size > 0.0f && bright > 0.0f) {
             /* Свет рисуется двумя билбордами: широкий тёплый ореол цветом акцента
              * и маленькое яркое ядро. Один большой белый круг на аддитиве просто

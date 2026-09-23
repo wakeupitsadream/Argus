@@ -571,6 +571,58 @@ TEST(test_mech_water_walk) {
     level_free(&l);
 }
 
+/* ——— плита «только под груз» ——— */
+
+enum { HP_PLATE = 1, HP_BLOCK = 2, HP_DOOR = 3, HP_LIGHT = 4 };
+static const row_t HEAVY_ROWS[] = {
+    { HP_PLATE, ENT_PLATE, 3, 3, 1, 0, 0, 0, 0 }, /* params[0] = 1: только под груз */
+    { HP_BLOCK, ENT_BLOCK, 2, 3, 0, 0, 0, 0, 0 },
+    { HP_DOOR,  ENT_DOOR,  5, 3, 0, 0, 0, 0, 0 },
+    { HP_LIGHT, ENT_PLATE, 3, 5, 0, 0, 0, 0, 0 }, /* обычная: давит и Око */
+};
+static const level_link_t HEAVY_LINKS[] = { { HP_PLATE, 0, 0, HP_DOOR, 0, 0 } };
+
+TEST(test_mech_heavy_plate) {
+    level_entity_t ents[4];
+    fill_ents(HEAVY_ROWS, 4, MAP_FLAT, ents);
+    mech_spec_t spec = {0};
+    spec.map = MAP_FLAT;
+    spec.ents = ents;
+    spec.ent_count = 4;
+    spec.links = HEAVY_LINKS;
+    spec.link_count = 1;
+
+    size_t len = 0;
+    void *blob = build_mech_level(&spec, &len);
+    level_t l;
+    CHECK_EQ(level_load(&l, blob, len), 0);
+    world_t w;
+    world_reset(&w);
+    entities_t es;
+    entities_init(&es, &l, &w);
+    entity_t *heavy = entities_by_id(&es, HP_PLATE);
+    entity_t *light = entities_by_id(&es, HP_LIGHT);
+    entity_t *door = entities_by_id(&es, HP_DOOR);
+    CHECK(heavy && light && door);
+    if (!heavy || !light || !door) { level_free(&l); return; }
+
+    /* Око стоит на обеих плитах по очереди: обычная давится, тяжёлая — нет. */
+    plates_update(&es, cell_c(3, M_W), cell_c(5, M_H));
+    CHECK_EQ(light->state, 1);
+    plates_update(&es, cell_c(3, M_W), cell_c(3, M_H));
+    CHECK_EQ(heavy->state, 0);
+    entities_propagate(&es);
+    CHECK_EQ(door->state, 0);
+
+    /* Блок, задвинутый на тяжёлую плиту, давит её и открывает дверь. */
+    CHECK_EQ(block_push(&es, HP_BLOCK, 1, 0), 1);
+    plates_update(&es, cell_c(0, M_W), cell_c(0, M_H));
+    CHECK_EQ(heavy->state, 1);
+    entities_propagate(&es);
+    CHECK_EQ(door->state, 1);
+    level_free(&l);
+}
+
 /* ——— панель памяти ——— */
 
 enum { MEM_SEQ = 1, MEM_DOOR = 2, MEM_LEN = 3, MEM_EMPTY = 4, MEM_LEVER = 5 };
@@ -1035,6 +1087,7 @@ void tests_mech(void) {
     RUN(test_mech_plates);
     RUN(test_mech_water);
     RUN(test_mech_water_walk);
+    RUN(test_mech_heavy_plate);
     RUN(test_mech_memory);
     RUN(test_mech_memory_by_triggers);
     RUN(test_mech_segment);

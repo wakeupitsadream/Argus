@@ -1,5 +1,8 @@
 id,ru,en
 WATER_1_CAPTION,Тихая Вода,The Quiet Water
 WATER_2_CAPTION,Тихая Вода: шлюзы,Quiet Water: the gates
-WATER_STONE_1,"Вода поднимает всё, что согласно плыть.",Water lifts whatever agrees to float.
-WATER_STONE_2,"Отражение знает дорогу раньше идущего.",The reflection knows the way before the walker does.
+WATER_STONE_1,"Вода поднимает всё, что согласно плыть. Остальное ждёт на дне.",Water lifts whatever agrees to float. The rest waits on the bottom.
+WATER_STONE_2,"Отражение знает дорогу раньше идущего — и никому не мешает идти.",The reflection knows the way before the walker — and stops no one from walking.
+WATER_ECHO_OFFER,"Отмель мелеет, пока на неё смотрят. Глаз лежит там, за бродом.","The shoal grows shallow while watched. The eye lies there, past the ford."
+WATER_ECHO_PROGRESS,"Брод открыт, пока вода низкая. Поднимешь — закроется, зато всплывёт понтон.","The ford is open while the water is low. Raise it and it closes, but the pontoon floats up."
+WATER_ECHO_DONE,"Вот он, сухой. Перо тебе. Вода сама знает, когда подняться.","There it is, dry. A feather for you. The water knows on its own when to rise."

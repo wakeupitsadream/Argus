@@ -11,7 +11,7 @@ PAUSE_TITLE,Пауза,Paused
 PAUSE_RESUME,Продолжить,Resume
 PAUSE_MENU,В меню,Back to Menu
 HUB_NAME,Веко,The Eyelid
-HUB_CAPTION,Здесь дремлют сто взглядов,Here a hundred gazes doze
+HUB_CAPTION,Здесь дремлют сто взглядов. Один не спит.,Here a hundred gazes doze. One does not.
 REGION_MIRRORS_NAME,Сад Зеркал,The Mirror Garden
 REGION_MIRRORS_CAPTION,"Свет ищет, на что смотреть",Light looks for something to see
 REGION_TERRACES_NAME,Часовые Террасы,The Hour Terraces
@@ -24,15 +24,15 @@ HINT_MOVE,Стик — идти,Stick to move
 HINT_CAMERA,L и R — повернуть мир,L and R turn the world
 HINT_OBSERVE,Держи круг — взгляд,Hold Circle to gaze
 HINT_INTERACT,Крест — взаимодействие,Cross to interact
-STONE_1,Сто глаз. Ни одного сна.,A hundred eyes. Not one dream.
-STONE_2,Пока смотришь — мир стоит,"While you watch, the world holds still"
-STONE_3,Тысячу лет он не закрыл ни одного,For a thousand years he closed not one
-STONE_4,"Что не видят, то свободно",What is not seen is free
-STONE_5,Гера забрала глаза и раздала их перьям,Hera took the eyes and gave them to the feathers
-STONE_6,Усталость стража — милость мира,The watchman's weariness is the world's mercy
-ECHO_1,Я помню форму. Имя — нет.,I remember the shape. Not the name.
-ECHO_2,Не буди всё сразу. Начни с одного.,Don't wake it all at once. Start with one.
-ECHO_3,Отвернись — и я снова двинусь.,"Look away, and I will move again."
+STONE_1,"Сто глаз, и ни один не видел сна.","A hundred eyes, and not one has seen a dream."
+STONE_2,"Пока на мир смотрят, он не смеет меняться.","While the world is watched, it dares not change."
+STONE_3,"Тысячу лет он не закрывал ни одного. Потом закрыл все.","For a thousand years he closed not one. Then he closed them all."
+STONE_4,"Что не видят, то свободно. Что свободно, то страшно.","What is not seen is free. What is free is frightening."
+STONE_5,"Глаза были не его. Их дали ему смотреть за чужим.","The eyes were never his. They were given him to watch what was not his."
+STONE_6,"Усталость стража — единственная милость, какую он может дать.","A watchman's weariness is the only mercy he has to give."
+ECHO_1,"Ты последний, кто смотрит. Не спеши будить остальных.","You are the last one watching. Do not hurry to wake the others."
+ECHO_2,"Один глаз открыл — мир уже вздрогнул. Слышишь?","One eye opened, and the world has already flinched. Do you hear it?"
+ECHO_3,"Вот перо. Он и сам просил, чтобы за ним не смотрели.","Here is a feather. He too once asked not to be watched."
 SAVED,Сохранено,Saved
 EYE_OPENED,Глаз открыт,An eye opens
 EYE_COUNT,Глаза: %d,Eyes: %d
@@ -41,9 +41,9 @@ GATE_LOCKED,Воротам нужны четыре больших глаза,The
 FEATHER_FOUND,Перо раскрылось,A feather unfolds
 LOADING,Сон расходится…,The dream parts…
 ENDING_A_TITLE,Аргус открыл глаза,Argus opens his eyes
-ENDING_A_LINE,Мир снова под присмотром — и снова неподвижен.,The world is watched again. And still again.
+ENDING_A_LINE,"Мир снова под присмотром. Он в безопасности — и снова не смеет меняться.","The world is watched again. It is safe — and once more it dares not change."
 ENDING_B_TITLE,Око закрылось,The last eye closes
-ENDING_B_LINE,"Никто не смотрит. Значит, можно меняться.",No one is watching. So it may change.
+ENDING_B_LINE,"Никто не смотрит. Мир вздохнул и пошёл дальше — без гарантий.","No one is watching. The world breathed out and moved on — with no promises."
 CREDITS_LINE,"Сделано в Оренбурге, одним человеком и машиной.",Made in Orenburg by one person and a machine.
 CHOICE_TITLE,Последний глаз,The last eye
 CHOICE_LINE,"Аргус спит. Разбудить — или закрыться следом?","Argus sleeps. Wake him, or close after him?"
