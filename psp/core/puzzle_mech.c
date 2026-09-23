@@ -289,6 +289,11 @@ int memory_input(entities_t *es, int entity_id, int value) {
     tween_start(&e->anim, (float)step / (float)len, MECH_LEVER_FRAMES);
     if (step < len) return 1;
     mech_set_out0(e, 1); /* последнее верное значение включает выход панели */
+    /* Собранная панель запоминается флагом мира: entities_init восстановит её
+     * вместе со всем, что она открыла (см. ENT_MEMORY_PANEL в core/entity.c). */
+    if (es->world && entity_id > 0 && entity_id <= WORLD_ENTITY_FLAG_MAX) {
+        world_set_flag(es->world, entity_id, 1);
+    }
     return 2;
 }
 

@@ -649,6 +649,24 @@ TEST(test_mech_memory) {
     CHECK_EQ(memory_input(&es, MEM_EMPTY, 1), 0);
     CHECK_EQ(memory_input(&es, MEM_LEVER, 1), 0);
     CHECK_EQ(memory_input(&es, 99, 1), 0);
+
+    /* Собранная панель помнится миром: после перезагрузки острова она собрана,
+     * а дверь за ней открыта. Ради этого случая — возврат в читальню Библиотеки
+     * с соседнего острова — флаг и заведён. */
+    CHECK_EQ(world_flag(&w, MEM_SEQ), 1);
+    CHECK_EQ(world_flag(&w, MEM_LEN), 1);
+    CHECK_EQ(world_flag(&w, MEM_EMPTY), 0);
+    entities_init(&es, &l, &w);
+    panel = entities_by_id(&es, MEM_SEQ);
+    door = entities_by_id(&es, MEM_DOOR);
+    CHECK(panel != NULL && door != NULL);
+    if (panel && door) {
+        CHECK_EQ(panel->outputs & 1, 1);
+        CHECK_EQ(panel->state, 3);
+        CHECK_EQ(memory_input(&es, MEM_SEQ, 7), 2); /* уже собрана — ввод не ломает */
+        entities_propagate(&es);
+        CHECK_EQ(door->state, 1);
+    }
     level_free(&l);
 }
 

@@ -1,0 +1,51 @@
+# Обратные пути: игрок, вернувшийся на остров с соседнего, не должен оказаться заперт.
+# Две ловушки, найденные рецензией и проверкой: восточная терраса terraces_1 за воротами
+# и читальня library_1 за створкой. Лечение — рычаг 86 с настоящей связью и память мира
+# о собранных панелях и включённых рычагах (core/entity.c).
+@20 press cross
+@21 release cross
+# --- Террасы: прибытие с terraces_2 на восточную террасу, ворота закрыты ---
+@60 level terraces_1 82
+@130 assert level_ok=1
+@131 assert ent85=0
+@140 stick -0.707 -0.707
+@175 stick 0.0 0.0
+@185 assert prompt=86
+@190 press cross
+@191 release cross
+@240 assert ent85=1
+@241 assert seg2=1
+@250 stick -0.707 -0.707
+@340 stick 0.0 0.0
+@350 assert px<6.5
+# рычаг помнится миром: после ухода и возвращения ворота уже открыты
+@360 level terraces_2 91
+@420 level terraces_1 82
+@490 assert ent85=1
+@491 assert seg2=1
+# --- Библиотека: собрать панель, уйти на library_2, вернуться в читальню ---
+@500 level library_1 0
+@570 assert level_ok=1
+@580 stick 0.707 0.707
+@770 stick 0.0 0.0
+@790 assert prompt=142
+@800 press cross
+@801 release cross
+@830 press cross
+@831 release cross
+@860 press cross
+@861 release cross
+@890 press cross
+@891 release cross
+@930 assert ent142=4
+@931 assert seg1=1
+@940 level library_2 150
+@1000 level library_1 149
+@1070 assert level_ok=1
+@1071 assert ent142=4
+@1072 assert seg1=1
+# из читальни на запад сквозь открытую створку — в зал
+@1080 stick -0.707 -0.707
+@1160 stick 0.0 0.0
+@1170 assert px<4.5
+@1180 quit

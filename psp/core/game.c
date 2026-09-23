@@ -1262,8 +1262,13 @@ static void build_hud(game_t *g, frame_t *f) {
     if (hint_a > 0.0f) {
         unsigned a = (unsigned)(hint_a * 255.0f);
         unsigned c = (a << 24) | (dim & 0x00FFFFFFu);
-        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 14, c, "%s", STR(STR_HINT_CAMERA));
-        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 30, c, "%s", STR(STR_HINT_OBSERVE));
+        /* На острове с закреплённым ракурсом обещать поворот мира нельзя:
+         * подсказка врёт, а игрок жмёт L и R впустую. */
+        int y_obs = g->level.cam_lock ? SCR_H - 14 : SCR_H - 30;
+        if (!g->level.cam_lock) {
+            frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, SCR_H - 14, c, "%s", STR(STR_HINT_CAMERA));
+        }
+        frame_push_text_shadow(f, FONT_BODY, TEXT_LEFT, 20, y_obs, c, "%s", STR(STR_HINT_OBSERVE));
     }
     /* Язык и счёт глаз — в правом нижнем углу: наверху их перекрывала бы карточка
      * с названием острова, а внизу справа пусто всегда. */

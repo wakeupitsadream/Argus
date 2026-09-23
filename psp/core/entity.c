@@ -40,6 +40,22 @@ static void ent_flag_set(entities_t *es, int id) {
     world_set_flag(es->world, id, 1);
 }
 
+static void ent_flag_clear(entities_t *es, int id) {
+    if (!es->world || id <= 0 || id > WORLD_ENTITY_FLAG_MAX) return;
+    world_set_flag(es->world, id, 0);
+}
+
+/* Длина последовательности панели памяти: params[4], а при нуле — число ненулевых
+ * params[0..3]. Та же арифметика, что в memory_input (core/puzzle_mech.c). */
+static int ent_memory_len(const level_entity_t *def) {
+    int len = def->params[4];
+    if (len <= 0) {
+        len = 0;
+        while (len < 4 && def->params[len] != 0) len++;
+    }
+    return len > 4 ? 4 : len;
+}
+
 /* seg_states лежит внутри level_t, но это состояние игры, а не данные файла
  * (docs/FORMATS.md, «Вращающиеся сегменты»). Контракт даёт нам const level_t *,
  * поэтому const снимается только ради этого поля. */
@@ -238,6 +254,14 @@ void entities_init(entities_t *es, const level_t *l, world_t *w) {
             e->state = 1;  /* уже переключено / открыто */
             e->outputs = 1;
             break;
+        case ENT_MEMORY_PANEL:
+            /* Собранная панель остаётся собранной: иначе створка, которую она
+             * открыла, закрывается при каждом возвращении на остров, и игрок,
+             * прибывший за неё с соседнего острова, заперт навсегда. */
+            e->state = (unsigned char)ent_memory_len(def);
+            e->outputs = 1;
+            tween_set(&e->anim, 1.0f);
+            break;
         default:
             break;
         }
@@ -331,6 +355,10 @@ int entities_interact(entities_t *es, float px, float pz, float dir_x, float dir
     case ENT_LEVER:
         best->state = (unsigned char)(best->state ^ 1u);
         best->outputs = (unsigned char)((best->outputs & ~1u) | best->state);
+        /* Положение рычага — часть мира, а не острова: entities_init восстанавливает
+         * его по флагу. Без этого ворота на обратном пути всегда заперты. */
+        if (best->state) ent_flag_set(es, id);
+        else ent_flag_clear(es, id);
         break;
 
     case ENT_MIRROR:

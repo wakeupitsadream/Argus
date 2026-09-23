@@ -277,6 +277,28 @@ TEST(test_entity_lever_door) {
     scene_pos(ID_DOOR, &dx, &dz);
     CHECK_EQ(entities_interact(&es, dx, dz, 1.0f, 0.0f, 0.3f), 0);
 
+    /* Положение рычага — часть мира: после ухода с острова и возвращения (новый
+     * entities_init с тем же миром) включённый рычаг включён, а дверь за ним
+     * открыта. Иначе игрок, вернувшийся за ворота, заперт навсегда. */
+    CHECK_EQ(entities_interact(&es, lx + 0.4f, lz, 1.0f, 0.0f, E_REACH), ID_LEVER);
+    CHECK_EQ(world_flag(&w, ID_LEVER), 1);
+    entities_init(&es, &l, &w);
+    lever = entities_by_id(&es, ID_LEVER);
+    door = entities_by_id(&es, ID_DOOR);
+    CHECK(lever != NULL && door != NULL);
+    if (lever && door) {
+        CHECK_EQ(lever->state, 1);
+        CHECK_EQ(lever->outputs, 1);
+        entities_propagate(&es);
+        CHECK_EQ(door->state, 1);
+        /* выключенный рычаг забывается: флаг снят */
+        CHECK_EQ(entities_interact(&es, lx + 0.4f, lz, 1.0f, 0.0f, E_REACH), ID_LEVER);
+        CHECK_EQ(world_flag(&w, ID_LEVER), 0);
+        entities_init(&es, &l, &w);
+        lever = entities_by_id(&es, ID_LEVER);
+        if (lever) CHECK_EQ(lever->state, 0);
+    }
+
     level_free(&l);
 }
 
