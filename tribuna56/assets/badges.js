@@ -25,6 +25,10 @@ const CLUB_LOGOS = {
   'хк союз': 'soyuz.png',
   'цск ввс': 'csk-vvs.png',
   'салават юлаев': 'salavat.png',
+  'буревестник': 'burevestnik.png',
+  'хк буревестник': 'burevestnik.png',
+  'сапсан': 'sapsan.png',
+  'хк сапсан': 'sapsan.png',
   'хк салават юлаев': 'salavat.png',
   'сшор №1 цск ввс': 'csk-vvs.png', // clubKey('СШОР №1-ЦСК ВВС')
 };
